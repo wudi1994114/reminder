@@ -248,6 +248,7 @@ const calendarOptions = computed(() => ({
     console.log('事件被拖拽（CalendarDisplay）:', info);
     console.log('当前视图类型:', info.view?.type || '未知视图');
     console.log('原始事件ID:', info.event.id);
+    console.log('原始事件标题:', info.event.title);
     
     // 确保使用本地时区的日期
     const dropWithLocalTime = {
@@ -255,14 +256,21 @@ const calendarOptions = computed(() => ({
       event: {
         ...info.event,
         id: info.event.id, // 确保ID被复制
+        title: info.event.title, // 添加标题
         start: info.event.start ? new Date(info.event.start) : null,
         end: info.event.end ? new Date(info.event.end) : null,
+        allDay: info.event.allDay,
+        backgroundColor: info.event.backgroundColor,
+        borderColor: info.event.borderColor,
+        textColor: info.event.textColor,
+        classNames: info.event.classNames,
         extendedProps: info.event.extendedProps ? {...info.event.extendedProps} : {}
       }
     };
     
     console.log('处理后的拖拽事件时间(本地):', dropWithLocalTime.event.start, dropWithLocalTime.event.end);
     console.log('处理后的事件ID:', dropWithLocalTime.event.id);
+    console.log('处理后的事件标题:', dropWithLocalTime.event.title);
     console.log('事件extendedProps:', dropWithLocalTime.event.extendedProps);
     console.log('将触发event-drop事件');
     
@@ -275,6 +283,7 @@ const calendarOptions = computed(() => ({
     console.log('事件大小被调整（CalendarDisplay）:', info);
     console.log('当前视图类型:', info.view?.type || '未知视图');
     console.log('原始事件ID:', info.event.id);
+    console.log('原始事件标题:', info.event.title);
     
     // 确保使用本地时区的日期
     const resizeWithLocalTime = {
@@ -282,14 +291,21 @@ const calendarOptions = computed(() => ({
       event: {
         ...info.event,
         id: info.event.id, // 确保ID被复制
+        title: info.event.title, // 添加标题
         start: info.event.start ? new Date(info.event.start) : null,
         end: info.event.end ? new Date(info.event.end) : null,
+        allDay: info.event.allDay,
+        backgroundColor: info.event.backgroundColor,
+        borderColor: info.event.borderColor,
+        textColor: info.event.textColor,
+        classNames: info.event.classNames,
         extendedProps: info.event.extendedProps ? {...info.event.extendedProps} : {}
       }
     };
     
     console.log('处理后的调整大小事件时间(本地):', resizeWithLocalTime.event.start, resizeWithLocalTime.event.end);
     console.log('处理后的事件ID:', resizeWithLocalTime.event.id);
+    console.log('处理后的事件标题:', resizeWithLocalTime.event.title);
     console.log('事件extendedProps:', resizeWithLocalTime.event.extendedProps);
     console.log('将触发event-resize事件');
     
@@ -943,5 +959,123 @@ const currentMonth = computed(() => {
   font-size: 9px;
   padding: 0px 4px;
   opacity: 0.8;
+}
+
+/* FullCalendar 更多事件弹窗样式定制 */
+:deep(.fc-popover.fc-more-popover) {
+  background-color: white;
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  padding: 0;
+  min-width: 220px;
+  animation: popoverFadeIn 0.2s ease-out;
+}
+
+/* 弹窗头部 */
+:deep(.fc-popover-header) {
+  background-color: var(--theme-primary-color);
+  color: white;
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 14px;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 头部标题 */
+:deep(.fc-popover-title) {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 关闭按钮 */
+:deep(.fc-popover-close) {
+  font-size: 16px;
+  color: white;
+  opacity: 0.8;
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+:deep(.fc-popover-close:hover) {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 弹窗内容 */
+:deep(.fc-popover-body) {
+  padding: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 内容中的事件项 */
+:deep(.fc-popover-body .fc-event) {
+  margin-bottom: 5px;
+  border-radius: 4px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+:deep(.fc-popover-body .fc-event:hover) {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+:deep(.fc-popover-body .fc-event:last-child) {
+  margin-bottom: 0;
+}
+
+/* 事件内容 */
+:deep(.fc-popover-body .fc-event-title) {
+  font-size: 12px;
+  padding: 3px 6px;
+}
+
+/* 弹窗入场动画 */
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+  :deep(.fc-popover.fc-more-popover) {
+    min-width: 180px;
+    max-width: 300px;
+  }
+  
+  :deep(.fc-popover-header) {
+    padding: 8px 10px;
+  }
+  
+  :deep(.fc-popover-title) {
+    font-size: 13px;
+  }
+  
+  :deep(.fc-popover-body) {
+    padding: 8px;
+    max-height: 250px;
+  }
 }
 </style> 
