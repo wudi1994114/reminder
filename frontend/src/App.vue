@@ -8,6 +8,7 @@ import AppHeader from './components/AppHeader.vue';
 import CalendarDisplay from './components/CalendarDisplay.vue';
 import EventModal from './components/EventModal.vue';
 import UserProfileModal from './components/UserProfileModal.vue';
+import UpcomingRemindersModal from './components/UpcomingRemindersModal.vue';
 import { 
   login,
   register,
@@ -148,6 +149,9 @@ const newEvent = ref({
 // --- 新增：用户个人资料模态框状态和数据 ---
 const showUserProfileModal = ref(false); // 控制模态框显示
 const userProfileFormData = ref({}); // 用于编辑的表单数据副本
+
+// 新增：控制即将提醒模态框显示
+const showUpcomingRemindersModal = ref(false);
 
 // --- 日历 API 引用 ---
 const calendarRef = ref(null);
@@ -1193,8 +1197,8 @@ async function handleDeleteEvent(eventId) {
 // 添加处理即将提醒按钮点击的方法
 const handleUpcomingRemindersClick = () => {
   console.log('处理即将提醒按钮点击');
-  // TODO: 实现显示即将到来的提醒列表逻辑
-  showNotification('即将提醒功能正在开发中', 'info');
+  // 显示即将提醒模态框
+  showUpcomingRemindersModal.value = true;
 };
 
 // 添加处理复杂提醒按钮点击的方法
@@ -1202,6 +1206,19 @@ const handleComplexRemindersClick = () => {
   console.log('处理复杂提醒按钮点击');
   // TODO: 实现显示复杂提醒列表逻辑
   showNotification('复杂提醒功能正在开发中', 'info');
+};
+
+// 处理点击即将提醒列表中的提醒项
+const handleUpcomingReminderClick = (reminderData) => {
+  console.log('处理点击即将提醒列表中的提醒项:', reminderData);
+  
+  // 设置当前编辑的提醒
+  currentEventForModal.value = reminderData;
+  isEditingEvent.value = true;
+  
+  // 打开事件编辑模态框
+  uiState.isEventModalOpen = true;
+  showModal.value = true;
 };
 
 </script>
@@ -1304,6 +1321,16 @@ const handleComplexRemindersClick = () => {
           @close="uiState.isProfileModalOpen = false"
           @save="saveUserProfile"
         />
+
+        <!-- 即将提醒模态框 -->
+        <Teleport to="body">
+          <UpcomingRemindersModal
+            v-if="showUpcomingRemindersModal"
+            :show="showUpcomingRemindersModal"
+            @close="showUpcomingRemindersModal = false"
+            @reminder-click="handleUpcomingReminderClick"
+          />
+        </Teleport>
       </template>
     </div>
   </div>

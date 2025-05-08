@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -60,6 +61,16 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
 
     public List<SimpleReminder> getSimpleRemindersByToUser(Long userId) {
         return simpleReminderRepository.findByToUserId(userId);
+    }
+
+    /**
+     * 获取最近10个即将到来的提醒
+     */
+    public List<SimpleReminder> getUpcomingReminders() {
+        // 获取当前时间
+        OffsetDateTime now = OffsetDateTime.now();
+        // 查询即将到来的10个提醒
+        return simpleReminderRepository.findTop10ByEventTimeAfterOrderByEventTimeAsc(now);
     }
 
     @Transactional

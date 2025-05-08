@@ -24,5 +24,8 @@ public interface SimpleReminderRepository extends JpaRepository<SimpleReminder, 
     // Add method for duplicate check in ComplexReminderSchedulingJob
     boolean existsByOriginatingComplexReminderIdAndEventTime(Long complexReminderId, OffsetDateTime eventTime);
 
+    // 查询最近的10个提醒(按eventTime从近到远排序)
+    List<SimpleReminder> findTop10ByEventTimeAfterOrderByEventTimeAsc(OffsetDateTime now);
+
     // 可以根据需要添加更多查询方法
 } 

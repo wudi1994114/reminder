@@ -89,6 +89,7 @@ export const getSimpleReminderById = (id) => apiClient.get(`/reminders/simple/${
 export const createEvent = (reminder) => apiClient.post('/reminders/simple', reminder);
 export const updateEvent = (id, reminder) => apiClient.put(`/reminders/simple/${id}`, reminder);
 export const deleteEvent = (id) => apiClient.delete(`/reminders/simple/${id}`);
+export const getUpcomingReminders = () => apiClient.get('/reminders/upcoming');
 
 // --- 复杂提醒事项相关的API调用 ---
 export const getAllComplexReminders = () => apiClient.get('/reminders/complex');

@@ -115,6 +115,17 @@ public class ReminderEventController {
     }
 
     /**
+     * 获取即将到来的提醒事项(最近10个)
+     * GET /api/reminders/upcoming
+     */
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<SimpleReminderDTO>> getUpcomingReminders() {
+        List<SimpleReminder> reminders = reminderService.getUpcomingReminders();
+        List<SimpleReminderDTO> reminderDTOs = reminderMapper.toSimpleReminderDTOList(reminders);
+        return ResponseEntity.ok(reminderDTOs);
+    }
+
+    /**
      * 通过ID删除简单提醒事项
      * DELETE /api/reminders/simple/{id}
      */
