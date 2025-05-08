@@ -1190,6 +1190,20 @@ async function handleDeleteEvent(eventId) {
   }
 }
 
+// 添加处理即将提醒按钮点击的方法
+const handleUpcomingRemindersClick = () => {
+  console.log('处理即将提醒按钮点击');
+  // TODO: 实现显示即将到来的提醒列表逻辑
+  showNotification('即将提醒功能正在开发中', 'info');
+};
+
+// 添加处理复杂提醒按钮点击的方法
+const handleComplexRemindersClick = () => {
+  console.log('处理复杂提醒按钮点击');
+  // TODO: 实现显示复杂提醒列表逻辑
+  showNotification('复杂提醒功能正在开发中', 'info');
+};
+
 </script>
 
 <template>
@@ -1237,6 +1251,8 @@ async function handleDeleteEvent(eventId) {
                 console.log('App.vue接收到event-resize事件:', info);
                 handleEventResize(info);
               }"
+              @upcoming-reminders-click="handleUpcomingRemindersClick"
+              @complex-reminders-click="handleComplexRemindersClick"
             />
           </div>
         </main>

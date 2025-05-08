@@ -31,7 +31,9 @@ const emit = defineEmits([
   'date-select', 
   'event-drop', 
   'event-resize', 
-  'toggle-month-selector'
+  'upcoming-reminders-click',
+  'toggle-month-selector',
+  'complex-reminders-click'
 ]);
 
 // Local ref for FullCalendar component
@@ -210,14 +212,32 @@ const calendarOptions = computed(() => ({
   timeZone: 'local',
   headerToolbar: {
     left: 'prevYear,prev,next,nextYear',
-    center: '',
-    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+    center: 'dayGridMonth,timeGridWeek,timeGridDay',
+    right: 'upcomingReminders,complexReminders'
   },
   buttonText: {
     today: '今天',
     month: '月',
     week: '周',
-    day: '日'
+    day: '日',
+    upcomingReminders: '即将提醒',
+    complexReminders: '复杂提醒'
+  },
+  customButtons: {
+    upcomingReminders: {
+      text: '即将提醒',
+      click: function() {
+        console.log('点击了即将提醒按钮');
+        emit('upcoming-reminders-click');
+      }
+    },
+    complexReminders: {
+      text: '复杂提醒',
+      click: function() {
+        console.log('点击了复杂提醒按钮');
+        emit('complex-reminders-click');
+      }
+    }
   },
   locale: 'zh-cn',
   editable: true,
@@ -741,18 +761,30 @@ const currentMonth = computed(() => {
   display: none !important;
 }
 
+/* 减小工具栏内部间距，使按钮组更紧凑 */
 :deep(.fc-toolbar.fc-header-toolbar) {
-  justify-content: space-between !important;
-  padding: 0 1rem !important;
+  justify-content: center !important; /* 整体居中 */
+  margin-bottom: 0.5em !important;
+  padding: 0 0.5rem !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  margin: 0 !important;
+  gap: 8px !important; /* 增加组间距 */
+  display: flex !important;
+  flex-wrap: nowrap !important;
 }
 
+/* 优化工具栏块之间的间距 */
 :deep(.fc-toolbar-chunk) {
   display: flex !important;
   align-items: center !important;
-  gap: 0.5rem !important;
+  padding: 0 !important;
+  margin: 0 8px !important; /* 增加外边距 */
+  gap: 0.25rem !important; /* 减小按钮组内部间距 */
+}
+
+/* 确保工具栏区域不会占用太多空间 */
+:deep(.fc-header-toolbar) {
+  min-height: 40px !important;
 }
 
 /* 按钮样式 */
@@ -760,7 +792,7 @@ const currentMonth = computed(() => {
   background-color: var(--theme-primary-color) !important;
   border: none !important;
   border-radius: 8px !important;
-  padding: 8px 12px !important;
+  padding: 6px 10px !important; /* 减小按钮内边距 */
   font-weight: 500 !important;
   font-size: 14px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
