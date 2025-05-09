@@ -1039,6 +1039,51 @@ const updatePreviewBasedOnCronExpression = () => {
         currentDate.setMonth(currentDate.getMonth() + 1);
       }
     } 
+    // 处理特定月份的情况
+    else if (hasSpecificMonth) {
+      // 特定月份
+      const specificMonthValue = parseInt(month);
+      let currentDate = new Date(startDate);
+      let count = 0;
+      
+      // 最多查找5年来找出符合条件的日期
+      for (let i = 0; i < 60 && count < maxExecutions; i++) {
+        // 如果当前不是目标月份，调整到目标月份
+        if (currentDate.getMonth() + 1 !== specificMonthValue) {
+          // 如果当前月小于目标月，调整到当年的目标月
+          if (currentDate.getMonth() + 1 < specificMonthValue) {
+            currentDate.setMonth(specificMonthValue - 1);
+          } else {
+            // 如果当前月大于目标月，调整到下一年的目标月
+            currentDate.setFullYear(currentDate.getFullYear() + 1);
+            currentDate.setMonth(specificMonthValue - 1);
+          }
+          currentDate.setDate(1); // 设置为月初
+        }
+        
+        // 设置时间
+        const targetDate = new Date(currentDate);
+        targetDate.setHours(parseInt(hour) || 0);
+        targetDate.setMinutes(parseInt(minute) || 0);
+        targetDate.setSeconds(0);
+        
+        // 检查是否在有效期范围内
+        if (targetDate >= startDate && (!validUntilDate || targetDate <= validUntilDate)) {
+          generatedTimes.push(new Date(targetDate));
+          count++;
+        }
+        
+        // 前进一天
+        currentDate.setDate(currentDate.getDate() + 1);
+        
+        // 如果月份变了且不是目标月份，直接跳到下一年的目标月
+        if (currentDate.getMonth() + 1 !== specificMonthValue) {
+          currentDate.setFullYear(currentDate.getFullYear() + (currentDate.getMonth() + 1 > specificMonthValue ? 1 : 0));
+          currentDate.setMonth(specificMonthValue - 1);
+          currentDate.setDate(1);
+        }
+      }
+    }
     // 默认情况：每天或其他模式
     else {
       // 默认情况：每天或复杂表达式
