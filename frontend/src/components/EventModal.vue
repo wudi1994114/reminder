@@ -341,6 +341,7 @@ const closeModal = () => {
             <option value="MONTHS">月</option>
           </select>
         </div>
+        
         <div class="modal-actions">
           <button type="submit" class="button primary">{{ isEditing ? '保存' : '创建' }}</button>
           <button v-if="isEditing" type="button" class="button danger" @click="handleDelete">删除</button>
@@ -731,5 +732,28 @@ const closeModal = () => {
 .required {
   color: #dc3545;
   margin-left: 3px;
+}
+
+.complex-reminder-button {
+  margin-top: 20px;
+}
+
+.button.full-width {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0f4f9;
+  color: #4a90e2;
+  border: 1px dashed #4a90e2;
+  transition: all 0.2s;
+}
+
+.button.full-width:hover {
+  background-color: #e6effc;
+}
+
+.button-icon {
+  font-weight: bold;
 }
 </style> 

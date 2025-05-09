@@ -27,7 +27,7 @@ const props = defineProps({
 });
 
 // Emits sent to parent (App.vue)
-const emit = defineEmits(['logout', 'open-profile', 'toggle-month-selector', 'select-month']);
+const emit = defineEmits(['logout', 'open-profile', 'toggle-month-selector', 'select-month', 'header-action']);
 
 // 删除：不再需要本地 ref 和相关逻辑
 /*
@@ -45,14 +45,33 @@ localSelectedMonthYear.value = props.selectedMonthYear;
 
 <template>
   <header class="app-header">
-    <!-- 新增：左侧占位符，用于居中 -->
-    <div class="header-spacer"></div>
+    <!-- 左侧操作区域 -->
+    <div class="header-actions header-section">
+      <div class="action-buttons">
+        <button 
+          @click="emit('header-action', 'showUpcomingReminders')" 
+          class="action-button upcoming-button"
+          title="即将到来的提醒"
+        >
+          <span class="icon">📅</span>
+          <span class="button-text">即将提醒</span>
+        </button>
+        <button 
+          @click="emit('header-action', 'showComplexReminderList')" 
+          class="action-button complex-button"
+          title="复杂提醒列表"
+        >
+          <span class="icon">⏰</span>
+          <span class="button-text">复杂提醒</span>
+        </button>
+      </div>
+    </div>
 
     <!-- 修改：日期显示区域 -->
     <div class="date-display header-section">
-        <span class="month-display clickable" @click.stop="emit('toggle-month-selector')">
-          {{ selectedYear }}年 {{ currentMonthName }}
-        </span>
+      <span class="month-display clickable" @click.stop="emit('toggle-month-selector')">
+        {{ selectedYear }}年 {{ currentMonthName }}
+      </span>
     </div>
 
     <!-- 修改：用户区域 -->
@@ -87,17 +106,59 @@ localSelectedMonthYear.value = props.selectedMonthYear;
 
 /* Style for sections within the header */
 .header-section {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 
-/* 新增：左侧占位符样式 */
-.header-spacer {
-    /* 尝试让它和右侧用户区域宽度相似 */
-    /* visibility: hidden; 使其不显示但占位 */
-    /* 或者可以计算右侧宽度，但 flexbox 更灵活 */
-    flex-basis: 150px; /* 估算值，可能需要根据用户区实际宽度调整 */
-    flex-shrink: 0;
+/* 左侧操作区域样式 */
+.header-actions {
+  flex-basis: 150px;
+  flex-shrink: 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: none;
+  background-color: #f1f3f5;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #495057;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  background-color: #e9ecef;
+}
+
+.action-button .icon {
+  margin-right: 4px;
+}
+
+.upcoming-button {
+  background-color: #e3f2fd;
+  color: #1976d2;
+}
+
+.upcoming-button:hover {
+  background-color: #bbdefb;
+}
+
+.complex-button {
+  background-color: #e8f5e9;
+  color: #43a047;
+}
+
+.complex-button:hover {
+  background-color: #c8e6c9;
 }
 
 /* 修改：日期显示区域样式 */

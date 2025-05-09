@@ -15,8 +15,11 @@ spring:
       ddl-auto: validate # 或 none
       naming:
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy # 显式指定命名策略
-    # 显示 SQL 语句 (方便调试)
-    show-sql: true
+    # 关闭SQL语句显示
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
   # Quartz 配置 (使用内存 JobStore, 应用重启任务会丢失, 生产环境建议使用 JDBC JobStore)
   quartz:
     job-store-type: memory
@@ -32,6 +35,13 @@ spring:
           auth: true
           starttls:
             enable: true
+
+# 日志配置 - 设置Hibernate日志级别为ERROR以隐藏SQL语句
+logging:
+  level:
+    org.hibernate: ERROR
+    org.hibernate.SQL: ERROR
+    org.hibernate.type.descriptor.sql: ERROR
 
 # JWT Settings
 # IMPORTANT: Replace with a strong, base64-encoded secret key for production! (at least 512 bits / 86 chars for HS512)

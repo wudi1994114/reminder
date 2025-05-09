@@ -56,6 +56,9 @@ CREATE TABLE complex_reminder (
     description TEXT,                                   -- 提醒描述模板
     cron_expression VARCHAR(255) NOT NULL,              -- 定义重复规则的 CRON 表达式
     reminder_type VARCHAR(50) NOT NULL,                 -- 提醒方式 (例如: 'EMAIL', 'SMS')
+    valid_from DATE,                                    -- 提醒生效开始日期
+    valid_until DATE,                                   -- 提醒失效日期
+    max_executions INTEGER,                             -- 最大执行次数限制
     last_generated_ym INTEGER,                          -- 最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL -- 记录最后更新时间
@@ -64,6 +67,7 @@ CREATE TABLE complex_reminder (
 -- 为复杂提醒表常用查询字段创建索引
 CREATE INDEX idx_complex_reminder_from_user ON complex_reminder (from_user_id);
 CREATE INDEX idx_complex_reminder_to_user ON complex_reminder (to_user_id);
+CREATE INDEX idx_complex_reminder_valid_range ON complex_reminder (valid_from, valid_until);  -- 添加有效期范围索引
 CREATE INDEX idx_complex_reminder_last_generated ON complex_reminder (last_generated_ym); -- 为新增字段添加索引
 -- CREATE INDEX idx_complex_reminder_related ON complex_reminder (related_simple_reminder_id); -- 已移除
 
@@ -76,6 +80,9 @@ COMMENT ON COLUMN complex_reminder.title IS '提醒的标题模板';
 COMMENT ON COLUMN complex_reminder.description IS '提醒的详细描述模板';
 COMMENT ON COLUMN complex_reminder.cron_expression IS '定义重复周期的 CRON 表达式';
 COMMENT ON COLUMN complex_reminder.reminder_type IS '提醒的方式 (如 EMAIL, SMS)';
+COMMENT ON COLUMN complex_reminder.valid_from IS '提醒开始生效的日期，为空则立即生效';
+COMMENT ON COLUMN complex_reminder.valid_until IS '提醒失效的日期，为空则永不失效';
+COMMENT ON COLUMN complex_reminder.max_executions IS '提醒最大执行次数限制，为空则无限制';
 COMMENT ON COLUMN complex_reminder.last_generated_ym IS '最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)';
 COMMENT ON COLUMN complex_reminder.created_at IS '提醒记录的创建时间戳';
 COMMENT ON COLUMN complex_reminder.updated_at IS '提醒记录的最后更新时间戳';

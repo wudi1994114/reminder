@@ -9,6 +9,8 @@ import CalendarDisplay from './components/CalendarDisplay.vue';
 import EventModal from './components/EventModal.vue';
 import UserProfileModal from './components/UserProfileModal.vue';
 import UpcomingRemindersModal from './components/UpcomingRemindersModal.vue';
+import ComplexReminderModal from './components/ComplexReminderModal.vue';
+import ComplexReminderListModal from './components/ComplexReminderListModal.vue';
 import { 
   login,
   register,
@@ -17,7 +19,11 @@ import {
   createEvent,
   updateEvent,
   deleteEvent,
-  getUserProfile
+  getUserProfile,
+  createComplexReminder,
+  getAllComplexReminders,
+  updateComplexReminder,
+  deleteComplexReminder as deleteComplexReminderApi
 } from './services/api.js';
 import { userState, reminderState, uiState, showNotification } from './services/store'
 
@@ -152,6 +158,15 @@ const userProfileFormData = ref({}); // 用于编辑的表单数据副本
 
 // 新增：控制即将提醒模态框显示
 const showUpcomingRemindersModal = ref(false);
+
+// 新增：控制复杂提醒模态框显示
+const showComplexReminderModal = ref(false);
+const complexReminderData = ref({});
+// 新增：用于存储当前编辑的复杂提醒数据
+const currentComplexReminderForModal = ref({});
+
+// 新增：控制复杂提醒列表模态框显示
+const showComplexReminderListModal = ref(false);
 
 // --- 日历 API 引用 ---
 const calendarRef = ref(null);
@@ -487,10 +502,17 @@ async function loadEvents() {
     const token = localStorage.getItem('accessToken');
     console.log("当前 token:", token);
     
-    const response = await getAllSimpleReminders();
-    console.log("事项加载响应:", response);
+    // 同时加载简单提醒和复杂提醒
+    const [simpleResponse, complexResponse] = await Promise.all([
+      getAllSimpleReminders(),
+      getAllComplexReminders()
+    ]);
     
-    allEvents.value = response.data
+    console.log("简单提醒加载响应:", simpleResponse);
+    console.log("复杂提醒加载响应:", complexResponse);
+    
+    // 处理简单提醒
+    const simpleEvents = simpleResponse.data
       .map(event => {
         // 确保正确处理日期，避免时区问题
         const eventTime = new Date(event.eventTime);
@@ -515,11 +537,49 @@ async function loadEvents() {
             // 默认的重复设置
             recurrenceType: event.recurrenceType || 'NONE',
             intervalValue: event.intervalValue || 1,
-            intervalUnit: event.intervalUnit || 'DAYS'
+            intervalUnit: event.intervalUnit || 'DAYS',
+            type: 'simple'
           }
         };
-      })
-      .sort((a, b) => new Date(a.start) - new Date(b.start));
+      });
+
+    // 处理复杂提醒
+    // 注意：复杂提醒不会直接显示在日历上，因为它们是基于cron表达式的
+    // 我们在store中保存它们供需要时使用
+    const complexEvents = complexResponse.data.map(reminder => {
+      return {
+        id: reminder.id,
+        title: reminder.title,
+        // 复杂提醒使用特殊标记，不会直接显示在日历上
+        display: 'background',
+        extendedProps: {
+          description: reminder.description || '',
+          reminderType: reminder.reminderType || 'EMAIL',
+          cronExpression: reminder.cronExpression,
+          validFrom: reminder.validFrom,
+          validUntil: reminder.validUntil,
+          maxExecutions: reminder.maxExecutions,
+          type: 'complex'
+        }
+      };
+    });
+    
+    // 将所有事件合并并排序
+    allEvents.value = [...simpleEvents, ...complexEvents]
+      .sort((a, b) => {
+        // 对于有开始时间的事件按时间排序
+        if (a.start && b.start) {
+          return new Date(a.start) - new Date(b.start);
+        }
+        // 复杂提醒（没有start属性）放在后面
+        if (!a.start) return 1;
+        if (!b.start) return -1;
+        return 0;
+      });
+
+    // 更新store中的提醒事项状态
+    reminderState.simpleReminders = simpleResponse.data;
+    reminderState.complexReminders = complexResponse.data;
 
     console.log("事项加载成功，转换后的事件数据:", allEvents.value);
     
@@ -568,6 +628,7 @@ const handleEventClick = (info) => {
     let recurrenceType = 'NONE';
     let intervalValue = 1;
     let intervalUnit = 'DAYS';
+    let eventType = 'simple'; // 默认为简单提醒
     
     // 安全获取扩展属性
     if (info.event.extendedProps) {
@@ -576,11 +637,29 @@ const handleEventClick = (info) => {
       recurrenceType = info.event.extendedProps.recurrenceType || 'NONE';
       intervalValue = info.event.extendedProps.intervalValue || 1;
       intervalUnit = info.event.extendedProps.intervalUnit || 'DAYS';
+      eventType = info.event.extendedProps.type || 'simple';
     }
     
     console.log('事件基本信息:', { id, title, start });
-    console.log('事件扩展信息:', { description, reminderType, recurrenceType });
+    console.log('事件扩展信息:', { description, reminderType, recurrenceType, eventType });
     
+    // 根据事件类型打开不同的模态框
+    if (eventType === 'complex') {
+      // 如果是复杂提醒，从store中获取完整数据
+      const complexReminder = reminderState.complexReminders.find(r => r.id === id);
+      if (complexReminder) {
+        // 设置当前编辑的复杂提醒
+        currentComplexReminderForModal.value = complexReminder;
+        // 打开复杂提醒编辑模态框
+        showComplexReminderModal.value = true;
+      } else {
+        console.error('找不到对应的复杂提醒数据:', id);
+        showNotification('无法加载提醒数据', 'error');
+      }
+      return; // 不再继续处理简单提醒的逻辑
+    }
+    
+    // 以下是简单提醒的处理逻辑
     // 确保日期正确处理
     const eventDate = new Date(start);
     
@@ -588,41 +667,36 @@ const handleEventClick = (info) => {
     const year = eventDate.getFullYear();
     const month = String(eventDate.getMonth() + 1).padStart(2, '0');
     const day = String(eventDate.getDate()).padStart(2, '0');
-    const formattedDate = `${year}-${month}-${day}`;
+    const hour = String(eventDate.getHours()).padStart(2, '0');
+    const minute = String(eventDate.getMinutes()).padStart(2, '0');
     
-    console.log('格式化后的日期:', formattedDate);
+    console.log('格式化后的日期时间:', `${year}-${month}-${day} ${hour}:${minute}`);
     
-    // 创建事件数据对象
-    const eventData = {
-      id,
-      title,
-      description,
-      reminderType,
-      selectedDate: formattedDate, // 使用格式化的日期而不是toISOString()
-      selectedHour: eventDate.getHours(),
-      selectedMinute: eventDate.getMinutes(),
-      selectedSecond: 0,
-      start: eventDate,
-      recurrenceType,
-      intervalValue,
-      intervalUnit
+    // 创建一个包含所有必要数据的对象
+    // 这个对象将用于EventModal
+    currentEventForModal.value = {
+      id, // 事件ID
+      title, // 事件标题
+      description, // 事件描述
+      date: `${year}-${month}-${day}`, // 日期部分
+      time: `${hour}:${minute}`, // 时间部分
+      reminderType, // 提醒类型
+      recurrenceType, // 重复类型
+      intervalValue, // 重复间隔值
+      intervalUnit // 重复间隔单位
     };
     
-    console.log('准备传递给EventModal的数据:', eventData);
+    console.log('准备编辑的事件数据:', currentEventForModal.value);
     
-    // 直接设置状态，不使用nextTick
-    currentEventForModal.value = eventData;
+    // 标记为编辑模式
     isEditingEvent.value = true;
     
-    // 确保弹窗显示
+    // 打开事件编辑模态框
     uiState.isEventModalOpen = true;
     showModal.value = true;
-    
-    console.log('弹窗已打开，事件数据:', currentEventForModal.value);
   } catch (error) {
-    console.error('处理事件点击时出错:', error);
-    console.error('错误详情:', error.stack);
-    showNotification('打开事件详情失败', 'error');
+    console.error('处理点击事件时发生错误:', error);
+    showNotification('处理提醒数据时出错', 'error');
   }
 };
 
@@ -1204,8 +1278,79 @@ const handleUpcomingRemindersClick = () => {
 // 添加处理复杂提醒按钮点击的方法
 const handleComplexRemindersClick = () => {
   console.log('处理复杂提醒按钮点击');
-  // TODO: 实现显示复杂提醒列表逻辑
-  showNotification('复杂提醒功能正在开发中', 'info');
+  // 显示复杂提醒列表模态框
+  showComplexReminderListModal.value = true;
+};
+
+// 处理复杂提醒模态框关闭
+const handleComplexReminderClose = () => {
+  showComplexReminderModal.value = false;
+  // 清空当前编辑的复杂提醒数据
+  currentComplexReminderForModal.value = {};
+};
+
+// 处理复杂提醒模态框保存
+const handleComplexReminderSave = async (data) => {
+  console.log('收到复杂提醒设置数据:', data);
+  
+  try {
+    if (!currentUserProfile.value || !currentUserProfile.value.id) {
+      throw new Error('用户未登录或用户信息不完整');
+    }
+    
+    // 处理日期格式
+    const reminderToSave = {
+      ...data,
+      // 确保日期格式正确
+      validFrom: data.validFrom || new Date().toISOString().split('T')[0],
+      validUntil: data.validUntil || null,
+      // 添加用户ID信息
+      fromUserId: currentUserProfile.value.id,
+      toUserId: currentUserProfile.value.id // 默认发送给自己
+    };
+    
+    console.log('发送到后端的复杂提醒数据:', reminderToSave);
+
+    let response;
+    // 判断是创建还是更新
+    if (data.id) {
+      // 如果有ID，说明是更新现有提醒
+      console.log('更新复杂提醒:', data.id);
+      response = await updateComplexReminder(data.id, reminderToSave);
+      showNotification('复杂提醒已更新', 'success');
+    } else {
+      // 否则是创建新提醒
+      console.log('创建新的复杂提醒');
+      response = await createComplexReminder(reminderToSave);
+      showNotification('复杂提醒已创建', 'success');
+    }
+    
+    console.log('复杂提醒保存成功:', response.data);
+    
+    // 清空当前编辑的复杂提醒
+    currentComplexReminderForModal.value = {};
+    
+    // 刷新日历显示
+    if (calendarApi.value) {
+      calendarApi.value.refetchEvents();
+    }
+    
+    if (calendarDisplayRef.value) {
+      calendarDisplayRef.value.refreshEvents();
+    }
+    
+    // 重新加载事件列表
+    await loadEvents();
+    
+    // 关闭模态框
+    showComplexReminderModal.value = false;
+  } catch (error) {
+    console.error('保存复杂提醒失败:', error);
+    
+    // 显示错误信息
+    const errorMessage = error.response?.data?.message || error.message || '保存复杂提醒失败，请重试';
+    showNotification(errorMessage, 'error');
+  }
 };
 
 // 处理点击即将提醒列表中的提醒项
@@ -1221,6 +1366,70 @@ const handleUpcomingReminderClick = (reminderData) => {
   showModal.value = true;
 };
 
+// 处理弹出菜单操作
+function handleHeaderAction(action) {
+  console.log('Header action clicked:', action);
+  switch (action) {
+    case 'showUpcomingReminders':
+      showUpcomingRemindersModal.value = true;
+      break;
+    case 'showUserProfile':
+      showUserProfileModal.value = true;
+      break;
+    case 'createComplexReminder':
+      // 重置当前编辑的复杂提醒数据
+      currentComplexReminderForModal.value = {};
+      // 打开复杂提醒编辑模态框
+      showComplexReminderModal.value = true;
+      break;
+    case 'showComplexReminderList':
+      // 打开复杂提醒列表模态框
+      showComplexReminderListModal.value = true;
+      break;
+    default:
+      console.warn('未处理的操作:', action);
+  }
+}
+
+// ... existing code ...
+
+// 创建一个新的复杂提醒
+const createNewComplexReminder = () => {
+  // 重置当前编辑的复杂提醒数据
+  currentComplexReminderForModal.value = {};
+  // 打开复杂提醒编辑模态框
+  showComplexReminderModal.value = true;
+};
+
+// 编辑现有复杂提醒
+const editComplexReminder = (reminder) => {
+  // 设置当前编辑的复杂提醒
+  currentComplexReminderForModal.value = reminder;
+  // 打开复杂提醒编辑模态框
+  showComplexReminderModal.value = true;
+};
+
+// 删除复杂提醒
+const deleteComplexReminder = async (id) => {
+  try {
+    // 使用API模块中的方法删除复杂提醒
+    await deleteComplexReminderApi(id);
+    
+    // 从状态中移除已删除的提醒
+    reminderState.complexReminders = reminderState.complexReminders.filter(
+      reminder => reminder.id !== id
+    );
+    
+    // 提示成功
+    showNotification('复杂提醒已删除', 'success');
+    
+    // 重新加载日历事件
+    await loadEvents();
+  } catch (error) {
+    console.error('删除复杂提醒失败:', error);
+    showNotification('删除失败: ' + error.message, 'error');
+  }
+};
 </script>
 
 <template>
@@ -1246,6 +1455,7 @@ const handleUpcomingReminderClick = (reminderData) => {
           @select-month="selectMonth"
           @logout="handleLogout"
           @open-profile="openUserProfileModal"
+          @header-action="handleHeaderAction"
         />
         
         <main class="main-content">
@@ -1331,6 +1541,25 @@ const handleUpcomingReminderClick = (reminderData) => {
             @reminder-click="handleUpcomingReminderClick"
           />
         </Teleport>
+
+        <!-- 复杂提醒设置模态框 -->
+        <ComplexReminderModal
+          v-if="showComplexReminderModal"
+          :show="showComplexReminderModal"
+          :initial-data="currentComplexReminderForModal"
+          @close="handleComplexReminderClose"
+          @save="handleComplexReminderSave"
+        />
+
+        <!-- 新增：复杂提醒列表模态框 -->
+        <ComplexReminderListModal
+          v-if="showComplexReminderListModal"
+          :show="showComplexReminderListModal"
+          @close="showComplexReminderListModal = false"
+          @edit="editComplexReminder"
+          @delete="deleteComplexReminder"
+          @create="createNewComplexReminder"
+        />
       </template>
     </div>
   </div>
