@@ -39,28 +39,28 @@ public class QuartzConfig {
         return jobFactory;
     }
 
-    // --- Bean definitions for ComplexReminderSchedulingJob ---
+    // --- ComplexReminderSchedulingJob的Bean定义 ---
 
     @Bean
     public JobDetail complexReminderJobDetail() {
         return JobBuilder.newJob(ComplexReminderSchedulingJob.class)
                 .withIdentity("complexReminderSchedulingJob", "reminder-scheduling")
-                .withDescription("Job to generate SimpleReminders from ComplexReminder templates")
-                .storeDurably() // Store even if no triggers are associated initially
+                .withDescription("从ComplexReminder模板生成SimpleReminders的任务")
+                .storeDurably() // 即使初始没有关联触发器也存储
                 .build();
     }
 
     @Bean
     public Trigger complexReminderJobTrigger(JobDetail complexReminderJobDetail) {
-        // Run every minute
+        // 每分钟运行一次
         return TriggerBuilder.newTrigger()
                 .forJob(complexReminderJobDetail)
                 .withIdentity("complexReminderSchedulingTrigger", "reminder-scheduling")
-                .withDescription("Trigger for complexReminderSchedulingJob - runs every minute")
+                .withDescription("complexReminderSchedulingJob的触发器 - 每分钟运行一次")
                 .withSchedule(SimpleScheduleBuilder.simpleSchedule()
-                        .repeatForever() // Repeat indefinitely
-                        .withIntervalInSeconds(60)) // Every 60 seconds
-                        // .withMisfireHandlingInstructionIgnoreMisfires()) // Or another misfire instruction
+                        .repeatForever() // 无限重复
+                        .withIntervalInSeconds(60)) // 每60秒一次
+                        // .withMisfireHandlingInstructionIgnoreMisfires()) // 或其他错过处理指令
                 .build();
     }
 

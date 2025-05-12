@@ -85,7 +85,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { reminderState } from '../services/store';
-import cronstrue from 'cronstrue';
+import cronstrue from 'cronstrue/dist/cronstrue-i18n';
 // 直接导入整个模块
 import cronParser from 'cron-parser';
 
@@ -227,8 +227,6 @@ function closeModal() {
 // 组件挂载时执行的逻辑
 onMounted(() => {
   console.log('ComplexReminderListModal mounted, showing reminders:', complexReminders.value.length);
-  // 调试 cronParser 对象
-  console.log('cronParser:', cronParser);
 });
 </script>
 

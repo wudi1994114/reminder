@@ -331,14 +331,9 @@ const cronErrors = ref({
   weekday: ''
 });
 
-// 计算完整的 Cron 表达式（5字段格式，用于预览和UI显示）
+// 计算完整的 Cron 表达式
 const displayCronExpression = computed(() => {
   return `${cronExpression.value.minute} ${cronExpression.value.hour} ${cronExpression.value.day} ${cronExpression.value.month} ${cronExpression.value.weekday}`;
-});
-
-// Spring需要的6字段Cron表达式（包含秒字段）
-const springCronExpression = computed(() => {
-  return `0 ${cronExpression.value.minute} ${cronExpression.value.hour} ${cronExpression.value.day} ${cronExpression.value.month} ${cronExpression.value.weekday}`;
 });
 
 // 计算日期和星期字段的状态
@@ -1275,7 +1270,7 @@ const saveReminder = () => {
   const reminderDataToSave = {
     ...reminderData.value,
     timeMode: activeTab.value, // 记录使用的是哪种模式
-    cronExpression: springCronExpression.value // 使用Spring格式的6字段cron表达式
+    cronExpression: displayCronExpression.value // 无论哪种模式，都使用当前的Cron表达式
   };
   
   // 验证日期范围
