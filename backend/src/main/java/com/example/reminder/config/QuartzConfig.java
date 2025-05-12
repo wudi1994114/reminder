@@ -1,6 +1,7 @@
 package com.example.reminder.config;
 
 import com.example.reminder.job.ComplexReminderSchedulingJob;
+import com.example.reminder.job.MonthlyComplexReminderJob;
 import org.quartz.*;
 import org.quartz.spi.JobFactory;
 import org.quartz.spi.TriggerFiredBundle;
@@ -61,6 +62,29 @@ public class QuartzConfig {
                         .repeatForever() // 无限重复
                         .withIntervalInSeconds(60)) // 每60秒一次
                         // .withMisfireHandlingInstructionIgnoreMisfires()) // 或其他错过处理指令
+                .build();
+    }
+
+    // --- MonthlyComplexReminderJob的Bean定义 ---
+    
+    @Bean
+    public JobDetail monthlyComplexReminderJobDetail() {
+        return JobBuilder.newJob(MonthlyComplexReminderJob.class)
+                .withIdentity("monthlyComplexReminderJob", "reminder-scheduling")
+                .withDescription("每月检查并生成未来3个月简单任务的定时任务")
+                .storeDurably()
+                .build();
+    }
+    
+    @Bean
+    public Trigger monthlyComplexReminderJobTrigger(JobDetail monthlyComplexReminderJobDetail) {
+        // 使用Cron表达式：每月1日凌晨2点执行
+        return TriggerBuilder.newTrigger()
+                .forJob(monthlyComplexReminderJobDetail)
+                .withIdentity("monthlyComplexReminderTrigger", "reminder-scheduling")
+                .withDescription("monthlyComplexReminderJob的触发器 - 每月1日凌晨2点执行")
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 0 2 1 * ?")
+                        .withMisfireHandlingInstructionFireAndProceed()) // 错过后执行一次，然后按照正常计划继续
                 .build();
     }
 
