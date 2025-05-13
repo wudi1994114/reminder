@@ -84,7 +84,14 @@ export const fetchUserProfile = () => {
 };
 
 // --- 提醒事项相关的API调用 ---
-export const getAllSimpleReminders = () => apiClient.get('/reminders/simple');
+export const getAllSimpleReminders = (year, month) => {
+    // 如果提供了年月参数，则添加到请求URL中
+    if (year && month) {
+        return apiClient.get(`/reminders/simple?year=${year}&month=${month}`);
+    }
+    // 否则获取所有提醒
+    return apiClient.get('/reminders/simple');
+};
 export const getSimpleReminderById = (id) => apiClient.get(`/reminders/simple/${id}`);
 export const createEvent = (reminder) => apiClient.post('/reminders/simple', reminder);
 export const updateEvent = (id, reminder) => apiClient.put(`/reminders/simple/${id}`, reminder);

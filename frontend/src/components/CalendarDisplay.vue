@@ -506,8 +506,15 @@ const calendarOptions = computed(() => ({
 const loadReminders = async () => {
   reminderState.loading = true;
   try {
+    // 获取当前日历显示的年月
+    const currentDate = calendarApi ? calendarApi.getDate() : new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // 月份从0开始，需要+1
+    
+    console.log(`加载 ${year}年${month}月 的提醒事项`);
+    
     const [simpleRes, complexRes] = await Promise.all([
-      getAllSimpleReminders(),
+      getAllSimpleReminders(year, month), // 传递年月参数
       getAllComplexReminders()
     ]);
     reminderState.simpleReminders = simpleRes.data;
@@ -551,6 +558,19 @@ onMounted(() => {
           },
           start: viewStart,
           end: viewEnd
+        });
+        
+        // 监听日历视图变化事件，切换月份时重新加载提醒
+        calendarApi.on('datesSet', (info) => {
+          console.log('日历视图变化:', info);
+          // 获取新视图的年月
+          const newViewDate = info.view.currentStart || info.start;
+          const year = newViewDate.getFullYear();
+          const month = newViewDate.getMonth() + 1; // 月份从0开始，需要+1
+          
+          console.log(`视图切换到 ${year}年${month}月，重新加载提醒事项`);
+          // 重新加载该月的提醒事项
+          loadReminders();
         });
         
         // 加载并应用节假日数据

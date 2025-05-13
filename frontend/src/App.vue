@@ -52,34 +52,6 @@ const isEditingEvent = ref(false);
 // 新增：用于控制 CalendarDisplay 渲染的状态
 const isCalendarOptionsReady = ref(false);
 
-// --- 修改：API 地址常量 ---
-// const BASE_API_URL = 'http://localhost:8080'; // 基础 API 地址
-// const EVENTS_API_URL = `${BASE_API_URL}/api/events`; // 注释掉旧的 API URL
-// const AUTH_API_URL = `${BASE_API_URL}/api/auth`;
-// const REGISTER_API_URL = `${BASE_API_URL}/api/auth/register`; // Define register endpoint
-// 新增提醒 API URL
-// const SIMPLE_REMINDERS_API_URL = `${BASE_API_URL}/api/reminders/simple`;
-
-// --- 新增：Axios 实例 --- 
-// 创建一个基础实例，稍后在 checkAuthStatus 或 handleLogin 中设置 token
-// const apiClient = axios.create({
-//   baseURL: BASE_API_URL,
-//   headers: {
-//     'Content-Type': 'application/json'
-//   }
-// });
-
-// 请求拦截器: 动态添加 token (如果存在)
-// apiClient.interceptors.request.use(config => {
-//   const token = authToken.value; // 读取当前状态中的 token
-//   if (token) {
-//     config.headers.Authorization = `Bearer ${token}`;
-//   }
-//   return config;
-// }, error => {
-//   return Promise.reject(error);
-// });
-
 // --- 保留：每月主题颜色定义 ---
 const monthThemes = [
   { primary: '#a8dadc', hover: '#92cdd0', active: '#7cbcc0', today: '#a8dadc', dayHoverBg: '#e1f5f6' }, // 1月: 浅蓝绿
@@ -96,8 +68,6 @@ const monthThemes = [
   { primary: '#e0fbfc', hover: '#d0f7fa', active: '#c0f2f8', today: '#e0fbfc', dayHoverBg: '#f0feff' }  // 12月: 冰蓝
 ];
 
-// --- 保留：用于绑定年月选择框的状态 ---
-// const selectedMonthYear = ref(''); // 格式 YYYY-MM  (不再需要这个，用 year 和 month 分开)
 
 // 新增：用于年月下拉选择的状态
 const currentCalendarDate = ref(new Date()); // 存储当前日历视图的日期
@@ -502,9 +472,18 @@ async function loadEvents() {
     const token = localStorage.getItem('accessToken');
     console.log("当前 token:", token);
     
+    // 获取当前日历的年月
+    const currentDate = calendarApi.value 
+      ? calendarApi.value.getDate() 
+      : new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // 月份从0开始，需要+1
+    
+    console.log(`加载 ${year}年${month}月 的提醒事项`);
+    
     // 同时加载简单提醒和复杂提醒
     const [simpleResponse, complexResponse] = await Promise.all([
-      getAllSimpleReminders(),
+      getAllSimpleReminders(year, month), // 传递年月参数
       getAllComplexReminders()
     ]);
     
@@ -1098,6 +1077,22 @@ const handleCalendarReady = (apiInstance) => {
       });
     }
     
+    // 设置日历视图变化事件处理
+    calendarApi.value.on('datesSet', (info) => {
+      console.log('App.vue: 日历视图变化:', info);
+      // 获取新视图的年月
+      const newViewDate = info.view.currentStart || info.start;
+      const year = newViewDate.getFullYear();
+      const month = newViewDate.getMonth() + 1; // 月份从0开始，需要+1
+      
+      console.log(`App.vue: 视图切换到 ${year}年${month}月，重新加载提醒事项`);
+      // 重新加载该月的提醒事项
+      loadEvents();
+      
+      // 调用主题更新函数
+      updateThemeAndSelector(info.view);
+    });
+    
     // 可以在这里触发额外的初始化操作
     console.log("日历组件完全初始化完成");
   } else {
@@ -1430,6 +1425,7 @@ const deleteComplexReminder = async (id) => {
     showNotification('删除失败: ' + error.message, 'error');
   }
 };
+
 </script>
 
 <template>
