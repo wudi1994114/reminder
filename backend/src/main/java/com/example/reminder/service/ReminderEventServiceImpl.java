@@ -569,4 +569,24 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         
         return deletedCount;
     }
+
+    /**
+     * 获取未来1分钟内需要触发的提醒事项
+     * 
+     * @return 未来1分钟内的提醒事项列表
+     */
+public List<SimpleReminder> getNextMinuteReminders() {
+        log.info("获取未来1分钟内的提醒事项");
+        
+        // 获取当前时间
+        OffsetDateTime now = OffsetDateTime.now();
+        // 计算1分钟后的时间
+        OffsetDateTime oneMinuteLater = now.plusMinutes(1);
+        
+        // 查询在这个时间范围内的提醒事项
+        List<SimpleReminder> reminders = simpleReminderRepository.findByEventTimeBetween(now, oneMinuteLater);
+        
+        log.info("找到 {} 个未来1分钟内的提醒事项", reminders.size());
+        return reminders;
+    }
 } 

@@ -1,28 +1,18 @@
 package com.example.reminder.controller;
 
-import com.example.reminder.dto.ComplexReminderDTO;
-import com.example.reminder.dto.SimpleReminderDTO;
 import com.example.reminder.job.MonthlyComplexReminderJob;
-import com.example.reminder.model.ComplexReminder;
-import com.example.reminder.model.SimpleReminder;
 import com.example.reminder.service.ReminderEventServiceImpl;
 import com.example.reminder.utils.ReminderMapper;
 import org.quartz.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/reminders")
@@ -30,19 +20,10 @@ public class ReminderController {
 
     private static final Logger log = LoggerFactory.getLogger(ReminderController.class);
 
-    private final ReminderEventServiceImpl reminderService;
-    private final ReminderMapper reminderMapper;
-    private final Scheduler scheduler;
     private final MonthlyComplexReminderJob monthlyJob;
 
     @Autowired
-    public ReminderController(ReminderEventServiceImpl reminderService, 
-                              ReminderMapper reminderMapper, 
-                              Scheduler scheduler,
-                              MonthlyComplexReminderJob monthlyJob) {
-        this.reminderService = reminderService;
-        this.reminderMapper = reminderMapper;
-        this.scheduler = scheduler;
+    public ReminderController(MonthlyComplexReminderJob monthlyJob) {
         this.monthlyJob = monthlyJob;
     }
 

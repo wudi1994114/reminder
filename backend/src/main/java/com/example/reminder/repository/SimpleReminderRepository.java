@@ -32,6 +32,15 @@ public interface SimpleReminderRepository extends JpaRepository<SimpleReminder, 
     List<SimpleReminder> findTop10ByEventTimeAfterOrderByEventTimeAsc(OffsetDateTime now);
 
     /**
+     * 查询未来1分钟内需要触发的提醒事项
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @return 在指定时间范围内的提醒事项列表
+     */
+    @Query("SELECT sr FROM SimpleReminder sr WHERE sr.eventTime BETWEEN :startTime AND :endTime ORDER BY sr.eventTime ASC")
+    List<SimpleReminder> findByEventTimeBetween(@Param("startTime") OffsetDateTime startTime, @Param("endTime") OffsetDateTime endTime);
+
+    /**
      * 删除指定复杂提醒ID相关的所有简单提醒
      * @param originatingComplexReminderId 来源复杂提醒ID
      * @return 删除的记录数

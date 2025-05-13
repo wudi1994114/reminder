@@ -370,7 +370,7 @@ public class RedisUtils {
      * @param time 时间(秒)
      * @return true成功 false失败
      */
-    public boolean hmsetJson(String key, Map<String, Object> map, long time) {
+public boolean hmsetJson(String key, Map<String, Object> map, long time) {
         try {
             Map<String, String> jsonMap = CollectionUtils.newLinkedHashMap(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
