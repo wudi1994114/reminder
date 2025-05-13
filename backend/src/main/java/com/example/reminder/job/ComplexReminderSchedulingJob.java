@@ -67,18 +67,16 @@ public class ComplexReminderSchedulingJob implements Job {
                     // 添加秒字段（默认为0）
                     cronExpression = "0 " + cronExpression;
                 }
-                
+                CronExpression cron;
                 try {
                     // 使用CronExpression.parse验证表达式
-                    CronExpression.parse(cronExpression);
+                    cron = CronExpression.parse(cronExpression);
                 } catch (IllegalArgumentException e) {
                     log.warn("ComplexReminder ID: {}的CRON表达式'{}'无效。跳过。",
                              cronExpression, template.getId());
                     continue;
                 }
 
-                // 使用CronExpression替代CronSequenceGenerator
-                CronExpression cron = CronExpression.parse(cronExpression);
                 // 计算当前时间之后的下一次执行时间
                 ZonedDateTime nowZoned = ZonedDateTime.ofInstant(now, ZoneId.systemDefault());
                 ZonedDateTime nextExecutionTime = cron.next(nowZoned);

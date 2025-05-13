@@ -1,8 +1,10 @@
 package com.example.reminder.controller;
 
+import com.example.reminder.dto.ChangePasswordRequest;
 import com.example.reminder.dto.LoginRequest;
 import com.example.reminder.dto.LoginResponse;
 import com.example.reminder.dto.RegisterRequest;
+import com.example.reminder.dto.UserProfileDto;
 import com.example.reminder.model.AppUser;
 import com.example.reminder.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +54,27 @@ public class AuthController {
             System.err.println("Registration failed: " + e.getMessage()); // 替换为日志
             e.printStackTrace(); // 打印堆栈跟踪以供调试
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Registration failed due to an internal error.");
+        }
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestAttribute("currentUser") UserProfileDto currentUser,
+                                          @Valid @RequestBody ChangePasswordRequest request) {
+        try {
+            // 验证确认密码
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                return ResponseEntity.badRequest().body("新密码与确认密码不匹配");
+            }
+            
+            // 执行密码修改
+            authService.changePassword(currentUser.getId(), request);
+            
+            return ResponseEntity.ok("密码修改成功");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("修改密码失败：服务器内部错误");
         }
     }
 

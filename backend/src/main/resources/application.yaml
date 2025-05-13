@@ -2,6 +2,19 @@
 spring:
   application:
     name: reminder
+  # Redis配置
+  redis:
+    host: 123.57.175.66
+    port: 6379
+    password: Wd941140
+    database: 0
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1
+        max-idle: 8
+        min-idle: 0
   # PostgreSQL 数据库配置
   datasource:
     url: jdbc:postgresql://123.57.175.66:5432/remind # 指向你的 PostgreSQL 数据库
