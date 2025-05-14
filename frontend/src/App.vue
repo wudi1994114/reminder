@@ -11,6 +11,7 @@ import UserProfileModal from './components/UserProfileModal.vue';
 import UpcomingRemindersModal from './components/UpcomingRemindersModal.vue';
 import ComplexReminderModal from './components/ComplexReminderModal.vue';
 import ComplexReminderListModal from './components/ComplexReminderListModal.vue';
+import RegisterView from './components/RegisterView.vue';
 import { 
   login,
   register,
@@ -897,16 +898,21 @@ function showLoginView() {
 }
 
 async function handleRegister(registerData) {
-  console.log("App.vue: Registration attempt...");
+  console.log("App.vue: Registration attempt...", registerData);
   registerError.value = null; // Clear previous errors
   loginError.value = null;
 
-  // Basic validation (add more as needed)
-  if (!registerUsername.value || !registerPassword.value || !registerNickname.value || !registerEmail.value) {
+  // Basic validation using the passed registerData parameter
+  if (!registerData.username || !registerData.password || !registerData.nickname || !registerData.email) {
     registerError.value = "所有字段均为必填项。";
     return;
   }
-  // Optional: Add password confirmation check here
+  
+  // Password confirmation check if needed 
+  if (registerData.password !== registerData.confirmPassword && registerData.confirmPassword) {
+    registerError.value = "两次输入的密码不一致";
+    return;
+  }
 
   try {
     const userData = {
@@ -926,20 +932,28 @@ async function handleRegister(registerData) {
     registerPassword.value = '';
     registerNickname.value = '';
     registerEmail.value = '';
-    
   } catch (error) {
-    console.error('App.vue: Registration failed:', error.response ? error.response.data : error.message);
-    if (error.response && error.response.data) {
-       // Try to extract specific error messages from backend if available
-       if (typeof error.response.data === 'string') {
-           registerError.value = error.response.data; 
-       } else if (error.response.data.message) {
-            registerError.value = error.response.data.message;
-       } else {
-            registerError.value = '注册失败：用户名或邮箱可能已被占用，或服务器错误。';
-       }
+    console.error('App.vue: Registration failed:', error);
+    
+    // 直接使用错误对象中的message，这已经在api.js的拦截器中处理过了
+    if (error.message) {
+      registerError.value = error.message;
+    } 
+    // 处理字段特定的错误
+    else if (error.fieldErrors && Object.keys(error.fieldErrors).length > 0) {
+      // 展示第一个字段错误
+      const firstErrorField = Object.keys(error.fieldErrors)[0];
+      registerError.value = error.fieldErrors[firstErrorField];
+    }
+    // 兜底的错误消息
+    else if (error.response) {
+      if (error.response.status === 409) {
+        registerError.value = '用户名或邮箱已被占用';
+      } else {
+        registerError.value = `注册失败 (${error.response.status})`;
+      }
     } else {
-      registerError.value = '注册失败：发生未知错误。';
+      registerError.value = '注册失败，请稍后重试';
     }
   }
 }
@@ -1433,9 +1447,16 @@ const deleteComplexReminder = async (id) => {
     <div class="app-container" ref="appContainerRef">
       <div v-if="!isLoggedIn" class="auth-container">
         <LoginView 
+          v-if="!showRegisterForm"
           :login-error="loginError"
           @login-attempt="handleLogin"
           @show-register="showRegisterView"
+        />
+        <RegisterView
+          v-else
+          :register-error="registerError"
+          @register-attempt="handleRegister"
+          @show-login="showLoginView"
         />
       </div>
 

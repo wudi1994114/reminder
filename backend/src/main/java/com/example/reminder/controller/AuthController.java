@@ -38,23 +38,8 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
-        try {
-            AppUser registeredUser = authService.registerUser(registerRequest);
-            // 注册成功返回 201 Created，可以包含用户信息或成功消息
-            // 为了安全，通常不直接返回密码
-            // 可以只返回一个成功消息，或是不包含密码的用户信息 DTO
-            return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully!");
-            // 或者返回用户信息 (需要创建 User DTO 或从 registeredUser 构造)
-            // return ResponseEntity.status(HttpStatus.CREATED).body(createUserDtoFromAppUser(registeredUser)); 
-        } catch (UserAlreadyExistsException e) {
-            // 返回 409 Conflict，包含错误信息
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
-        } catch (Exception e) {
-            // 其他未知错误返回 500
-            System.err.println("Registration failed: " + e.getMessage()); // 替换为日志
-            e.printStackTrace(); // 打印堆栈跟踪以供调试
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Registration failed due to an internal error.");
-        }
+        AppUser registeredUser = authService.registerUser(registerRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully!");
     }
 
     @PostMapping("/change-password")

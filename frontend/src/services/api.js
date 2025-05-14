@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// const API_URL = 'http://123.57.175.66:8080/api'; // 如果后端运行在其他地址，请相应调整
 const API_URL = 'http://localhost:8080/api'; // 如果后端运行在其他地址，请相应调整
 
 // 创建 Axios 实例
@@ -42,6 +43,26 @@ apiClient.interceptors.response.use(
             console.error('Error data:', error.response.data);
             console.error('Request URL:', error.config.url);
             console.error('Request method:', error.config.method);
+            
+            // 扩展错误对象，添加更多信息以便前端处理
+            error.statusCode = error.response.status;
+            
+            // 处理不同类型的错误响应格式
+            if (error.response.data) {
+                // 如果是对象类型，并且包含message字段
+                if (typeof error.response.data === 'object' && error.response.data.message) {
+                    error.message = error.response.data.message;
+                    
+                    // 如果有详细错误字段，也添加到error对象
+                    if (error.response.data.errors) {
+                        error.fieldErrors = error.response.data.errors;
+                    }
+                } 
+                // 如果是字符串类型
+                else if (typeof error.response.data === 'string') {
+                    error.message = error.response.data;
+                }
+            }
             
             // 对于403和401错误，提供更详细的调试信息
             if (error.response.status === 403) {
