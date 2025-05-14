@@ -1,6 +1,8 @@
 package com.example.reminder.config;
 
-import com.example.reminder.job.ComplexReminderSchedulingJob;
+import com.example.reminder.job.MonthlyComplexReminderJob;
+import com.example.reminder.job.PrepareReminderJob;
+import com.example.reminder.job.SendReminderJob;
 import org.quartz.*;
 import org.quartz.spi.JobFactory;
 import org.quartz.spi.TriggerFiredBundle;
@@ -39,28 +41,70 @@ public class QuartzConfig {
         return jobFactory;
     }
 
-    // --- Bean definitions for ComplexReminderSchedulingJob ---
-
+    // --- 发送备忘录任务的Bean定义 ---
+    
     @Bean
-    public JobDetail complexReminderJobDetail() {
-        return JobBuilder.newJob(ComplexReminderSchedulingJob.class)
-                .withIdentity("complexReminderSchedulingJob", "reminder-scheduling")
-                .withDescription("Job to generate SimpleReminders from ComplexReminder templates")
-                .storeDurably() // Store even if no triggers are associated initially
+    public JobDetail sendReminderJobDetail() {
+        return JobBuilder.newJob(SendReminderJob.class)
+                .withIdentity("sendReminderJob", "reminder-scheduling")
+                .withDescription("发送备忘录的任务")
+                .storeDurably() // 即使初始没有关联触发器也存储
                 .build();
     }
 
     @Bean
-    public Trigger complexReminderJobTrigger(JobDetail complexReminderJobDetail) {
-        // Run every minute
+    public Trigger sendReminderJobTrigger(JobDetail sendReminderJobDetail) {
+        // 每分钟的第0秒运行
         return TriggerBuilder.newTrigger()
-                .forJob(complexReminderJobDetail)
-                .withIdentity("complexReminderSchedulingTrigger", "reminder-scheduling")
-                .withDescription("Trigger for complexReminderSchedulingJob - runs every minute")
-                .withSchedule(SimpleScheduleBuilder.simpleSchedule()
-                        .repeatForever() // Repeat indefinitely
-                        .withIntervalInSeconds(60)) // Every 60 seconds
-                        // .withMisfireHandlingInstructionIgnoreMisfires()) // Or another misfire instruction
+                .forJob(sendReminderJobDetail)
+                .withIdentity("sendReminderTrigger", "reminder-scheduling")
+                .withDescription("发送备忘录任务的触发器 - 每分钟的第0秒运行")
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 * * * * ?")
+                        .withMisfireHandlingInstructionFireAndProceed())
+                .build();
+    }
+
+    @Bean
+    public JobDetail prepareReminderJobDetail() {
+        return JobBuilder.newJob(PrepareReminderJob.class)
+                .withIdentity("prepareReminderJob", "reminder-scheduling")
+                .withDescription("准备备忘录的任务")
+                .storeDurably()
+                .build();
+    }
+    
+    @Bean
+    public Trigger prepareReminderJobTrigger(JobDetail prepareReminderJobDetail) {
+        // 每分钟的第30秒运行
+        return TriggerBuilder.newTrigger()
+                .forJob(prepareReminderJobDetail)
+                .withIdentity("prepareReminderTrigger", "reminder-scheduling")
+                .withDescription("准备备忘录任务的触发器 - 每分钟的第30秒运行")
+                .withSchedule(CronScheduleBuilder.cronSchedule("30 * * * * ?")
+                        .withMisfireHandlingInstructionFireAndProceed())
+                .build();
+    }
+
+    // --- MonthlyComplexReminderJob的Bean定义 ---
+    
+    @Bean
+    public JobDetail monthlyReminderJobDetail() {
+        return JobBuilder.newJob(MonthlyComplexReminderJob.class)
+                .withIdentity("monthlyReminderJob", "reminder-scheduling")
+                .withDescription("每月检查并生成未来3个月简单任务的定时任务")
+                .storeDurably()
+                .build();
+    }
+    
+    @Bean
+    public Trigger monthlyReminderJobTrigger(JobDetail monthlyReminderJobDetail) {
+        // 使用Cron表达式：每月1日凌晨2点执行
+        return TriggerBuilder.newTrigger()
+                .forJob(monthlyReminderJobDetail)
+                .withIdentity("monthlyReminderTrigger", "reminder-scheduling")
+                .withDescription("monthlyReminderJob的触发器 - 每月1日凌晨2点执行")
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 0 2 1 * ?")
+                        .withMisfireHandlingInstructionFireAndProceed()) // 错过后执行一次，然后按照正常计划继续
                 .build();
     }
 

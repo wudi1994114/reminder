@@ -9,26 +9,26 @@ import javax.validation.constraints.Size;
 @Data
 public class RegisterRequest {
 
-    @NotBlank(message = "Username cannot be blank")
-    @Size(min = 3, max = 100, message = "Username must be between 3 and 100 characters")
+    @NotBlank(message = "用户名不能为空")
+    @Size(min = 3, max = 100, message = "用户名长度必须在3到100个字符之间")
     private String username;
 
-    @NotBlank(message = "Password cannot be blank")
-    @Size(min = 6, message = "Password must be at least 6 characters long") // 密码长度要求
+    @NotBlank(message = "密码不能为空")
+    @Size(min = 6, message = "密码长度至少为6个字符") // 密码长度要求
     private String password;
 
-    @NotBlank(message = "Nickname cannot be blank")
+    @NotBlank(message = "昵称不能为空")
     @Size(max = 100)
     private String nickname;
 
-    @NotBlank(message = "Email cannot be blank")
-    @Email(message = "Invalid email format")
+    @NotBlank(message = "邮箱不能为空")
+    @Email(message = "邮箱格式无效")
     @Size(max = 255)
     private String email;
 
-    // Optional fields can be added here later if needed
+    // 以后如有需要可以在此添加可选字段
     // private String phoneNumber;
     // private String avatarUrl;
     // private String gender;
-    // private String birthDate; // Consider using LocalDate if added
+    // private String birthDate; // 考虑使用LocalDate类型
 } 

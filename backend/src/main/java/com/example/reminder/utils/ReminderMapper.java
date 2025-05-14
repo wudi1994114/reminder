@@ -31,6 +31,9 @@ public class ReminderMapper {
                 .description(entity.getDescription())
                 .cronExpression(entity.getCronExpression())
                 .reminderType(entity.getReminderType())
+                .validFrom(entity.getValidFrom())
+                .validUntil(entity.getValidUntil())
+                .maxExecutions(entity.getMaxExecutions())
                 .lastGeneratedYm(entity.getLastGeneratedYm())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
@@ -54,6 +57,9 @@ public class ReminderMapper {
         entity.setDescription(dto.getDescription());
         entity.setCronExpression(dto.getCronExpression());
         entity.setReminderType(dto.getReminderType());
+        entity.setValidFrom(dto.getValidFrom());
+        entity.setValidUntil(dto.getValidUntil());
+        entity.setMaxExecutions(dto.getMaxExecutions());
         entity.setLastGeneratedYm(dto.getLastGeneratedYm());
         // 注意：创建时间和更新时间通常由JPA自动管理，但在特殊情况下也可以设置
         // entity.setCreatedAt(dto.getCreatedAt());
@@ -149,6 +155,9 @@ public class ReminderMapper {
         existingEntity.setDescription(dto.getDescription());
         existingEntity.setCronExpression(dto.getCronExpression());
         existingEntity.setReminderType(dto.getReminderType());
+        existingEntity.setValidFrom(dto.getValidFrom());
+        existingEntity.setValidUntil(dto.getValidUntil());
+        existingEntity.setMaxExecutions(dto.getMaxExecutions());
         // 不更新lastGeneratedYm，这是系统内部管理的字段
         // 不更新创建时间和更新时间，这些由JPA自动管理
     }

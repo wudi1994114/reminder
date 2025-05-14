@@ -2,6 +2,7 @@ package com.example.reminder.config;
 
 import com.example.reminder.security.JwtAuthenticationFilter;
 import com.example.reminder.security.UserDetailsServiceImpl;
+import com.example.reminder.security.UserInfoFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +27,9 @@ public class SecurityConfig {
 
     @Autowired
     private UserDetailsServiceImpl userDetailsService;
+
+    @Autowired
+    private UserInfoFilter userInfoFilter;
 
     // Define the JWT Authentication Filter as a Bean
     // This allows Spring to manage its lifecycle and dependency injection
@@ -84,7 +88,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated() // All other requests require authentication
             )
             // Add the JWT filter before the standard UsernamePasswordAuthenticationFilter
-            .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
+            // 添加用户信息过滤器，在JWT验证之后执行
+            .addFilterAfter(userInfoFilter, JwtAuthenticationFilter.class);
             // Optional: Configure exception handling (e.g., for authentication errors)
             // .exceptionHandling(exceptions -> exceptions
             //     .authenticationEntryPoint(...) // Handle unauthenticated access

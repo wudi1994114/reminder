@@ -3,11 +3,14 @@ package com.example.reminder.controller;
 // 导入所需的实体类和重构后的服务（或其接口）
 import com.example.reminder.dto.ComplexReminderDTO;
 import com.example.reminder.dto.SimpleReminderDTO;
+import com.example.reminder.dto.UserProfileDto;
 import com.example.reminder.model.ComplexReminder;
 import com.example.reminder.model.SimpleReminder;
 import com.example.reminder.service.ReminderEventServiceImpl; // 暂时使用具体类，后续最好使用接口
 import com.example.reminder.utils.ReminderMapper;
 // import com.example.reminder.service.ReminderService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import javax.servlet.http.HttpServletRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +29,8 @@ import java.util.Optional;
 @CrossOrigin(origins = "http://localhost:5173") // 保持CORS配置
 // 考虑重命名为ReminderController
 public class ReminderEventController {
+
+    private static final Logger log = LoggerFactory.getLogger(ReminderEventController.class);
 
     // 注入重构后的服务实现（后续替换为接口）
     private final ReminderEventServiceImpl reminderService;
@@ -66,10 +72,10 @@ public class ReminderEventController {
 
             // 转换DTO为实体
             SimpleReminder simpleReminder = reminderMapper.toEntity(reminderDTO);
-            
+
             // 保存实体
             SimpleReminder created = reminderService.createSimpleReminder(simpleReminder);
-            
+
             // 转换实体为DTO并返回
             return new ResponseEntity<>(reminderMapper.toDTO(created), HttpStatus.CREATED);
         } catch (Exception e) {
@@ -84,7 +90,7 @@ public class ReminderEventController {
         // 例如，如果你使用自定义的UserDetails实现：
         // CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         // return userDetails.getId();
-        
+
         // 这里仅作示例，需要根据实际的认证实现来修改
         throw new UnsupportedOperationException("需要实现获取当前用户ID的方法");
     }
@@ -96,7 +102,7 @@ public class ReminderEventController {
     @GetMapping("/simple/{id}")
     public ResponseEntity<SimpleReminderDTO> getSimpleReminderById(@PathVariable Long id) {
         Optional<SimpleReminder> reminderOpt = reminderService.getSimpleReminderById(id);
-        
+
         return reminderOpt
                 .map(reminderMapper::toDTO)
                 .map(ResponseEntity::ok)
@@ -106,10 +112,41 @@ public class ReminderEventController {
     /**
      * 获取所有简单提醒事项
      * GET /api/reminders/simple
+     * 支持可选的年月参数，例如：/api/reminders/simple?year=2023&month=12
      */
     @GetMapping("/simple")
-    public ResponseEntity<List<SimpleReminderDTO>> getAllSimpleReminders() {
-        List<SimpleReminder> reminders = reminderService.getAllSimpleReminders();
+    public ResponseEntity<List<SimpleReminderDTO>> getAllSimpleReminders(
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            HttpServletRequest request) {
+
+        log.info("当前登录用户信息: {}", userProfileDto);
+
+        List<SimpleReminder> reminders;
+
+        // 根据是否提供了年月参数决定使用哪个查询方法
+        if (year != null && month != null) {
+            // 按月查询
+            reminders = reminderService.getSimpleRemindersByYearMonth(year, month);
+            log.info("查询 {}-{} 月份的所有简单提醒，共 {} 条", year, month, reminders.size());
+        } else {
+            // 查询所有
+            reminders = reminderService.getAllSimpleReminders();
+            log.info("查询所有简单提醒，共 {} 条", reminders.size());
+        }
+
+        List<SimpleReminderDTO> reminderDTOs = reminderMapper.toSimpleReminderDTOList(reminders);
+        return ResponseEntity.ok(reminderDTOs);
+    }
+
+    /**
+     * 获取即将到来的提醒事项(最近10个)
+     * GET /api/reminders/upcoming
+     */
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<SimpleReminderDTO>> getUpcomingReminders() {
+        List<SimpleReminder> reminders = reminderService.getUpcomingReminders();
         List<SimpleReminderDTO> reminderDTOs = reminderMapper.toSimpleReminderDTOList(reminders);
         return ResponseEntity.ok(reminderDTOs);
     }
@@ -120,13 +157,13 @@ public class ReminderEventController {
      */
     @DeleteMapping("/simple/{id}")
     public ResponseEntity<Void> deleteSimpleReminder(@PathVariable Long id) {
-         try {
+        try {
             // 可选：在尝试删除前检查提醒事项是否存在
             reminderService.deleteSimpleReminder(id);
             return ResponseEntity.noContent().build(); // HTTP 204
         } catch (Exception e) {
-             // 处理删除过程中的潜在异常（例如，Quartz相关问题）
-             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "删除简单提醒事项失败", e);
+            // 处理删除过程中的潜在异常（例如，Quartz相关问题）
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "删除简单提醒事项失败", e);
         }
     }
 
@@ -135,32 +172,33 @@ public class ReminderEventController {
      * PUT /api/reminders/simple/{id}
      */
     @PutMapping("/simple/{id}")
-    public ResponseEntity<SimpleReminderDTO> updateSimpleReminder(@PathVariable Long id, @RequestBody SimpleReminderDTO reminderDTO) {
+    public ResponseEntity<SimpleReminderDTO> updateSimpleReminder(@PathVariable Long id,
+            @RequestBody SimpleReminderDTO reminderDTO) {
         try {
             // 确保设置正确的ID
             reminderDTO.setId(id);
-            
+
             // 获取当前登录用户ID
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户未登录");
             }
-            
+
             // 验证是否存在此提醒事项
             Optional<SimpleReminder> existingReminderOpt = reminderService.getSimpleReminderById(id);
             if (!existingReminderOpt.isPresent()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到简单提醒事项");
             }
-            
+
             // 获取现有实体
             SimpleReminder existingReminder = existingReminderOpt.get();
-            
+
             // 用DTO中的值更新实体
             reminderMapper.updateEntityFromDTO(reminderDTO, existingReminder);
-            
+
             // 更新提醒事项
             SimpleReminder updated = reminderService.updateSimpleReminder(existingReminder);
-            
+
             // 转换为DTO并返回
             return ResponseEntity.ok(reminderMapper.toDTO(updated));
         } catch (ResponseStatusException e) {
@@ -181,16 +219,17 @@ public class ReminderEventController {
     @PostMapping("/complex")
     public ResponseEntity<ComplexReminderDTO> createComplexReminder(@RequestBody ComplexReminderDTO reminderDTO) {
         // TODO: 添加输入对象的验证（例如，CRON语法）
-         try {
+        try {
             // 转换DTO为实体
             ComplexReminder complexReminder = reminderMapper.toEntity(reminderDTO);
-            
-            // 保存实体
-            ComplexReminder created = reminderService.createComplexReminder(complexReminder);
-            
+
+            // 使用事务方法创建复杂提醒并生成简单任务(默认三个月)
+            ComplexReminder created = reminderService.createComplexReminderWithSimpleReminders(complexReminder, 3);
+
             // 转换实体为DTO并返回
             return new ResponseEntity<>(reminderMapper.toDTO(created), HttpStatus.CREATED);
         } catch (Exception e) {
+            log.error("创建复杂提醒事项失败", e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "创建复杂提醒事项失败", e);
         }
     }
@@ -202,7 +241,7 @@ public class ReminderEventController {
     @GetMapping("/complex/{id}")
     public ResponseEntity<ComplexReminderDTO> getComplexReminderById(@PathVariable Long id) {
         Optional<ComplexReminder> reminderOpt = reminderService.getComplexReminderById(id);
-        
+
         return reminderOpt
                 .map(reminderMapper::toDTO)
                 .map(ResponseEntity::ok)
@@ -227,10 +266,13 @@ public class ReminderEventController {
     @DeleteMapping("/complex/{id}")
     public ResponseEntity<Void> deleteComplexReminder(@PathVariable Long id) {
         try {
-             // 可选：检查模板是否存在
-             reminderService.deleteComplexReminder(id);
-             return ResponseEntity.noContent().build(); // HTTP 204
+            // 使用集成方法删除复杂提醒及其关联的所有简单任务
+            int deletedCount = reminderService.deleteComplexReminderWithRelatedSimpleReminders(id);
+            log.info("已删除复杂提醒ID: {} 及其关联的 {} 个简单任务", id, deletedCount);
+
+            return ResponseEntity.noContent().build(); // HTTP 204
         } catch (Exception e) {
+            log.error("删除复杂提醒事项失败", e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "删除复杂提醒事项失败", e);
         }
     }
@@ -240,34 +282,38 @@ public class ReminderEventController {
      * PUT /api/reminders/complex/{id}
      */
     @PutMapping("/complex/{id}")
-    public ResponseEntity<ComplexReminderDTO> updateComplexReminder(@PathVariable Long id, @RequestBody ComplexReminderDTO reminderDTO) {
+    public ResponseEntity<ComplexReminderDTO> updateComplexReminder(@PathVariable Long id,
+            @RequestBody ComplexReminderDTO reminderDTO) {
         try {
             // 确保设置正确的ID
             reminderDTO.setId(id);
-            
+
             // 验证是否存在此提醒事项模板
             Optional<ComplexReminder> existingReminderOpt = reminderService.getComplexReminderById(id);
             if (!existingReminderOpt.isPresent()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到复杂提醒事项模板");
             }
-            
+
             // 获取现有实体
             ComplexReminder existingReminder = existingReminderOpt.get();
-            
+
             // 用DTO中的值更新实体
             reminderMapper.updateEntityFromDTO(reminderDTO, existingReminder);
-            
-            // 保存更新后的实体
-            ComplexReminder updated = reminderService.createComplexReminder(existingReminder);
-            
+
+            // 使用事务方法更新复杂提醒并生成简单任务(默认三个月)
+            // 此方法会先删除已有的简单任务，保证数据一致性
+            ComplexReminder updated = reminderService.updateComplexReminderWithSimpleReminders(existingReminder, 3);
+
             // 转换为DTO并返回
             return ResponseEntity.ok(reminderMapper.toDTO(updated));
         } catch (ResponseStatusException e) {
             // 重新抛出已经格式化的异常
             throw e;
         } catch (Exception e) {
+            log.error("更新复杂提醒事项模板失败", e);
             // 处理更新过程中的潜在异常
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "更新复杂提醒事项模板失败", e);
         }
     }
-} 
+
+}

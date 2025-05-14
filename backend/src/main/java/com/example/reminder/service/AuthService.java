@@ -2,6 +2,7 @@ package com.example.reminder.service;
 
 import com.example.reminder.dto.LoginRequest;
 import com.example.reminder.dto.LoginResponse;
+import com.example.reminder.dto.ChangePasswordRequest;
 import com.example.reminder.model.AppUser;
 import com.example.reminder.repository.AppUserRepository;
 import com.example.reminder.security.JwtTokenProvider;
@@ -15,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.example.reminder.exception.UserAlreadyExistsException;
 import com.example.reminder.dto.RegisterRequest;
+
+import java.time.OffsetDateTime;
 
 @Service
 public class AuthService {
@@ -30,6 +33,9 @@ public class AuthService {
 
     @Autowired
     private PasswordEncoder passwordEncoder; // 注入密码编码器
+    
+    @Autowired
+    private UserCacheService userCacheService;
 
     public LoginResponse loginUser(LoginRequest loginRequest) {
         // 1. Authenticate using username
@@ -86,7 +92,30 @@ public class AuthService {
 
         // 6. 保存用户到数据库
         AppUser savedUser = appUserRepository.save(newUser);
+        
+        // 用户注册时不需要刷新缓存，因为还没有缓存
 
         return savedUser;
+    }
+    
+    // 修改密码
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
+        
+        // 验证当前密码
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("当前密码不正确");
+        }
+        
+        // 设置新密码
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setUpdatedAt(OffsetDateTime.now());
+        
+        // 保存更新
+        appUserRepository.save(user);
+        
+        // 密码更改后，清除该用户的缓存，强制下次请求重新加载
+        userCacheService.invalidateUserCache(user.getUsername());
     }
 } 

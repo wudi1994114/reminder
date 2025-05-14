@@ -7,6 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import javax.persistence.*;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -38,6 +39,15 @@ public class ComplexReminder {
     @Enumerated(EnumType.STRING) // 将枚举映射为字符串存储
     @Column(nullable = false, length = 50)
     private ReminderType reminderType; // 提醒方式 (EMAIL, SMS)
+
+    @Column
+    private LocalDate validFrom;  // 提醒开始生效日期
+
+    @Column
+    private LocalDate validUntil; // 提醒失效日期
+
+    @Column
+    private Integer maxExecutions; // 最大执行次数限制
 
     @Column(name = "last_generated_ym")
     private Integer lastGeneratedYm; // 最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)

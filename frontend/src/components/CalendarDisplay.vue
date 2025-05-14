@@ -31,7 +31,9 @@ const emit = defineEmits([
   'date-select', 
   'event-drop', 
   'event-resize', 
-  'toggle-month-selector'
+  'upcoming-reminders-click',
+  'toggle-month-selector',
+  'complex-reminders-click'
 ]);
 
 // Local ref for FullCalendar component
@@ -210,14 +212,32 @@ const calendarOptions = computed(() => ({
   timeZone: 'local',
   headerToolbar: {
     left: 'prevYear,prev,next,nextYear',
-    center: '',
-    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+    center: 'dayGridMonth,timeGridWeek,timeGridDay',
+    right: 'upcomingReminders,complexReminders'
   },
   buttonText: {
     today: '今天',
     month: '月',
     week: '周',
-    day: '日'
+    day: '日',
+    upcomingReminders: '即将提醒',
+    complexReminders: '复杂提醒'
+  },
+  customButtons: {
+    upcomingReminders: {
+      text: '即将提醒',
+      click: function() {
+        console.log('点击了即将提醒按钮');
+        emit('upcoming-reminders-click');
+      }
+    },
+    complexReminders: {
+      text: '复杂提醒',
+      click: function() {
+        console.log('点击了复杂提醒按钮');
+        emit('complex-reminders-click');
+      }
+    }
   },
   locale: 'zh-cn',
   editable: true,
@@ -248,6 +268,7 @@ const calendarOptions = computed(() => ({
     console.log('事件被拖拽（CalendarDisplay）:', info);
     console.log('当前视图类型:', info.view?.type || '未知视图');
     console.log('原始事件ID:', info.event.id);
+    console.log('原始事件标题:', info.event.title);
     
     // 确保使用本地时区的日期
     const dropWithLocalTime = {
@@ -255,14 +276,21 @@ const calendarOptions = computed(() => ({
       event: {
         ...info.event,
         id: info.event.id, // 确保ID被复制
+        title: info.event.title, // 添加标题
         start: info.event.start ? new Date(info.event.start) : null,
         end: info.event.end ? new Date(info.event.end) : null,
+        allDay: info.event.allDay,
+        backgroundColor: info.event.backgroundColor,
+        borderColor: info.event.borderColor,
+        textColor: info.event.textColor,
+        classNames: info.event.classNames,
         extendedProps: info.event.extendedProps ? {...info.event.extendedProps} : {}
       }
     };
     
     console.log('处理后的拖拽事件时间(本地):', dropWithLocalTime.event.start, dropWithLocalTime.event.end);
     console.log('处理后的事件ID:', dropWithLocalTime.event.id);
+    console.log('处理后的事件标题:', dropWithLocalTime.event.title);
     console.log('事件extendedProps:', dropWithLocalTime.event.extendedProps);
     console.log('将触发event-drop事件');
     
@@ -275,6 +303,7 @@ const calendarOptions = computed(() => ({
     console.log('事件大小被调整（CalendarDisplay）:', info);
     console.log('当前视图类型:', info.view?.type || '未知视图');
     console.log('原始事件ID:', info.event.id);
+    console.log('原始事件标题:', info.event.title);
     
     // 确保使用本地时区的日期
     const resizeWithLocalTime = {
@@ -282,14 +311,21 @@ const calendarOptions = computed(() => ({
       event: {
         ...info.event,
         id: info.event.id, // 确保ID被复制
+        title: info.event.title, // 添加标题
         start: info.event.start ? new Date(info.event.start) : null,
         end: info.event.end ? new Date(info.event.end) : null,
+        allDay: info.event.allDay,
+        backgroundColor: info.event.backgroundColor,
+        borderColor: info.event.borderColor,
+        textColor: info.event.textColor,
+        classNames: info.event.classNames,
         extendedProps: info.event.extendedProps ? {...info.event.extendedProps} : {}
       }
     };
     
     console.log('处理后的调整大小事件时间(本地):', resizeWithLocalTime.event.start, resizeWithLocalTime.event.end);
     console.log('处理后的事件ID:', resizeWithLocalTime.event.id);
+    console.log('处理后的事件标题:', resizeWithLocalTime.event.title);
     console.log('事件extendedProps:', resizeWithLocalTime.event.extendedProps);
     console.log('将触发event-resize事件');
     
@@ -470,8 +506,15 @@ const calendarOptions = computed(() => ({
 const loadReminders = async () => {
   reminderState.loading = true;
   try {
+    // 获取当前日历显示的年月
+    const currentDate = calendarApi ? calendarApi.getDate() : new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // 月份从0开始，需要+1
+    
+    console.log(`加载 ${year}年${month}月 的提醒事项`);
+    
     const [simpleRes, complexRes] = await Promise.all([
-      getAllSimpleReminders(),
+      getAllSimpleReminders(year, month), // 传递年月参数
       getAllComplexReminders()
     ]);
     reminderState.simpleReminders = simpleRes.data;
@@ -515,6 +558,19 @@ onMounted(() => {
           },
           start: viewStart,
           end: viewEnd
+        });
+        
+        // 监听日历视图变化事件，切换月份时重新加载提醒
+        calendarApi.on('datesSet', (info) => {
+          console.log('日历视图变化:', info);
+          // 获取新视图的年月
+          const newViewDate = info.view.currentStart || info.start;
+          const year = newViewDate.getFullYear();
+          const month = newViewDate.getMonth() + 1; // 月份从0开始，需要+1
+          
+          console.log(`视图切换到 ${year}年${month}月，重新加载提醒事项`);
+          // 重新加载该月的提醒事项
+          loadReminders();
         });
         
         // 加载并应用节假日数据
@@ -725,18 +781,30 @@ const currentMonth = computed(() => {
   display: none !important;
 }
 
+/* 减小工具栏内部间距，使按钮组更紧凑 */
 :deep(.fc-toolbar.fc-header-toolbar) {
-  justify-content: space-between !important;
-  padding: 0 1rem !important;
+  justify-content: center !important; /* 整体居中 */
+  margin-bottom: 0.5em !important;
+  padding: 0 0.5rem !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  margin: 0 !important;
+  gap: 8px !important; /* 增加组间距 */
+  display: flex !important;
+  flex-wrap: nowrap !important;
 }
 
+/* 优化工具栏块之间的间距 */
 :deep(.fc-toolbar-chunk) {
   display: flex !important;
   align-items: center !important;
-  gap: 0.5rem !important;
+  padding: 0 !important;
+  margin: 0 8px !important; /* 增加外边距 */
+  gap: 0.25rem !important; /* 减小按钮组内部间距 */
+}
+
+/* 确保工具栏区域不会占用太多空间 */
+:deep(.fc-header-toolbar) {
+  min-height: 40px !important;
 }
 
 /* 按钮样式 */
@@ -744,7 +812,7 @@ const currentMonth = computed(() => {
   background-color: var(--theme-primary-color) !important;
   border: none !important;
   border-radius: 8px !important;
-  padding: 8px 12px !important;
+  padding: 6px 10px !important; /* 减小按钮内边距 */
   font-weight: 500 !important;
   font-size: 14px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
@@ -943,5 +1011,123 @@ const currentMonth = computed(() => {
   font-size: 9px;
   padding: 0px 4px;
   opacity: 0.8;
+}
+
+/* FullCalendar 更多事件弹窗样式定制 */
+:deep(.fc-popover.fc-more-popover) {
+  background-color: white;
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  padding: 0;
+  min-width: 220px;
+  animation: popoverFadeIn 0.2s ease-out;
+}
+
+/* 弹窗头部 */
+:deep(.fc-popover-header) {
+  background-color: var(--theme-primary-color);
+  color: white;
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 14px;
+  border-bottom: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 头部标题 */
+:deep(.fc-popover-title) {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 关闭按钮 */
+:deep(.fc-popover-close) {
+  font-size: 16px;
+  color: white;
+  opacity: 0.8;
+  cursor: pointer;
+  background: none;
+  border: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+:deep(.fc-popover-close:hover) {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 弹窗内容 */
+:deep(.fc-popover-body) {
+  padding: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 内容中的事件项 */
+:deep(.fc-popover-body .fc-event) {
+  margin-bottom: 5px;
+  border-radius: 4px;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+}
+
+:deep(.fc-popover-body .fc-event:hover) {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+:deep(.fc-popover-body .fc-event:last-child) {
+  margin-bottom: 0;
+}
+
+/* 事件内容 */
+:deep(.fc-popover-body .fc-event-title) {
+  font-size: 12px;
+  padding: 3px 6px;
+}
+
+/* 弹窗入场动画 */
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+  :deep(.fc-popover.fc-more-popover) {
+    min-width: 180px;
+    max-width: 300px;
+  }
+  
+  :deep(.fc-popover-header) {
+    padding: 8px 10px;
+  }
+  
+  :deep(.fc-popover-title) {
+    font-size: 13px;
+  }
+  
+  :deep(.fc-popover-body) {
+    padding: 8px;
+    max-height: 250px;
+  }
 }
 </style> 

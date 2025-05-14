@@ -196,12 +196,24 @@ watch(() => props.eventData, (newVal) => {
   }
 }, { deep: true, immediate: true });
 
+// 表单验证状态
+const errors = ref({
+  title: ''
+});
+
 // Submit handler
 const handleSubmit = async (e) => {
   e.preventDefault();
   console.log('EventModal: 提交表单，数据:', localEventData.value);
   
-  if (!localEventData.value.title) {
+  // 重置错误信息
+  errors.value = {
+    title: ''
+  };
+  
+  // 验证标题不能为空
+  if (!localEventData.value.title || localEventData.value.title.trim() === '') {
+    errors.value.title = '标题不能为空';
     showNotification('请输入事件标题！', 'error');
     return;
   }
@@ -258,9 +270,10 @@ const closeModal = () => {
     <div class="modal-content">
       <h2>{{ isEditing ? '编辑事件' : '创建新事件' }}</h2>
       <form @submit.prevent="handleSubmit">
-        <div class="form-group">
-          <label for="eventTitle">标题:</label>
-          <input type="text" id="eventTitle" v-model="localEventData.title" required>
+        <div class="form-group" :class="{ 'has-error': errors.title }">
+          <label for="eventTitle">标题:<span class="required">*</span></label>
+          <input type="text" id="eventTitle" v-model="localEventData.title" :class="{ 'input-error': errors.title }">
+          <div v-if="errors.title" class="error-message">{{ errors.title }}</div>
         </div>
         <div class="form-group">
           <label for="eventDesc">描述:</label>
@@ -328,6 +341,7 @@ const closeModal = () => {
             <option value="MONTHS">月</option>
           </select>
         </div>
+        
         <div class="modal-actions">
           <button type="submit" class="button primary">{{ isEditing ? '保存' : '创建' }}</button>
           <button v-if="isEditing" type="button" class="button danger" @click="handleDelete">删除</button>
@@ -698,5 +712,48 @@ const closeModal = () => {
     z-index: 1;
     border-radius: 4px;
   }
+}
+
+.form-group.has-error label {
+  color: #dc3545;
+}
+
+.input-error {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25) !important;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 0.85em;
+  margin-top: 5px;
+}
+
+.required {
+  color: #dc3545;
+  margin-left: 3px;
+}
+
+.complex-reminder-button {
+  margin-top: 20px;
+}
+
+.button.full-width {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f0f4f9;
+  color: #4a90e2;
+  border: 1px dashed #4a90e2;
+  transition: all 0.2s;
+}
+
+.button.full-width:hover {
+  background-color: #e6effc;
+}
+
+.button-icon {
+  font-weight: bold;
 }
 </style> 

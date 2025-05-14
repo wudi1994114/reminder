@@ -1,6 +1,8 @@
 package com.example.reminder.dto;
 
 import com.example.reminder.model.ReminderType;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,6 +27,8 @@ public class SimpleReminderDTO {
     private OffsetDateTime eventTime;
     private ReminderType reminderType;
     private Long originatingComplexReminderId; // 来源复杂提醒ID，可能为null
+    @JsonIgnore
     private OffsetDateTime createdAt;
+    @JsonIgnore
     private OffsetDateTime updatedAt;
 } 
