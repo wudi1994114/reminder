@@ -6,13 +6,19 @@ import com.example.reminder.job.SendReminderJob;
 import org.quartz.*;
 import org.quartz.spi.JobFactory;
 import org.quartz.spi.TriggerFiredBundle;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.quartz.SchedulerFactoryBean;
 import org.springframework.scheduling.quartz.SpringBeanJobFactory;
 
+import javax.sql.DataSource;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Configuration
 public class QuartzConfig {
 
@@ -40,7 +46,6 @@ public class QuartzConfig {
         jobFactory.setApplicationContext(applicationContext);
         return jobFactory;
     }
-
     // --- 发送备忘录任务的Bean定义 ---
     
     @Bean
@@ -107,18 +112,4 @@ public class QuartzConfig {
                         .withMisfireHandlingInstructionFireAndProceed()) // 错过后执行一次，然后按照正常计划继续
                 .build();
     }
-
-    // 如果需要更复杂的 Quartz 配置（例如 JDBC JobStore），可以在这里添加
-    // 例如，配置 SchedulerFactoryBean
-    /*
-    @Bean
-    public SchedulerFactoryBean schedulerFactoryBean(DataSource dataSource, JobFactory jobFactory) {
-        SchedulerFactoryBean factory = new SchedulerFactoryBean();
-        factory.setOverwriteExistingJobs(true);
-        factory.setDataSource(dataSource); // 配置数据源，用于持久化 Job
-        factory.setJobFactory(jobFactory); // 设置自定义 JobFactory
-        // 其他配置...
-        return factory;
-    }
-    */
 } 

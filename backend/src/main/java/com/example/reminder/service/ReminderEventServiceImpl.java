@@ -1,6 +1,5 @@
 package com.example.reminder.service;
 
-import com.example.reminder.job.ReminderJob;
 import com.example.reminder.model.ComplexReminder;
 import com.example.reminder.model.SimpleReminder;
 import com.example.reminder.repository.ComplexReminderRepository;
@@ -228,14 +227,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             log.error("Error deleting existing Quartz job for simple reminder ID: {}", simpleReminder.getId(), e);
             // 继续处理，不要因为调度删除错误阻止更新
         }
-        
-        // 保存更新后的提醒事项
-        SimpleReminder updatedReminder = simpleReminderRepository.save(simpleReminder);
-        
-        // 为更新后的提醒创建新的调度
-        scheduleSimpleReminderJob(updatedReminder);
-        
-        return updatedReminder;
+
+        return simpleReminderRepository.save(simpleReminder);
     }
 
     @Transactional
@@ -266,24 +259,6 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         complexReminderRepository.deleteById(id);
     }
 
-    private void scheduleSimpleReminderJob(SimpleReminder simpleReminder) {
-        try {
-            JobDetail jobDetail = buildJobDetail(simpleReminder);
-            Trigger trigger = buildTrigger(simpleReminder, jobDetail);
-
-            if (scheduler.checkExists(jobDetail.getKey())) {
-                 log.warn("Job with key {} already exists. Skipping schedule.", jobDetail.getKey());
-            } else {
-                scheduler.scheduleJob(jobDetail, trigger);
-                log.info("Scheduled job for simple reminder ID: {} with key {}", simpleReminder.getId(), jobDetail.getKey());
-            }
-
-        } catch (SchedulerException e) {
-            log.error("Error scheduling job for simple reminder ID: {}", simpleReminder.getId(), e);
-            throw new RuntimeException("Failed to schedule reminder job for SimpleReminder ID: " + simpleReminder.getId(), e);
-        }
-    }
-
     private JobKey buildJobKey(Long simpleReminderId) {
          return new JobKey("simpleReminder_" + simpleReminderId, REMINDER_JOB_GROUP);
     }
@@ -292,18 +267,6 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         return new TriggerKey("simpleReminderTrigger_" + simpleReminderId, REMINDER_TRIGGER_GROUP);
     }
 
-    private JobDetail buildJobDetail(SimpleReminder simpleReminder) {
-        JobDataMap jobDataMap = new JobDataMap();
-        jobDataMap.put("simpleReminderId", simpleReminder.getId());
-        jobDataMap.put("eventTitle", simpleReminder.getTitle());
-
-        return JobBuilder.newJob(ReminderJob.class)
-                .withIdentity(buildJobKey(simpleReminder.getId()))
-                .withDescription("Reminder Job for SimpleReminder: " + simpleReminder.getTitle())
-                .usingJobData(jobDataMap)
-                .storeDurably(false)
-                .build();
-    }
 
     private Trigger buildTrigger(SimpleReminder simpleReminder, JobDetail jobDetail) {
          // Simple Triggers for SimpleReminder - run once at eventTime

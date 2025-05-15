@@ -80,6 +80,17 @@
       </div>
     </div>
   </div>
+  
+  <!-- 添加删除确认弹窗 -->
+  <ConfirmDialog
+    :show="showDeleteConfirm"
+    title="删除复杂提醒"
+    message="确定要删除这个复杂提醒吗？此操作无法撤销。"
+    confirm-text="删除"
+    cancel-text="取消"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <script setup>
@@ -88,6 +99,7 @@ import { reminderState } from '../services/store';
 import cronstrue from 'cronstrue/dist/cronstrue-i18n';
 // 直接导入整个模块
 import cronParser from 'cron-parser';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 // 定义props
 const props = defineProps({
@@ -200,17 +212,37 @@ function getNextTriggerTime(reminder) {
   }
 }
 
+// 添加删除确认弹窗的状态
+const showDeleteConfirm = ref(false);
+const reminderToDelete = ref(null);
+
 // 编辑提醒
 function editReminder(reminder) {
   emit('edit', reminder);
   closeModal();
 }
 
-// 删除提醒
+// 删除提醒 - 修改为显示确认弹窗
 function deleteReminder(id) {
-  if (confirm('确定要删除这个复杂提醒吗？')) {
-    emit('delete', id);
+  // 设置要删除的提醒ID
+  reminderToDelete.value = id;
+  // 显示确认弹窗
+  showDeleteConfirm.value = true;
+}
+
+// 确认删除提醒
+function confirmDelete() {
+  if (reminderToDelete.value) {
+    emit('delete', reminderToDelete.value);
+    showDeleteConfirm.value = false;
+    reminderToDelete.value = null;
   }
+}
+
+// 取消删除
+function cancelDelete() {
+  showDeleteConfirm.value = false;
+  reminderToDelete.value = null;
 }
 
 // 创建新提醒

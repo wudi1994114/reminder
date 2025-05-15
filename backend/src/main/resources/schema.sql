@@ -105,7 +105,8 @@ CREATE TABLE simple_reminder (
 );
 
 -- 为简单提醒表常用查询字段创建索引
-CREATE INDEX idx_simple_reminder_event_time ON simple_reminder (event_time);
+-- CREATE INDEX idx_simple_reminder_event_time ON simple_reminder (event_time);
+CREATE INDEX idx_simple_reminder_event_time_user ON simple_reminder (event_time, to_user_id);
 CREATE INDEX idx_simple_reminder_from_user ON simple_reminder (from_user_id);
 CREATE INDEX idx_simple_reminder_to_user ON simple_reminder (to_user_id);
 CREATE INDEX idx_simple_reminder_complex ON simple_reminder (originating_complex_reminder_id); -- 新增索引

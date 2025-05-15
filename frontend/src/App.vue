@@ -12,6 +12,7 @@ import UpcomingRemindersModal from './components/UpcomingRemindersModal.vue';
 import ComplexReminderModal from './components/ComplexReminderModal.vue';
 import ComplexReminderListModal from './components/ComplexReminderListModal.vue';
 import RegisterView from './components/RegisterView.vue';
+import ConfirmDialog from './components/ConfirmDialog.vue';
 import { 
   login,
   register,
@@ -1263,17 +1264,16 @@ async function handleSaveEvent(formData) {
   }
 }
 
+// --- 修改：删除事件处理函数，不再使用原生confirm ---
 async function handleDeleteEvent(eventId) {
-  if (!confirm('确定要删除这个提醒事项吗？')) {
-    return;
-  }
-  
   try {
     await deleteEvent(eventId);
-    await loadEvents(); // Reload events after deletion
+    await loadEvents(); // 重新加载事件列表
+    closeEventModal(); // 确保删除后关闭弹窗
+    showNotification('提醒事项已成功删除', 'success');
   } catch (error) {
     console.error("Failed to delete event:", error);
-    // Handle error appropriately
+    showNotification('删除提醒事项失败: ' + (error.response?.data?.message || error.message || '未知错误'), 'error');
   }
 }
 

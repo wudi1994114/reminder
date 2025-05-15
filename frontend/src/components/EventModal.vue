@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { createEvent, updateEvent, deleteEvent } from '../services/api';
 import { showNotification } from '../services/store';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 // Props
 const props = defineProps({
@@ -201,6 +202,9 @@ const errors = ref({
   title: ''
 });
 
+// 添加确认弹窗状态
+const showDeleteConfirm = ref(false);
+
 // Submit handler
 const handleSubmit = async (e) => {
   e.preventDefault();
@@ -241,20 +245,33 @@ const handleDelete = async () => {
     return;
   }
   
-  if (confirm('确定要删除这个事件吗？')) {
-    console.log('EventModal: 发出删除事件请求，ID:', localEventData.value.id);
-    loading.value = true;
-    
-    try {
-      // 通过emit将删除请求传给父组件
-      emit('delete', localEventData.value.id);
-      loading.value = false;
-    } catch (error) {
-      console.error('EventModal: 删除事件时出错', error);
-      showNotification('删除失败', 'error');
-      loading.value = false;
-    }
+  // 显示确认弹窗，而不是使用confirm
+  showDeleteConfirm.value = true;
+};
+
+// 确认删除事件处理函数
+const confirmDelete = async () => {
+  console.log('EventModal: 确认删除事件，ID:', localEventData.value.id);
+  loading.value = true;
+  
+  try {
+    // 通过emit将删除请求传给父组件
+    emit('delete', localEventData.value.id);
+    loading.value = false;
+    // 关闭确认弹窗
+    showDeleteConfirm.value = false;
+  } catch (error) {
+    console.error('EventModal: 删除事件时出错', error);
+    showNotification('删除失败', 'error');
+    loading.value = false;
+    // 关闭确认弹窗
+    showDeleteConfirm.value = false;
   }
+};
+
+// 取消删除事件处理函数
+const cancelDelete = () => {
+  showDeleteConfirm.value = false;
 };
 
 // Close handler
@@ -350,6 +367,17 @@ const closeModal = () => {
       </form>
     </div>
   </div>
+  
+  <!-- 添加删除确认弹窗 -->
+  <ConfirmDialog
+    :show="showDeleteConfirm"
+    title="删除提醒"
+    message="确定要删除这个提醒事项吗？此操作无法撤销。"
+    confirm-text="删除"
+    cancel-text="取消"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>
@@ -532,14 +560,11 @@ const closeModal = () => {
 }
 
 .modal-actions button.danger {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: #f44336;
+  color: white;
 }
 .modal-actions button.danger:hover {
-  background-color: #f5c6cb;
-  border-color: #f1b0b7;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  background-color: #d32f2f;
 }
 
 /* 自定义下拉选择器样式 */
@@ -715,23 +740,23 @@ const closeModal = () => {
 }
 
 .form-group.has-error label {
-  color: #dc3545;
+  color: #f44336;
 }
 
 .input-error {
-  border-color: #dc3545 !important;
-  box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25) !important;
+  border-color: #f44336 !important;
+  box-shadow: 0 0 0 1px rgba(244, 67, 54, 0.25) !important;
 }
 
 .error-message {
-  color: #dc3545;
-  font-size: 0.85em;
-  margin-top: 5px;
+  color: #f44336;
+  font-size: 12px;
+  margin-top: 4px;
 }
 
 .required {
-  color: #dc3545;
-  margin-left: 3px;
+  color: #f44336;
+  margin-left: 2px;
 }
 
 .complex-reminder-button {
