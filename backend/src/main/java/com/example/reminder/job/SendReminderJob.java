@@ -129,7 +129,7 @@ public class SendReminderJob implements Job {
                                     try {
                                         String emailSubject = reminder.getTitle();
                                         // 邮件正文可根据需求调整，例如加入用户昵称 userProfile.getNickname()
-                                        String emailBody = "尊敬的 " + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，\n\n您的提醒事项：" + reminder.getTitle(); 
+                                        String emailBody = "尊敬的" + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，<br/>您的提醒事项：" + reminder.getTitle(); 
                                         
                                         gmailSender.sendEmail(userProfile.getEmail(), emailSubject, emailBody);
                                         log.info("邮件提醒已成功发送至 {} (用户ID: {}) - 提醒ID: {}", userProfile.getEmail(), reminder.getToUserId(), reminder.getId());
