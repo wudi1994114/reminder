@@ -72,7 +72,7 @@ spring:
   quartz:
     job-store-type: jdbc  # 使用jdbc存储而不是内存存储
     jdbc:
-      initialize-schema: never  # 修改为always，每次启动时初始化schema
+      initialize-schema: never  # 修改为 never，因为表已在 quartz_db 中手动创建
     auto-startup: true # 确保Quartz自动启动
     startup-delay: 5s # 延迟5秒启动，确保其他组件已准备就绪
     overwrite-existing-jobs: true # 覆盖已存在的任务
@@ -112,6 +112,8 @@ logging:
     org.hibernate.SQL: ERROR
     org.hibernate.type.descriptor.sql: ERROR
     com.alibaba.druid.pool.DruidDataSource: INFO # Druid连接池日志级别
+    org.quartz: DEBUG
+    com.example.reminder.job: DEBUG # 同时确保您自己Job的日志也可见
 
 # JWT Settings
 # IMPORTANT: Replace with a strong, base64-encoded secret key for production! (at least 512 bits / 86 chars for HS512)

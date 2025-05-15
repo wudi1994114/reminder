@@ -35,7 +35,4 @@ desktop.ini
 *.db
 *.sqlite
 
-# Sensitive application configuration files
-/backend/src/main/resources/application-local.yaml # 忽略本地特定的配置文件
-# 如果您有其他特定环境的配置文件如 application-dev.yaml, application-prod.yaml 也建议在此忽略
-# 例如: /backend/src/main/resources/application-*.yaml 
+*local.yaml 

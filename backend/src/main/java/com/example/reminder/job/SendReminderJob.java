@@ -1,7 +1,10 @@
 package com.example.reminder.job;
 
 import com.example.reminder.constant.CacheKeyEnum;
+import com.example.reminder.dto.UserProfileDto;
 import com.example.reminder.model.SimpleReminder;
+import com.example.reminder.sender.GmailSender;
+import com.example.reminder.service.UserCacheService;
 import com.example.reminder.utils.JacksonUtils;
 import com.example.reminder.utils.RedisUtils;
 import org.quartz.Job;
@@ -62,6 +65,12 @@ public class SendReminderJob implements Job {
     @Autowired
     private RedisUtils redisUtils;
     
+    @Autowired
+    private GmailSender gmailSender;
+    
+    @Autowired
+    private UserCacheService userCacheService;
+    
     /**
      * 任务执行方法，由Quartz调度器在指定时间调用
      * 
@@ -104,15 +113,48 @@ public class SendReminderJob implements Job {
                             // 将JSON字符串反序列化为SimpleReminder对象
                             SimpleReminder reminder = JacksonUtils.fromJson(reminderJson, SimpleReminder.class);
                             
-                            // TODO: 实现具体的推送逻辑，可以根据不同的提醒类型使用不同的推送方式
-                            // 1. 可以通过WebSocket推送到前端
-                            // 2. 可以发送邮件
-                            // 3. 可以发送手机通知
-                            // 4. 可以调用其他消息服务
-                            // 5. 记录日志以及入库历史消息表  
-                            
-                            log.info("正在发送提醒 - ID:{}, 标题:{}, 接收用户:{}", 
+                            log.info("正在处理提醒 - ID:{}, 标题:{}, 目标用户ID:{}", 
                                 reminder.getId(), reminder.getTitle(), reminder.getToUserId());
+
+                            // 发送邮件逻辑
+                            if (gmailSender != null && userCacheService != null && reminder.getToUserId() != null) {
+                                UserProfileDto userProfile = null;
+                                try {
+                                    userProfile = userCacheService.getUserProfileById(reminder.getToUserId()); 
+                                } catch (Exception e) {
+                                    log.error("获取用户信息失败 (ID: {}) - 提醒ID: {}, 错误: {}", reminder.getToUserId(), reminder.getId(), e.getMessage());
+                                }
+
+                                if (userProfile != null && userProfile.getEmail() != null && !userProfile.getEmail().isEmpty()) {
+                                    try {
+                                        String emailSubject = reminder.getTitle();
+                                        // 邮件正文可根据需求调整，例如加入用户昵称 userProfile.getNickname()
+                                        String emailBody = "尊敬的 " + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，\n\n您的提醒事项：" + reminder.getTitle(); 
+                                        
+                                        gmailSender.sendEmail(userProfile.getEmail(), emailSubject, emailBody);
+                                        log.info("邮件提醒已成功发送至 {} (用户ID: {}) - 提醒ID: {}", userProfile.getEmail(), reminder.getToUserId(), reminder.getId());
+                                    } catch (Exception mailEx) {
+                                        log.error("发送邮件提醒失败 - 提醒ID: {}, 用户ID: {}, 邮箱: {}, 错误: {}", 
+                                            reminder.getId(), reminder.getToUserId(), userProfile.getEmail(), mailEx.getMessage());
+                                    }
+                                } else {
+                                    if (userProfile == null) {
+                                        log.warn("未能获取到用户信息 (ID: {})，无法发送邮件提醒 - 提醒ID: {}", reminder.getToUserId(), reminder.getId());
+                                    } else {
+                                        log.warn("用户邮箱为空 (ID: {})，无法发送邮件提醒 - 提醒ID: {}", reminder.getToUserId(), reminder.getId());
+                                    }
+                                }
+                            } else {
+                                if (gmailSender == null) {
+                                    log.warn("GmailSender 未注入，无法发送邮件提醒 - 提醒ID: {}", reminder.getId());
+                                }
+                                if (userCacheService == null) {
+                                    log.warn("UserCacheService 未注入，无法获取用户信息 - 提醒ID: {}", reminder.getId());
+                                }
+                                if (reminder.getToUserId() == null){
+                                    log.warn("接收用户ID为空，无法发送邮件提醒 - 提醒ID: {}, 标题: {}", reminder.getId(), reminder.getTitle());
+                                }
+                            }
                             
                         } catch (Exception e) {
                             // 捕获并记录单个提醒处理过程中的异常，但不影响其他提醒的处理
