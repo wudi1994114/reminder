@@ -423,8 +423,27 @@ async function handleLogin(credentials) {
 
   } catch (error) {
     console.error("Login failed:", error);
-    console.error("Error response:", error.response);
-    loginError.value = error.response?.data?.message || "登录失败，请检查用户名和密码。";
+    console.error("Error details:", {
+      response: error.response,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+    
+    // 提取错误消息
+    if (error.response?.data?.message) {
+      // 如果后端返回了message字段
+      loginError.value = error.response.data.message;
+    } else if (error.response?.data && typeof error.response.data === 'string') {
+      // 如果后端直接返回字符串错误
+      loginError.value = error.response.data;
+    } else if (error.message) {
+      // 如果有错误消息
+      loginError.value = error.message;
+    } else {
+      // 默认错误消息
+      loginError.value = "登录失败，请检查用户名和密码。";
+    }
+    
     handleLogout(false);
   }
 }

@@ -10,9 +10,13 @@ import com.core.reminder.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -26,12 +30,23 @@ public class AuthController {
         try {
             LoginResponse loginResponse = authService.loginUser(loginRequest);
             return ResponseEntity.ok(loginResponse);
+        } catch (BadCredentialsException e) {
+            // 密码错误的情况
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "用户名或密码错误");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        } catch (UsernameNotFoundException e) {
+            // 用户不存在的情况
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "用户不存在：" + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         } catch (Exception e) {
-            // Catch specific exceptions like BadCredentialsException for better error handling
-            // For now, returning a generic 401 Unauthorized or 400 Bad Request
-            // Log the exception details
-            System.err.println("Login failed: " + e.getMessage()); // Replace with proper logging
-            return ResponseEntity.status(401).body("Login failed: Invalid credentials or server error."); 
+            // 其他未预期的错误
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "登录失败：" + e.getMessage());
+            // 记录错误日志
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
 
