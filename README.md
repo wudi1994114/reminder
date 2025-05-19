@@ -45,13 +45,13 @@
 
 ### 后端启动
 ```bash
-cd backend
+cd reminder-backend
 ./mvnw spring-boot:run
 ```
 
 ### 前端启动
 ```bash
-cd frontend
+cd reminder-frontend
 npm install
 npm run dev
 ```
@@ -64,7 +64,7 @@ npm run dev
 ## 项目结构
 ```
 reminder
-├── backend                 # Spring Boot后端
+├── reminder-backend        # Spring Boot后端
 │   └── src/main
 │       ├── java            # Java源代码
 │       │   └── com/example/reminder
@@ -76,7 +76,7 @@ reminder
 │       │       ├── service     # 业务逻辑层
 │       │       └── utils       # 工具类
 │       └── resources       # 配置文件
-└── frontend                # Vue.js前端
+└── reminder-frontend       # Vue.js前端
     ├── public              # 静态资源
     └── src                 # 源代码
         ├── assets          # 静态资源
@@ -150,13 +150,13 @@ A powerful reminder management system supporting simple reminders and complex sc
 
 ### Start Backend
 ```bash
-cd backend
+cd reminder-backend
 ./mvnw spring-boot:run
 ```
 
 ### Start Frontend
 ```bash
-cd frontend
+cd reminder-frontend
 npm install
 npm run dev
 ```
@@ -169,7 +169,7 @@ Application runs at:
 ## Project Structure
 ```
 reminder
-├── backend                 # Spring Boot backend
+├── reminder-backend        # Spring Boot backend
 │   └── src/main
 │       ├── java            # Java source code
 │       │   └── com/example/reminder
@@ -181,7 +181,7 @@ reminder
 │       │       ├── service     # Business Logic Layer
 │       │       └── utils       # Utilities
 │       └── resources       # Configuration files
-└── frontend                # Vue.js frontend
+└── reminder-frontend       # Vue.js frontend
     ├── public              # Static resources
     └── src                 # Source code
         ├── assets          # Static assets
