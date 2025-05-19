@@ -6,7 +6,7 @@
 
 # Dependencies
 node_modules/
-/reminder-backend/target/
+**/target/
 /reminder-backend/.mvn/
 
 # Logs
