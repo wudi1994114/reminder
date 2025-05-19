@@ -112,8 +112,8 @@ logging:
     org.hibernate.SQL: ERROR
     org.hibernate.type.descriptor.sql: ERROR
     com.alibaba.druid.pool.DruidDataSource: INFO # Druid连接池日志级别
-    org.quartz: DEBUG
-    com.example.reminder.job: DEBUG # 同时确保您自己Job的日志也可见
+#    org.quartz: DEBUG
+#    com.example.reminder.job: DEBUG # 同时确保您自己Job的日志也可见
 
 # JWT Settings
 # IMPORTANT: Replace with a strong, base64-encoded secret key for production! (at least 512 bits / 86 chars for HS512)

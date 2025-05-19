@@ -110,13 +110,13 @@ class ComplexReminder {
 
 ### 后端
 ```bash
-cd backend
+cd reminder-backend
 ./mvnw spring-boot:run
 ```
 
 ### 前端
 ```bash
-cd frontend
+cd reminder-frontend
 npm install
 npm run dev
 ```

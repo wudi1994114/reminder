@@ -6,8 +6,8 @@
 
 # Dependencies
 node_modules/
-/backend/target/
-/backend/.mvn/
+/reminder-backend/target/
+/reminder-backend/.mvn/
 
 # Logs
 logs/
@@ -17,7 +17,7 @@ npm-debug.log*
 # Build outputs
 /dist/
 /build/
-/frontend/dist/
+/reminder-frontend/dist/
 
 # Environment variables
 .env
