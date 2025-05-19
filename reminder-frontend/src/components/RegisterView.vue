@@ -9,7 +9,6 @@ const emit = defineEmits(['register-attempt', 'show-login']);
 // Local state for the form inputs
 const username = ref('');
 const password = ref('');
-const confirmPassword = ref('');
 const email = ref('');
 const nickname = ref('');
 const phone = ref('');
@@ -29,14 +28,14 @@ function validateField(fieldName) {
   const fieldValue = {
     username: username.value,
     password: password.value,
-    confirmPassword: confirmPassword.value,
     email: email.value,
     nickname: nickname.value,
     phone: phone.value
   }[fieldName];
 
-  if (!fieldValue || !fieldValue.trim()) {
-    return;
+  if (!fieldValue || (typeof fieldValue === 'string' && !fieldValue.trim()) ) { // 确保对 password 也适用
+    // 对于密码字段，即使为空字符串也需要触发后续的 isStrongPassword 验证，因此这里不做提前返回
+    if (fieldName !== 'password') return;
   }
 
   switch(fieldName) {
@@ -53,13 +52,6 @@ function validateField(fieldName) {
       } else {
         delete formErrors.value.password;
       }
-      // 如果确认密码已经输入，也要检查确认密码
-      if (confirmPassword.value) {
-        validateConfirmPassword();
-      }
-      break;
-    case 'confirmPassword':
-      validateConfirmPassword();
       break;
     case 'email':
       if (!isValidEmail(fieldValue)) {
@@ -87,54 +79,23 @@ function validateField(fieldName) {
   }
 }
 
-// 确认密码验证
-function validateConfirmPassword() {
-  if (!confirmPassword.value) {
-    return;
-  }
-  if (password.value !== confirmPassword.value) {
-    formErrors.value.confirmPassword = '两次输入的密码不一致';
-  } else {
-    delete formErrors.value.confirmPassword;
-  }
-}
-
 // 提交前的完整验证
 function validateForm() {
   formErrors.value = {};
   
-  // 所有字段必填的验证
-  if (!username.value.trim()) {
-    formErrors.value.username = '请输入用户名';
-  }
-  if (!password.value) {
-    formErrors.value.password = '请输入密码';
-  }
-  if (!confirmPassword.value) {
-    formErrors.value.confirmPassword = '请确认密码';
-  }
-  if (!email.value.trim()) {
-    formErrors.value.email = '请输入邮箱';
-  }
-  if (!nickname.value.trim()) {
-    formErrors.value.nickname = '请输入昵称';
-  }
-  if (!phone.value.trim()) {
-    formErrors.value.phone = '请输入手机号码';
-  }
+  if (!username.value.trim()) formErrors.value.username = '请输入用户名';
+  if (!password.value) formErrors.value.password = '请输入密码'; // 密码为空的提示
+  if (!email.value.trim()) formErrors.value.email = '请输入邮箱';
+  if (!nickname.value.trim()) formErrors.value.nickname = '请输入昵称';
+  if (!phone.value.trim()) formErrors.value.phone = '请输入手机号码';
 
-  // 如果有任何必填字段未填，直接返回false
-  if (Object.keys(formErrors.value).length > 0) {
-    return false;
-  }
+  if (Object.keys(formErrors.value).length > 0) return false;
 
-  // 所有字段都已填写，进行格式验证
   validateField('username');
-  validateField('password');
+  validateField('password'); // 确保对密码进行强度验证
   validateField('email');
   validateField('nickname');
   validateField('phone');
-  validateConfirmPassword();
 
   return Object.keys(formErrors.value).length === 0;
 }
@@ -189,45 +150,36 @@ function showLogin() {
 
       <div class="form-group" :class="{ 'has-error': formErrors.username }">
         <label for="username">用户名:</label>
-        <input 
-          type="text" 
-          id="username" 
-          v-model="username" 
-          required 
-          minlength="3" 
-          maxlength="100"
-          @blur="validateField('username')"
-        >
-        <small class="form-hint">用户名长度必须在3到100个字符之间</small>
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            id="username" 
+            v-model="username" 
+            required 
+            minlength="3" 
+            maxlength="100"
+            @blur="validateField('username')"
+          >
+          <small class="form-hint">用户名长度必须在3到100个字符之间</small>
+        </div>
         <div v-if="formErrors.username" class="error-message">{{ formErrors.username }}</div>
       </div>
       
       <div class="form-group" :class="{ 'has-error': formErrors.password }">
         <label for="password">密码:</label>
-        <input 
-          type="password" 
-          id="password" 
-          v-model="password" 
-          required 
-          minlength="8"
-          @blur="validateField('password')"
-          @input="validateField('password')"
-        >
-        <small class="form-hint">密码必须包含大小写字母和数字，且长度至少为8个字符</small>
+        <div class="input-wrapper">
+          <input 
+            type="password" 
+            id="password" 
+            v-model="password" 
+            required 
+            minlength="8"
+            @blur="validateField('password')"
+            @input="validateField('password')"
+          >
+          <small class="form-hint">密码必须包含大小写字母和数字，且长度至少为8个字符</small>
+        </div>
         <div v-if="formErrors.password" class="error-message">{{ formErrors.password }}</div>
-      </div>
-      
-      <div class="form-group" :class="{ 'has-error': formErrors.confirmPassword }">
-        <label for="confirm-password">确认密码:</label>
-        <input 
-          type="password" 
-          id="confirm-password" 
-          v-model="confirmPassword" 
-          required
-          @blur="validateField('confirmPassword')"
-          @input="validateField('confirmPassword')"
-        >
-        <div v-if="formErrors.confirmPassword" class="error-message">{{ formErrors.confirmPassword }}</div>
       </div>
       
       <div class="form-group" :class="{ 'has-error': formErrors.email }">
@@ -244,296 +196,261 @@ function showLogin() {
       
       <div class="form-group" :class="{ 'has-error': formErrors.nickname }">
         <label for="nickname">昵称:</label>
-        <input 
-          type="text" 
-          id="nickname" 
-          v-model="nickname" 
-          required
-          @blur="validateField('nickname')"
-        >
+        <div class="input-wrapper">
+          <input 
+            type="text" 
+            id="nickname" 
+            v-model="nickname" 
+            required
+            minlength="2"
+            @blur="validateField('nickname')"
+          >
+          <small class="form-hint">昵称长度必须至少为2个字符</small>
+        </div>
         <div v-if="formErrors.nickname" class="error-message">{{ formErrors.nickname }}</div>
       </div>
-      
+
       <div class="form-group" :class="{ 'has-error': formErrors.phone }">
         <label for="phone">手机号码:</label>
         <input 
-          type="tel"
+          type="tel" 
           id="phone" 
           v-model="phone" 
           required
-          pattern="^1[3-9]\d{9}$"
           @blur="validateField('phone')"
-          @input="validateField('phone')"
         >
-        <small class="form-hint">请输入11位手机号码</small>
         <div v-if="formErrors.phone" class="error-message">{{ formErrors.phone }}</div>
       </div>
-      
-      <!-- Display error message passed via prop -->
-      <div v-if="registerError" class="error-message">
+
+      <div v-if="registerError" class="error-message global-error">
         {{ registerError }}
       </div>
       
-      <button type="submit" class="register-button">注册</button>
+      <div class="register-actions">
+        <button type="submit" class="btn-register">注册</button>
+        <button type="button" @click="showLogin" class="login-link">已有账户? 去登录</button>
+      </div>
     </form>
-    <!-- Back to login link -->
-    <p class="toggle-link">
-      已有账户？ <button @click="showLogin" class="link-button">返回登录</button>
-    </p>
   </div>
 </template>
 
 <style scoped>
-/* Styles specific to the register view - Similar to LoginView styles */
 .register-container {
+  max-width: 450px; /* 稍微调整最大宽度，寻找平衡点 */
+  margin: 2rem auto; /* 增加垂直外边距，使其在页面上更居中 */
+  padding: 2rem; /* 稍微增加内边距，以匹配原始风格的感觉 */
+  border: 1px solid #e0e0e0;
+  border-radius: 12px; /* 恢复稍大的圆角 */
+  background-color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); /* 调整阴影以匹配原始风格 */
+  max-height: 90vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh; 
-  padding: 2rem;
-  box-sizing: border-box;
-  background-color: #f8f9fa; 
+  font-family: 'Nunito', sans-serif; /* 应用 Nunito 字体 */
 }
 
-.register-container h2 {
-  margin-bottom: 1.5rem;
-  color: #333;
-  font-family: 'Nunito', sans-serif; 
-}
-
-.register-form {
-  width: 100%;
-  max-width: 400px; 
-  padding: 2rem;
-  background-color: #fff;
-  border-radius: 12px; 
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); 
-}
-
-.register-form .form-group {
-  margin-bottom: 1.25rem; 
-}
-
-.register-form label {
-  display: block;
-  margin-bottom: 0.6rem;
-  font-weight: 600;
-  color: #555;
-  font-family: 'Nunito', sans-serif;
-}
-
-.register-form input[type="email"],
-.register-form input[type="password"],
-.register-form input[type="text"],
-.register-form input[type="tel"] {
-  width: 100%;
-  padding: 0.85rem 1rem; 
-  border: 1px solid #dcdcdc;
-  border-radius: 8px; 
-  box-sizing: border-box;
-  font-size: 1rem;
-  font-family: 'Nunito', sans-serif;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.register-form input:focus {
-  outline: none;
-  border-color: var(--theme-primary-color, #4CAF50); 
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.3); 
-}
-
-.error-message {
-  color: #d8000c; 
-  background-color: #ffcdd2;
-  border: 1px solid #ef9a9a;
-  padding: 0.8rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  text-align: center;
-  font-size: 0.9rem;
-  font-family: 'Nunito', sans-serif;
-}
-
-.register-button {
-  width: 100%;
-  padding: 0.9rem;
-  background-color: var(--theme-primary-color, #4CAF50); 
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.05rem;
-  font-weight: 700; 
-  font-family: 'Nunito', sans-serif;
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.1s ease;
-}
-
-.register-button:hover {
-  background-color: var(--theme-hover-color, #45a049); 
-}
-
-.register-button:active {
-   transform: translateY(1px); 
-}
-
-.toggle-link {
-    margin-top: 1.5rem;
-    font-size: 0.9rem;
-    color: #666;
-    font-family: 'Nunito', sans-serif;
-    text-align: center;
-}
-.link-button {
-    background: none;
-    border: none;
-    padding: 0;
-    font: inherit;
-    color: var(--theme-primary-color, #4CAF50);
-    text-decoration: underline;
-    cursor: pointer;
-    font-weight: 600;
-}
-.link-button:hover {
-    color: var(--theme-hover-color, #45a049);
-}
-
-.form-hint {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.8rem;
-  color: #666;
-}
-
-/* 新增样式 */
-.has-error input {
-  border-color: #d8000c;
-}
-
-.has-error input:focus {
-  box-shadow: 0 0 0 3px rgba(216, 0, 12, 0.2);
-}
-
-.error-message {
-  color: #d8000c;
-  font-size: 0.85rem;
-  margin-top: 0.4rem;
-}
-
-/* 密码强度指示器样式 */
-.password-strength {
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-}
-
-.strength-indicator {
-  height: 4px;
-  border-radius: 2px;
-  margin-top: 0.3rem;
-  background-color: #ddd;
-}
-
-.strength-indicator div {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-.strength-weak {
-  background-color: #ff4444;
-  width: 33.33%;
-}
-
-.strength-medium {
-  background-color: #ffbb33;
-  width: 66.66%;
-}
-
-.strength-strong {
-  background-color: #00C851;
-  width: 100%;
-}
-
-/* 新增头像上传相关样式 */
-.avatar-upload {
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-
-.avatar-preview {
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  margin: 0 auto 1rem;
-  border: 2px solid #dcdcdc;
-  overflow: hidden;
-  position: relative;
-  background-color: #f8f9fa;
+/* NEW: Input wrapper style */
+.input-wrapper {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: baseline; /* Aligns based on text baseline, good for input and text */
 }
 
-.avatar-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* Webkit 浏览器滚动条样式 */
+.register-container::-webkit-scrollbar {
+  width: 8px;
+}
+.register-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.register-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 10px;
+}
+.register-container::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
-.avatar-preview .placeholder {
-  color: #666;
-  font-size: 2rem;
-}
-
-.avatar-upload-btn {
-  background-color: var(--theme-primary-color, #4CAF50);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease;
-}
-
-.avatar-upload-btn:hover {
-  background-color: var(--theme-hover-color, #45a049);
-}
-
-.avatar-upload input[type="file"] {
-  display: none;
-}
-
-/* 新增头像选择相关样式 */
-.avatar-selection {
-  margin-bottom: 1.5rem;
+.register-container > h2 {
   text-align: center;
+  margin-bottom: 1.5rem; /* 恢复原始标题下边距 */
+  font-size: 1.8rem; 
+  color: #333;
+  font-family: 'Nunito', sans-serif;
+}
+
+.avatar-selection {
+  margin-bottom: 1.2rem;
+  text-align: center;
+  width: 100%; /* 确保头像选择区域占满可用宽度以支持内部滚动 */
+  overflow-x: auto; /* 允许横向滚动 */
+}
+
+.avatar-selection h3 {
+  font-size: 1rem;
+  color: #555;
+  margin-bottom: 0.8rem;
+  font-family: 'Nunito', sans-serif;
 }
 
 .avatar-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: flex; /* 修改为 flex 布局，使其成为一行 */
+  flex-direction: row; /* 确保是水平排列 */
+  gap: 10px; /* 头像之间的间距 */
+  padding: 0.5rem 0; /* 为滚动条留出一些空间 */
+  /* justify-content: center;  不再需要这个，因为会横向滚动 */
+  /* max-width: 320px; 不再限制最大宽度 */
+  /* margin: 0 auto 1.2rem auto;  不再需要这个 */
+  width: max-content; /* 确保容器宽度能容纳所有头像 */
+  margin: 0 auto; /* 让头像行在可滚动区域内居中（如果内容未超出） */
 }
 
 .avatar-option {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  margin: 0.5rem;
-  cursor: pointer;
-  overflow: hidden;
-  position: relative;
-  border: 2px solid transparent;
+  flex-shrink: 0; /* 防止头像在空间不足时被压缩 */
 }
 
 .avatar-option img {
-  width: 100%;
-  height: 100%;
+  width: 50px; /* 头像大小调整 */
+  height: 50px;
+  border-radius: 50%;
   object-fit: cover;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease-in-out, transform 0.2s ease-in-out;
 }
 
-.avatar-option.selected {
-  border-color: var(--theme-primary-color, #4CAF50);
+.avatar-option img:hover {
+  transform: scale(1.08);
+}
+
+.avatar-option.selected img {
+  border-color: #4CAF50; /* 主题绿色 */
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
+}
+
+.form-group {
+  margin-bottom: 1rem; /* 稍微增加表单组间距 */
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.4rem; /* 标签和输入框间距 */
+  font-size: 0.9rem; 
+  color: #555; /* 恢复原始标签颜色 */
+  font-weight: 600;
+  font-family: 'Nunito', sans-serif;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="email"],
+.form-group input[type="tel"] {
+  width: 100%; /* Default to 100% width for inputs not in a wrapper */
+  padding: 0.75rem 0.9rem;
+  font-size: 0.95rem;
+  font-family: 'Nunito', sans-serif;
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  /* margin-right will be handled by specific override below */
+}
+
+/* Override for inputs inside the new wrapper */
+.input-wrapper > input[type="text"],
+.input-wrapper > input[type="password"],
+.input-wrapper > input[type="email"],
+.input-wrapper > input[type="tel"] {
+  width: auto; /* Allow flex-grow to manage width */
+  flex-grow: 1; /* Input takes up available space in the flex container */
+  margin-right: 8px; /* Space between input and hint */
+}
+
+.form-group input:focus {
+  border-color: #4CAF50; /* 主题绿色 */
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25); /* 主题绿色光晕 */
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: #6c757d;
+  font-family: 'Nunito', sans-serif;
+  /* display: block; was removed or ensure it's not block */
+  margin-top: 0; /* Reset margin-top as baseline alignment should handle vertical position */
+  flex-shrink: 0; /* Prevent hint from shrinking too much if input grows */
+  /* white-space: nowrap; /* Optional: if hints should not wrap, but can make line very long */
+}
+
+.error-message {
+  color: #d8000c; /* 恢复原始错误信息文字颜色 */
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  font-family: 'Nunito', sans-serif;
+  /* 如果需要背景色，可以取消注释下一行，但这会使其不那么紧凑 */
+  /* background-color: #ffcdd2; padding: 0.5rem; border-radius: 4px; */ 
+}
+
+.global-error {
+  text-align: center;
+  margin-bottom: 1rem;
+  font-weight: bold;
+  background-color: #ffcdd2; /* 为全局错误添加背景，使其更突出 */
+  color: #d8000c;
+  padding: 0.8rem;
+  border-radius: 8px;
+}
+
+.register-actions {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.register-actions button {
+  padding: 0.8rem; /* 调整按钮内边距 */
+  font-size: 1rem; /* 调整按钮字体大小 */
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  border-radius: 8px; /* 恢复原始按钮圆角 */
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+}
+
+.register-actions button:active {
+  transform: translateY(1px);
+}
+
+.register-actions .btn-register {
+  background-color: #4CAF50; /* 主题绿色 */
+  color: white;
+}
+
+.register-actions .btn-register:hover {
+  background-color: #45a049; /* 主题绿色悬浮 */
+}
+
+.register-actions .login-link {
+  background-color: transparent;
+  color: #4CAF50; /* 主题绿色 */
+  border: 1px solid #4CAF50; /* 主题绿色边框 */
+  text-align: center;
+}
+
+.register-actions .login-link:hover {
+  background-color: rgba(76, 175, 80, 0.05); /* 淡绿色背景 */
+  color: #3e8e41;
+}
+
+/* 错误状态下的输入框样式 */
+.form-group.has-error input {
+  border-color: #d8000c; /* 错误时的边框颜色 */
+}
+
+.form-group.has-error input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(216, 0, 12, 0.2); /* 错误时的焦点光晕 */
 }
 </style> 

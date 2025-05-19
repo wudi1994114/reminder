@@ -1,9 +1,10 @@
 import axios from 'axios';
 
-// const API_URL = 'http://123.57.175.66:8080/api'; // 如果后端运行在其他地址，请相应调整
-const API_URL = 'http://localhost:8080/api'; // 如果后端运行在其他地址，请相应调整
+// 之前的实现可能被覆盖，强制使用相对路径
+// 注意：这里不再支持环境变量配置，直接使用相对路径
+const API_URL = '/api';
 
-// 创建 Axios 实例
+// 创建 Axios 实例，并设置baseURL
 const apiClient = axios.create({
     baseURL: API_URL,
     headers: {
@@ -13,6 +14,12 @@ const apiClient = axios.create({
 
 // 添加请求拦截器以包含token
 apiClient.interceptors.request.use(config => {
+    // 每次请求前检查baseURL，确保使用我们设置的路径
+    if (config.baseURL !== API_URL) {
+        console.warn('baseURL不匹配，强制使用配置的API_URL');
+        config.baseURL = API_URL;
+    }
+    
     const token = localStorage.getItem('accessToken');
     console.log('Interceptor: Checking token for:', config.url);
     

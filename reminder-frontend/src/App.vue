@@ -388,9 +388,10 @@ async function fetchAndSetUserProfile() {
 // Modified login handler to use username
 async function handleLogin(credentials) {
   console.log("App.vue: Login attempt received with username:", credentials.username);
-  loginError.value = null;
+  loginError.value = null; // 清除之前的错误
   registerError.value = null;
   try {
+    console.log("正在尝试登录，使用API地址:", '/api/auth/login');
     const response = await login(credentials);
     console.log("Login response:", response);
     
@@ -418,16 +419,12 @@ async function handleLogin(credentials) {
     } else {
       console.warn("Login seemed successful, but failed to fetch profile.");
       loginError.value = "登录成功，但加载用户信息失败。";
-      handleLogout(false);
+      handleLogout(false, false); // 不清除错误信息
     }
 
   } catch (error) {
     console.error("Login failed:", error);
-    console.error("Error details:", {
-      response: error.response,
-      status: error.response?.status,
-      data: error.response?.data
-    });
+    console.error("Error response:", error.response);
     
     // 提取错误消息
     if (error.response?.data?.message) {
@@ -443,12 +440,16 @@ async function handleLogin(credentials) {
       // 默认错误消息
       loginError.value = "登录失败，请检查用户名和密码。";
     }
+
+    console.log("显示登录错误:", loginError.value);
     
-    handleLogout(false);
+    // 确保错误信息显示
+    showNotification(loginError.value, 'error');
+    
   }
 }
 
-function handleLogout(shouldReload = true) {
+function handleLogout(shouldReload = true, clearErrors = true) {
   console.log("App.vue: Logging out...");
   // 清除存储的认证信息
   localStorage.removeItem('accessToken');
@@ -461,10 +462,13 @@ function handleLogout(shouldReload = true) {
   userState.user = null;
   allEvents.value = []; 
   
-  // 清除错误信息
-  loginError.value = null;
+  // 只有在需要时才清除错误信息
+  if (clearErrors) {
+    loginError.value = null;
+    registerError.value = null;
+  }
+  
   showRegisterForm.value = false;
-  registerError.value = null;
   registerUsername.value = '';
   registerPassword.value = '';
   registerNickname.value = '';

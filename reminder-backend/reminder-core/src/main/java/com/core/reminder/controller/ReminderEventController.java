@@ -8,7 +8,6 @@ import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.service.ReminderEventServiceImpl; // 暂时使用具体类，后续最好使用接口
 import com.core.reminder.utils.ReminderMapper;
-// import com.example.reminder.service.ReminderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +25,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/reminders") // 更新后的基础路径
-@CrossOrigin(origins = "http://localhost:5173") // 保持CORS配置
+// @CrossOrigin(origins = "http://wwmty.cn:5173") // 全局配置CORS，移除此行
 // 考虑重命名为ReminderController
 public class ReminderEventController {
 
@@ -117,24 +116,16 @@ public class ReminderEventController {
     @GetMapping("/simple")
     public ResponseEntity<List<SimpleReminderDTO>> getAllSimpleReminders(
             @RequestAttribute("currentUser") UserProfileDto userProfileDto,
-            @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) Integer month,
+            @RequestParam(required = true) Integer year,
+            @RequestParam(required = true) Integer month,
             HttpServletRequest request) {
 
         log.info("当前登录用户信息: {}", userProfileDto);
+        Long userId = userProfileDto.getId(); // 获取用户ID
 
-        List<SimpleReminder> reminders;
-
-        // 根据是否提供了年月参数决定使用哪个查询方法
-        if (year != null && month != null) {
-            // 按月查询
-            reminders = reminderService.getSimpleRemindersByYearMonth(year, month);
-            log.info("查询 {}-{} 月份的所有简单提醒，共 {} 条", year, month, reminders.size());
-        } else {
-            // 查询所有
-            reminders = reminderService.getAllSimpleReminders();
-            log.info("查询所有简单提醒，共 {} 条", reminders.size());
-        }
+        // 年和月现在是必需的，直接按月查询
+        List<SimpleReminder> reminders = reminderService.getSimpleRemindersByYearMonthAndUser(year, month, userId);
+        log.info("用户 {} 查询 {}-{} 月份的所有简单提醒，共 {} 条", userId, year, month, reminders.size());
 
         List<SimpleReminderDTO> reminderDTOs = reminderMapper.toSimpleReminderDTOList(reminders);
         return ResponseEntity.ok(reminderDTOs);
@@ -145,8 +136,10 @@ public class ReminderEventController {
      * GET /api/reminders/upcoming
      */
     @GetMapping("/upcoming")
-    public ResponseEntity<List<SimpleReminderDTO>> getUpcomingReminders() {
-        List<SimpleReminder> reminders = reminderService.getUpcomingReminders();
+    public ResponseEntity<List<SimpleReminderDTO>> getUpcomingReminders(@RequestAttribute("currentUser") UserProfileDto userProfileDto) {
+        Long userId = userProfileDto.getId(); // 获取用户ID
+        log.info("用户 {} 查询即将到来的提醒事项", userId);
+        List<SimpleReminder> reminders = reminderService.getUpcomingReminders(userId); // 传递userId
         List<SimpleReminderDTO> reminderDTOs = reminderMapper.toSimpleReminderDTOList(reminders);
         return ResponseEntity.ok(reminderDTOs);
     }

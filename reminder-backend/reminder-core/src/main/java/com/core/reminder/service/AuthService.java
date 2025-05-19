@@ -6,6 +6,9 @@ import com.core.reminder.dto.ChangePasswordRequest;
 import com.common.reminder.model.AppUser;
 import com.core.reminder.repository.AppUserRepository;
 import com.core.reminder.security.JwtTokenProvider;
+
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,7 +21,7 @@ import com.core.reminder.exception.UserAlreadyExistsException;
 import com.core.reminder.dto.RegisterRequest;
 
 import java.time.OffsetDateTime;
-
+@Slf4j
 @Service
 public class AuthService {
 
@@ -82,9 +85,16 @@ public class AuthService {
         // 4. 加密密码
         newUser.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
 
+        // Log the avatarUrl from DTO
+        log.info("AuthService - Registering user. Avatar URL from DTO: '{}'", registerRequest.getAvatarUrl());
+
         // 5. 设置其他可选字段 (如果 DTO 中有)
         // newUser.setPhoneNumber(registerRequest.getPhoneNumber());
-        // newUser.setAvatarUrl(registerRequest.getAvatarUrl());
+        newUser.setAvatarUrl(registerRequest.getAvatarUrl());
+        
+        // Log the avatarUrl set on entity
+        log.info("AuthService - Avatar URL set on AppUser entity: '{}'", newUser.getAvatarUrl());
+        
         // newUser.setGender(registerRequest.getGender());
         // newUser.setBirthDate(registerRequest.getBirthDate()); 
 
