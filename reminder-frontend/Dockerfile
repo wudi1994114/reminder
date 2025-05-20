@@ -1,5 +1,5 @@
 # Stage 1: Build the application
-FROM node:18-alpine AS build
+FROM docker-0.unsee.tech/node:18-alpine AS build
 
 # Set working directory
 WORKDIR /app
@@ -24,7 +24,7 @@ RUN npm run build
 # RUN yarn build
 
 # Stage 2: Serve the application using Nginx
-FROM nginx:alpine
+FROM docker-0.unsee.tech/nginx:alpine
 
 # Copy built assets from the build stage
 # Assuming the build output is in the 'dist' directory
