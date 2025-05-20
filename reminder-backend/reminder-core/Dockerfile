@@ -1,5 +1,5 @@
 # Use an official OpenJDK runtime as a parent image (adjust version as needed)
-FROM openjdk:8-jdk-slim
+FROM docker-0.unsee.tech/openjdk:8-jdk-slim
 
 # Set the working directory in the container
 WORKDIR /app
