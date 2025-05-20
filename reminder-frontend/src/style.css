@@ -13,6 +13,32 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 禁用 x 轴滑动 */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+  position: relative;
+  touch-action: pan-y; /* 只允许垂直方向的滑动 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 禁用Safari橡皮筋效果 */
+body {
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  justify-content: center; /* 确保内容水平居中 */
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  left: 0;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -20,14 +46,6 @@ a {
 }
 a:hover {
   color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
 }
 
 h1 {
@@ -63,6 +81,10 @@ button:focus-visible {
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  overflow-x: hidden; /* 确保应用内容不允许x轴滑动 */
+  display: flex;
+  justify-content: center;
+  width: 100%;
 }
 
 @media (prefers-color-scheme: light) {

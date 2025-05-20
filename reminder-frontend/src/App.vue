@@ -1644,6 +1644,12 @@ const deleteComplexReminder = async (id) => {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+  overflow-x: hidden; /* 禁止x轴滑动 */
+  position: fixed; /* 使用fixed代替absolute，更可靠地固定位置 */
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .app-container {
@@ -1658,6 +1664,8 @@ const deleteComplexReminder = async (id) => {
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+  overflow-x: hidden; /* 禁止x轴滑动 */
+  margin: 0 auto; /* 确保水平居中 */
 }
 
 /* 修改 app-header 样式 */
@@ -1707,12 +1715,19 @@ const deleteComplexReminder = async (id) => {
 @media (max-width: 768px) {
   .app-root {
     padding: 10px;
+    overflow-x: hidden; /* 确保手机端禁用x轴滑动 */
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
   .app-container {
     width: 100%;
     height: 100%;
     max-width: 100%;
     border-radius: 0;
+    overflow-x: hidden; /* 确保手机端禁用x轴滑动 */
+    margin: 0 auto; /* 确保水平居中 */
   }
 }
 
