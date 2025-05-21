@@ -24,7 +24,7 @@
         "@dcloudio/uni-cli-shared": "3.0.0-3090920231225001",
         "@dcloudio/uni-helper-json": "^1.0.13",
         "@dcloudio/vite-plugin-uni": "3.0.0-3090920231225001",
-        "@dcloudio/vue-cli-plugin-uni": "2.0.2-3090920231225001",
+        "@dcloudio/vue-cli-plugin-uni": "^2.0.2-4060620250520001",
         "@vitejs/plugin-vue": "^4.2.3",
         "vite": "^4.4.9"
       }
@@ -2088,13 +2088,13 @@
       }
     },
     "node_modules/@dcloudio/vue-cli-plugin-uni": {
-      "version": "2.0.2-3090920231225001",
-      "resolved": "https://registry.npmjs.org/@dcloudio/vue-cli-plugin-uni/-/vue-cli-plugin-uni-2.0.2-3090920231225001.tgz",
-      "integrity": "sha512-CDzmSGGLScd7TOtfQV9xl83B4Cq2sIeU0sL+yh63jR4xjkTPbn104gyyB02dXJRNolE1lni4qU/gikC3i18TKw==",
+      "version": "2.0.2-4060620250520001",
+      "resolved": "https://registry.npmjs.org/@dcloudio/vue-cli-plugin-uni/-/vue-cli-plugin-uni-2.0.2-4060620250520001.tgz",
+      "integrity": "sha512-j4TiFl3+oSRdTrd9ZzxA6oRhQm+A59hx92yvF6xtIqZ8iP3lucMBoKkYQA4M8MPCjslw2PAD6+ZIz4Ui0S6EpQ==",
       "dev": true,
       "license": "Apache-2.0",
       "dependencies": {
-        "@dcloudio/uni-stat": "^2.0.2-3090920231225001",
+        "@dcloudio/uni-stat": "^2.0.2-4060620250520001",
         "buffer-json": "^2.0.0",
         "clone-deep": "^4.0.1",
         "cross-env": "^5.2.0",
@@ -2148,6 +2148,34 @@
       "integrity": "sha512-fUs4B4L+mlt8/XAtSOGMUO1TXmAelItBPtJG7CyHJfYTdDjwisntGO2JQz7oUsatOY9o68+57eziUVNw/mRHmA==",
       "dev": true,
       "license": "MIT"
+    },
+    "node_modules/@dcloudio/vue-cli-plugin-uni/node_modules/json5": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/json5/-/json5-1.0.2.tgz",
+      "integrity": "sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "minimist": "^1.2.0"
+      },
+      "bin": {
+        "json5": "lib/cli.js"
+      }
+    },
+    "node_modules/@dcloudio/vue-cli-plugin-uni/node_modules/loader-utils": {
+      "version": "1.4.2",
+      "resolved": "https://registry.npmjs.org/loader-utils/-/loader-utils-1.4.2.tgz",
+      "integrity": "sha512-I5d00Pd/jwMD2QCduo657+YM/6L3KZu++pmX9VFncxaxvHcru9jx1lBaFft+r4Mt2jK0Yhp41XlRAihzPxHNCg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "big.js": "^5.2.2",
+        "emojis-list": "^3.0.0",
+        "json5": "^1.0.1"
+      },
+      "engines": {
+        "node": ">=4.0.0"
+      }
     },
     "node_modules/@dcloudio/vue-cli-plugin-uni/node_modules/lru-cache": {
       "version": "4.1.5",
@@ -2215,6 +2243,13 @@
       "engines": {
         "node": ">=4"
       }
+    },
+    "node_modules/@dcloudio/vue-cli-plugin-uni/node_modules/postcss-value-parser": {
+      "version": "3.3.1",
+      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-3.3.1.tgz",
+      "integrity": "sha512-pISE66AbVkp4fDQ7VHBwRNXzAAKJjw4Vw7nWI/+Q3vuly7SNfgYXvm6i5IgFylHGK5sP/xHAbB7N49OS4gWNyQ==",
+      "dev": true,
+      "license": "MIT"
     },
     "node_modules/@dcloudio/vue-cli-plugin-uni/node_modules/xregexp": {
       "version": "4.0.0",
@@ -3585,12 +3620,6 @@
         "postcss": "^8.1.0"
       }
     },
-    "node_modules/autoprefixer/node_modules/postcss-value-parser": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz",
-      "integrity": "sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==",
-      "license": "MIT"
-    },
     "node_modules/axios": {
       "version": "1.9.0",
       "resolved": "https://registry.npmjs.org/axios/-/axios-1.9.0.tgz",
@@ -4771,15 +4800,6 @@
         "loader-utils": "^3.2.0"
       }
     },
-    "node_modules/generic-names/node_modules/loader-utils": {
-      "version": "3.3.1",
-      "resolved": "https://registry.npmjs.org/loader-utils/-/loader-utils-3.3.1.tgz",
-      "integrity": "sha512-FMJTLMXfCLMLfJxcX9PFqX5qD88Z5MRGaZCVzfuqeZSPsyiBzs+pahDQjbIWz2QIzPZz0NX9Zy4FX3lmK6YHIg==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 12.13.0"
-      }
-    },
     "node_modules/gensync": {
       "version": "1.0.0-beta.2",
       "resolved": "https://registry.npmjs.org/gensync/-/gensync-1.0.0-beta.2.tgz",
@@ -5230,31 +5250,12 @@
       }
     },
     "node_modules/loader-utils": {
-      "version": "1.4.2",
-      "resolved": "https://registry.npmjs.org/loader-utils/-/loader-utils-1.4.2.tgz",
-      "integrity": "sha512-I5d00Pd/jwMD2QCduo657+YM/6L3KZu++pmX9VFncxaxvHcru9jx1lBaFft+r4Mt2jK0Yhp41XlRAihzPxHNCg==",
-      "dev": true,
+      "version": "3.3.1",
+      "resolved": "https://registry.npmjs.org/loader-utils/-/loader-utils-3.3.1.tgz",
+      "integrity": "sha512-FMJTLMXfCLMLfJxcX9PFqX5qD88Z5MRGaZCVzfuqeZSPsyiBzs+pahDQjbIWz2QIzPZz0NX9Zy4FX3lmK6YHIg==",
       "license": "MIT",
-      "dependencies": {
-        "big.js": "^5.2.2",
-        "emojis-list": "^3.0.0",
-        "json5": "^1.0.1"
-      },
       "engines": {
-        "node": ">=4.0.0"
-      }
-    },
-    "node_modules/loader-utils/node_modules/json5": {
-      "version": "1.0.2",
-      "resolved": "https://registry.npmjs.org/json5/-/json5-1.0.2.tgz",
-      "integrity": "sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==",
-      "dev": true,
-      "license": "MIT",
-      "dependencies": {
-        "minimist": "^1.2.0"
-      },
-      "bin": {
-        "json5": "lib/cli.js"
+        "node": ">= 12.13.0"
       }
     },
     "node_modules/local-pkg": {
@@ -5731,12 +5732,6 @@
         "postcss": "^8.0.0"
       }
     },
-    "node_modules/postcss-import/node_modules/postcss-value-parser": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz",
-      "integrity": "sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==",
-      "license": "MIT"
-    },
     "node_modules/postcss-load-config": {
       "version": "3.1.4",
       "resolved": "https://registry.npmjs.org/postcss-load-config/-/postcss-load-config-3.1.4.tgz",
@@ -5827,12 +5822,6 @@
         "node": ">=4"
       }
     },
-    "node_modules/postcss-modules-local-by-default/node_modules/postcss-value-parser": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz",
-      "integrity": "sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==",
-      "license": "MIT"
-    },
     "node_modules/postcss-modules-scope": {
       "version": "3.2.1",
       "resolved": "https://registry.npmjs.org/postcss-modules-scope/-/postcss-modules-scope-3.2.1.tgz",
@@ -5890,10 +5879,9 @@
       }
     },
     "node_modules/postcss-value-parser": {
-      "version": "3.3.1",
-      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-3.3.1.tgz",
-      "integrity": "sha512-pISE66AbVkp4fDQ7VHBwRNXzAAKJjw4Vw7nWI/+Q3vuly7SNfgYXvm6i5IgFylHGK5sP/xHAbB7N49OS4gWNyQ==",
-      "dev": true,
+      "version": "4.2.0",
+      "resolved": "https://registry.npmjs.org/postcss-value-parser/-/postcss-value-parser-4.2.0.tgz",
+      "integrity": "sha512-1NNCs6uurfkVbeXG4S8JFT9t19m45ICnif8zWLd5oPSZ50QnwMfK+H3jv408d4jw/7Bttv5axS5IiHoLaVNHeQ==",
       "license": "MIT"
     },
     "node_modules/preact": {
@@ -7814,6 +7802,34 @@
       "dev": true,
       "dependencies": {
         "loader-utils": "^1.1.0"
+      }
+    },
+    "node_modules/wrap-loader/node_modules/json5": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/json5/-/json5-1.0.2.tgz",
+      "integrity": "sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "minimist": "^1.2.0"
+      },
+      "bin": {
+        "json5": "lib/cli.js"
+      }
+    },
+    "node_modules/wrap-loader/node_modules/loader-utils": {
+      "version": "1.4.2",
+      "resolved": "https://registry.npmjs.org/loader-utils/-/loader-utils-1.4.2.tgz",
+      "integrity": "sha512-I5d00Pd/jwMD2QCduo657+YM/6L3KZu++pmX9VFncxaxvHcru9jx1lBaFft+r4Mt2jK0Yhp41XlRAihzPxHNCg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "big.js": "^5.2.2",
+        "emojis-list": "^3.0.0",
+        "json5": "^1.0.1"
+      },
+      "engines": {
+        "node": ">=4.0.0"
       }
     },
     "node_modules/xmlhttprequest": {

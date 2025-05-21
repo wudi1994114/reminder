@@ -23,7 +23,9 @@
   "devDependencies": {
     "@dcloudio/types": "^3.3.0",
     "@dcloudio/uni-cli-shared": "3.0.0-3090920231225001",
+    "@dcloudio/uni-helper-json": "^1.0.13",
     "@dcloudio/vite-plugin-uni": "3.0.0-3090920231225001",
+    "@dcloudio/vue-cli-plugin-uni": "2.0.2-3090920231225001",
     "@vitejs/plugin-vue": "^4.2.3",
     "vite": "^4.4.9"
   }
