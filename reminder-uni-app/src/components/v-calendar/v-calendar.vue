@@ -1,5 +1,9 @@
 <template>
 	<view class="calendar-content" :style="{background:bgColor == '' || bgColor == 'none' ? '' : bgColor }">
+		<!-- 添加调试信息，可在发布前移除 -->
+		<view style="padding: 5px 10px; font-size: 12px; color: #999;" v-if="extraData.length > 0">
+			有 {{ extraData.length }} 个日期标记点
+		</view>
 		<view class="calendar-header">
 			<view class="last-month" @tap="lastMonth">
 				<image :src="lastIcon" mode="" v-if="lastIcon != ''"></image>
@@ -24,7 +28,7 @@
 				:style="{background:itm.active && itm.type == 'cur' ? selColor : '',border:itm.active && itm.type == 'cur' ? 'none' : ''}"
 				@tap="dateTap(itm,index,idx)">
 					<text :style="{color:itm.type == 'last' || itm.type == 'next' ? '#C0C4CC' : itm.active && itm.type == 'cur' ? '#fff' : defColor }">{{itm.date}}</text>
-					<text class="dot" v-if="itm.dot && itm.type == 'cur'" :style="{background:itm.active ? '#fff' : selColor}"></text>
+					<text class="dot" v-if="itm.dot && itm.type == 'cur'" :style="{background: '#ff4500'}"></text>
 					<text class="val" v-if="itm.value != '' && itm.type == 'cur'" :style="{color:itm.active ? '#fff' : defColor}">{{itm.value}}</text>
 				</view>
 			</view>
@@ -108,16 +112,31 @@
 					month:new Date().getMonth()+1
 				},
 				date:[],
-				selDate:''
+				selDate:'',
+				debugLog: [] // 添加调试日志数组
 			};
 		},
 		created() {
-			this.time = this.defaultTime == {} ? this.time : this.defaultTime
-			this.createCalendar()
+			console.log('v-calendar 组件创建, extraData:', this.extraData?.length || 0);
+			this.time = this.defaultTime == {} ? this.time : this.defaultTime;
+			this.createCalendar();
+		},
+		watch: {
+			// 监听 extraData 的变化，当有新数据时重新渲染日历
+			extraData: {
+				handler(newVal) {
+					console.log('extraData 已更新，数据长度:', newVal?.length || 0);
+					if (newVal && newVal.length > 0) {
+						this.createCalendar(); // 重新渲染日历
+					}
+				},
+				deep: true
+			}
 		},
 		methods:{
 			// 渲染日历
 			createCalendar(type='cur'){
+				console.log('createCalendar 被调用, extraData 长度:', this.extraData.length);
 				let date = []
 				let days = new Date(this.time.year,this.time.month,0).getDate() //当月总天数
 				let lastDays = new Date(this.time.year,this.time.month-1,0).getDate() //上月总天数
@@ -127,6 +146,9 @@
 				let curDate = this.time.year + '-' + this.time.month + '-' //当前年月
 				let lastDate = this.time.year + '-' + (this.time.month-1) + '-' //上月年月
 				let nextDate = this.time.year + '-' + (this.time.month+1) + '-' //下月年月
+				
+				console.log('当前年月日期格式:', curDate + '5'); // 示例：检查5号的日期格式
+				
 				// 赋值当前选中日期
 				this.selDate = type == 'last' ? lastDate + this.selDate.split('-')[2] : type == 'next' ? nextDate + this.selDate.split('-')[2] : this.selDate == '' ? curDate + new Date().getDate() : this.selDate
 				let d = 1
@@ -154,12 +176,14 @@
 							}
 							d++
 						}else{ // 当月数据
+							let fullDate = curDate + d;
+							console.log('检查当月日期:', fullDate);
 							obj = {
 								date:d,
 								type:'cur',
-								value:this.getValue(curDate+d),
-								dot:this.getDot(curDate+d),
-								active:this.getActive(curDate+d)
+								value:this.getValue(fullDate),
+								dot:this.getDot(fullDate),
+								active:this.getActive(fullDate)
 							}
 							d++
 						}
@@ -168,6 +192,7 @@
 					date.push(arr)
 				}
 				this.date = date
+				console.log('日历渲染完成, 第一行第一天:', date[0][0]);
 			},
 			// 获取value值
 			getValue(date){
@@ -187,10 +212,24 @@
 				if(!this.showDot){
 					return false
 				}
+				console.log('检查日期是否有点:', date, '| extraData:', this.extraData.length);
+				
 				let dot = false
+				// 规范化日期格式（移除可能的零填充）
+				const normalizedDate = date.replace(/\b0+/g, ''); // 移除前导零
+				
 				this.extraData.forEach(item=>{
-					if(item.date == date){
-						dot = item.dot
+					// 同样规范化 item.date 格式
+					const normalizedItemDate = item.date ? item.date.replace(/\b0+/g, '') : '';
+					
+					// 记录比较过程以便调试
+					if (item.date) {
+						console.log(`比较: ${normalizedDate} == ${normalizedItemDate}`, normalizedDate === normalizedItemDate);
+					}
+					
+					if(normalizedDate === normalizedItemDate){
+						dot = item.dot;
+						console.log('找到匹配的日期:', date, '设置dot为:', dot);
 					}
 				})
 				return dot
@@ -321,12 +360,12 @@
 						border-radius: 50%;
 					}
 					.dot{
-						width: 10upx;
-						height: 10upx;
+						width: 16upx;
+						height: 16upx;
 						border-radius: 50%;
-						background: #4198f8;
+						background: #ff4500;
 						position: absolute;
-						bottom: 10upx;
+						bottom: 8upx;
 						left: 50%;
 						transform: translateX(-50%);
 					}

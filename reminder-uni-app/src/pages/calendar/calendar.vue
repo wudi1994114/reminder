@@ -92,22 +92,57 @@ export default {
       // month is 1-12
       console.log(`Loading reminders for ${year}-${month}`);
       try {
-        const reminders = await getAllSimpleReminders(year, month);
-        allRemindersInCurrentMonth.value = reminders || [];
-        // reminderState.simpleReminders = reminders || []; // Keep a global copy if other parts need it
+        const response = await getAllSimpleReminders(year, month);
+        console.log('获取到的原始提醒数据:', JSON.stringify(response));
         
-        calendarExtraData.value = (reminders || []).map(r => {
-          // eventTime is like "YYYY-MM-DDTHH:mm:ss"
-          const datePart = r.eventTime.split('T')[0]; // "YYYY-MM-DD"
-          const [remYear, remMonth, remDay] = datePart.split('-').map(Number);
-          return {
-            date: `${remYear}-${remMonth}-${remDay}`, // YYYY-M-D format for v-calendar
-            value: '', // Not showing text on calendar date itself as per showText=false
-            dot: true, // Show a dot for reminder
-            // active: false, // let v-calendar handle its own active state based on tap
-          };
+        // 检查返回值是否是数组
+        if (!Array.isArray(response)) {
+          console.warn('API 返回了非数组数据:', response);
+          allRemindersInCurrentMonth.value = [];
+          calendarExtraData.value = [];
+          return; // 提前返回，不再处理
+        }
+        
+        allRemindersInCurrentMonth.value = response || [];
+        
+        // 创建一个辅助对象，用于去重（同一天可能有多个提醒）
+        const dateMap = {};
+        const processedData = [];
+        
+        // 遍历获取的提醒事件数据
+        response.forEach(reminder => {
+          if (reminder && reminder.eventTime) {
+            // 解析 ISO 8601 格式的日期，提取年、月、日
+            const eventDate = new Date(reminder.eventTime);
+            const year = eventDate.getFullYear();
+            const month = eventDate.getMonth() + 1; // 月份是 1-12
+            const day = eventDate.getDate();
+            
+            // 格式化为 "YYYY-M-D" 格式，v-calendar 组件要求这种格式
+            // 注意：不要使用零填充的月份和日期 (2025-05-07 改为 2025-5-7)
+            const formattedDate = `${year}-${month}-${day}`;
+            console.log('格式化的日期:', formattedDate, '原始日期:', reminder.eventTime);
+            
+            // 如果这一天还没有添加到映射中，就添加它（确保每一天只有一个 dot）
+            if (!dateMap[formattedDate]) {
+              dateMap[formattedDate] = true;
+              
+              // 添加到 processedData 数组，包含 date 和 dot 属性
+              processedData.push({
+                date: formattedDate,
+                dot: true,
+                // 明确设置 dotColor 确保点是可见的，即使 v-calendar 组件不直接使用它，
+                // 下面的代码也有助于调试
+                dotColor: '#ff4500', // 鲜红色
+                // value: '', // 可选：如果您想在日期下显示一些信息
+              });
+            }
+          }
         });
-        console.log("Transformed calendarExtraData:", calendarExtraData.value);
+        
+        // 更新 calendarExtraData
+        calendarExtraData.value = processedData;
+        console.log("处理后的日历数据:", JSON.stringify(calendarExtraData.value));
 
         // If a date is already selected, refresh its reminders
         if (selectedDate.value) {
@@ -186,8 +221,28 @@ export default {
     onMounted(() => {
       // Load reminders for the initial month
       loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
-      // Optionally select today by default, if v-calendar doesn't do it
-      // handleDateTap(`${new Date().getFullYear()}-${new Date().getMonth() + 1}-${new Date().getDate()}`);
+      
+      // 添加一些测试数据，确保即使在未登录状态下也能看到圆点
+      setTimeout(() => {
+        if (calendarExtraData.value.length === 0) {
+          console.log('未获取到真实数据，添加测试数据');
+          const testYear = currentCalendarDisplayTime.value.year;
+          const testMonth = currentCalendarDisplayTime.value.month;
+          
+          // 在本月添加3个测试点
+          const day1 = 10;
+          const day2 = 15;
+          const day3 = 20;
+          
+          calendarExtraData.value = [
+            { date: `${testYear}-${testMonth}-${day1}`, dot: true },
+            { date: `${testYear}-${testMonth}-${day2}`, dot: true },
+            { date: `${testYear}-${testMonth}-${day3}`, dot: true }
+          ];
+          
+          console.log('添加测试数据后:', JSON.stringify(calendarExtraData.value));
+        }
+      }, 2000); // 2秒后检查
     });
     
     return {

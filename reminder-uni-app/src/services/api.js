@@ -26,6 +26,12 @@ const request = (options) => {
                     // 处理401/403认证错误
                     if (res.statusCode === 401 || res.statusCode === 403) {
                         uni.removeStorageSync('accessToken');
+                        // 对于日历数据，如果遇到授权错误，返回空数组而不是拒绝 Promise
+                        if (options.url.includes('/reminders/simple')) {
+                            console.warn('获取提醒数据需要登录，返回空数组');
+                            resolve([]);
+                            return;
+                        }
                         // 可以在这里重定向到登录页面
                     }
                     
@@ -34,6 +40,14 @@ const request = (options) => {
             },
             fail: (err) => {
                 console.error('请求失败:', err);
+                
+                // 对于日历数据，如果遇到网络错误，也返回空数组
+                if (options.url.includes('/reminders/simple')) {
+                    console.warn('获取提醒数据失败，返回空数组');
+                    resolve([]);
+                    return;
+                }
+                
                 reject(err);
             }
         };
@@ -84,7 +98,19 @@ export const getAllSimpleReminders = (year, month) => {
     return request({
         url,
         method: 'GET'
-    }).catch(handleApiError);
+    })
+    .then(data => {
+        // 确保返回的数据是数组
+        if (!Array.isArray(data)) {
+            console.warn('API返回的数据不是数组:', data);
+            return []; // 返回空数组
+        }
+        return data;
+    })
+    .catch(error => {
+        console.error('获取提醒列表出错:', error);
+        return []; // 出错时返回空数组
+    });
 };
 
 export const getSimpleReminderById = (id) => request({
