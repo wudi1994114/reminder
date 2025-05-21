@@ -28,7 +28,7 @@ public class RegisterRequest {
 
     // 以后如有需要可以在此添加可选字段
     // private String phoneNumber;
-    // private String avatarUrl;
+    private String avatarUrl; // 取消注释，允许前端传递头像URL
     // private String gender;
     // private String birthDate; // 考虑使用LocalDate类型
 } 

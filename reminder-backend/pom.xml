@@ -25,28 +25,6 @@
         <java.version>1.8</java.version>
     </properties>
 
-    <distributionManagement>
-        <snapshotRepository>
-            <id>nexus-snapshot</id>
-            <name>corp nexus-snapshot</name>
-            <url>http://123.57.175.66:8081/repository/maven-snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
-    <repositories>
-        <repository>
-            <id>maven-nexus</id>
-            <name>maven-nexus</name>
-            <url>http://123.57.175.66:8081/repository/maven-public/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.projectlombok</groupId>

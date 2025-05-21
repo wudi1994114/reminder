@@ -388,9 +388,10 @@ async function fetchAndSetUserProfile() {
 // Modified login handler to use username
 async function handleLogin(credentials) {
   console.log("App.vue: Login attempt received with username:", credentials.username);
-  loginError.value = null;
+  loginError.value = null; // 清除之前的错误
   registerError.value = null;
   try {
+    console.log("正在尝试登录，使用API地址:", '/api/auth/login');
     const response = await login(credentials);
     console.log("Login response:", response);
     
@@ -418,18 +419,37 @@ async function handleLogin(credentials) {
     } else {
       console.warn("Login seemed successful, but failed to fetch profile.");
       loginError.value = "登录成功，但加载用户信息失败。";
-      handleLogout(false);
+      handleLogout(false, false); // 不清除错误信息
     }
 
   } catch (error) {
     console.error("Login failed:", error);
     console.error("Error response:", error.response);
-    loginError.value = error.response?.data?.message || "登录失败，请检查用户名和密码。";
-    handleLogout(false);
+    
+    // 提取错误消息
+    if (error.response?.data?.message) {
+      // 如果后端返回了message字段
+      loginError.value = error.response.data.message;
+    } else if (error.response?.data && typeof error.response.data === 'string') {
+      // 如果后端直接返回字符串错误
+      loginError.value = error.response.data;
+    } else if (error.message) {
+      // 如果有错误消息
+      loginError.value = error.message;
+    } else {
+      // 默认错误消息
+      loginError.value = "登录失败，请检查用户名和密码。";
+    }
+
+    console.log("显示登录错误:", loginError.value);
+    
+    // 确保错误信息显示
+    showNotification(loginError.value, 'error');
+    
   }
 }
 
-function handleLogout(shouldReload = true) {
+function handleLogout(shouldReload = true, clearErrors = true) {
   console.log("App.vue: Logging out...");
   // 清除存储的认证信息
   localStorage.removeItem('accessToken');
@@ -442,10 +462,13 @@ function handleLogout(shouldReload = true) {
   userState.user = null;
   allEvents.value = []; 
   
-  // 清除错误信息
-  loginError.value = null;
+  // 只有在需要时才清除错误信息
+  if (clearErrors) {
+    loginError.value = null;
+    registerError.value = null;
+  }
+  
   showRegisterForm.value = false;
-  registerError.value = null;
   registerUsername.value = '';
   registerPassword.value = '';
   registerNickname.value = '';
@@ -1621,6 +1644,12 @@ const deleteComplexReminder = async (id) => {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+  overflow-x: hidden; /* 禁止x轴滑动 */
+  position: fixed; /* 使用fixed代替absolute，更可靠地固定位置 */
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .app-container {
@@ -1635,6 +1664,8 @@ const deleteComplexReminder = async (id) => {
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+  overflow-x: hidden; /* 禁止x轴滑动 */
+  margin: 0 auto; /* 确保水平居中 */
 }
 
 /* 修改 app-header 样式 */
@@ -1684,12 +1715,19 @@ const deleteComplexReminder = async (id) => {
 @media (max-width: 768px) {
   .app-root {
     padding: 10px;
+    overflow-x: hidden; /* 确保手机端禁用x轴滑动 */
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
   .app-container {
     width: 100%;
     height: 100%;
     max-width: 100%;
     border-radius: 0;
+    overflow-x: hidden; /* 确保手机端禁用x轴滑动 */
+    margin: 0 auto; /* 确保水平居中 */
   }
 }
 

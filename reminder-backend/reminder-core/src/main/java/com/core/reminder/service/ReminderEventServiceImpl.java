@@ -47,8 +47,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         return simpleReminderRepository.findById(id);
     }
 
-    public List<SimpleReminder> getAllSimpleReminders() {
-        return simpleReminderRepository.findAll();
+    public List<SimpleReminder> getAllSimpleReminders(Long userId) {
+        return simpleReminderRepository.findByToUserId(userId);
     }
 
     /**
@@ -179,11 +179,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     /**
      * 获取最近10个即将到来的提醒
      */
-    public List<SimpleReminder> getUpcomingReminders() {
+    public List<SimpleReminder> getUpcomingReminders(Long userId) {
         // 获取当前时间
         OffsetDateTime now = OffsetDateTime.now();
-        // 查询即将到来的10个提醒
-        return simpleReminderRepository.findTop10ByEventTimeAfterOrderByEventTimeAsc(now);
+        // 查询指定用户即将到来的10个提醒
+        return simpleReminderRepository.findTop10ByToUserIdAndEventTimeAfterOrderByEventTimeAsc(userId, now);
     }
 
     @Transactional

@@ -124,8 +124,18 @@ function showRegister() {
   border-radius: 8px;
   margin-bottom: 1rem;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: bold;
   font-family: 'Nunito', sans-serif;
+  width: 100%;
+  box-shadow: 0 2px 10px rgba(239, 83, 80, 0.2);
+  animation: errorPulse 2s infinite;
+}
+
+@keyframes errorPulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.8; }
+  100% { opacity: 1; }
 }
 
 .login-button {
