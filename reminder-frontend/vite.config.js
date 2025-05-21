@@ -1,6 +1,8 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import uni from '@dcloudio/vite-plugin-uni'
+// 尝试使用不同的导入方式
+import * as uniModule from '@dcloudio/vite-plugin-uni'
+const uni = uniModule.default || uniModule
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -8,12 +10,15 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   // 设置明确的代理目标，改为后端运行的端口，一般是8080
-  const proxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost';
+  const proxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
+
+  // 打印检查 uni 的类型
+  console.log('uni type:', typeof uni);
 
   return {
     plugins: [
       vue(),
-      uni()
+      typeof uni === 'function' ? uni() : uni
     ],
     server: {
       host: '0.0.0.0', // 允许通过 IP 地址访问
