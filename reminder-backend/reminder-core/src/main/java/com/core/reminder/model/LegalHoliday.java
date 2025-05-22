@@ -27,6 +27,9 @@ public class LegalHoliday {
     @Column(nullable = false)
     private String name;
 
+    @Transient
+    private String solarTerm;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

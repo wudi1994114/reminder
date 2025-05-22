@@ -14,7 +14,5 @@ public interface LegalHolidayRepository extends JpaRepository<LegalHoliday, Long
     List<LegalHoliday> findByYear(Integer year);
     
     boolean existsByYear(Integer year);
-    
-    @Query("SELECT COUNT(lh) > 0 FROM LegalHoliday lh WHERE lh.year = :year AND lh.solarTerm IS NOT NULL")
-    boolean existsSolarTermsByYear(@Param("year") Integer year);
+
 } 
