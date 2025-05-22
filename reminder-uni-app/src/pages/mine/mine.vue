@@ -30,22 +30,14 @@
     
     <view class="menu-list">
       <view class="menu-item" @click="navTo('/pages/profile/edit')">
-        <text class="menu-icon">✏️</text>
         <text class="menu-label">编辑个人资料</text>
         <text class="menu-arrow">></text>
       </view>
       <view class="menu-item" @click="navTo('/pages/settings/notification')">
-        <text class="menu-icon">🔔</text>
         <text class="menu-label">提醒设置</text>
         <text class="menu-arrow">></text>
       </view>
-      <!-- <view class="menu-item" @click="navTo('/pages/settings/theme')">
-        <text class="menu-icon">🎨</text>
-        <text class="menu-label">主题设置</text>
-        <text class="menu-arrow">></text>
-      </view> -->
       <view class="menu-item" @click="navTo('/pages/settings/about')">
-        <text class="menu-icon">📱</text>
         <text class="menu-label">关于应用</text>
         <text class="menu-arrow">></text>
       </view>

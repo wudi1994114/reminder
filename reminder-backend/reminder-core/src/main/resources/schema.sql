@@ -177,6 +177,7 @@ CREATE TABLE legal_holiday (
     day INTEGER NOT NULL,                               -- 日期（1-31）
     holiday BOOLEAN NOT NULL,                           -- 是否是节假日（true为节假日，false为调休）
     name VARCHAR(100) NOT NULL,                         -- 节假日名称
+    solar_term VARCHAR(50),                             -- 节气名称
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL  -- 记录最后更新时间
 );
@@ -195,6 +196,40 @@ COMMENT ON COLUMN legal_holiday.month IS '节假日所在月份（1-12）';
 COMMENT ON COLUMN legal_holiday.day IS '节假日所在日期（1-31）';
 COMMENT ON COLUMN legal_holiday.holiday IS '是否是节假日（true为节假日，false为调休）';
 COMMENT ON COLUMN legal_holiday.name IS '节假日名称';
+COMMENT ON COLUMN legal_holiday.solar_term IS '节气名称';
 COMMENT ON COLUMN legal_holiday.created_at IS '记录的创建时间戳';
 COMMENT ON COLUMN legal_holiday.updated_at IS '记录的最后更新时间戳';
+
+-- 创建二十四节气表 (solar_term)
+DROP TABLE IF EXISTS solar_term CASCADE;
+CREATE TABLE solar_term (
+    id BIGSERIAL PRIMARY KEY,                           -- 节气唯一标识符，自增
+    name VARCHAR(50) NOT NULL,                          -- 节气名称 (例如: '立春', '雨水')
+    year INTEGER NOT NULL,                              -- 年份
+    month INTEGER NOT NULL,                             -- 月份（1-12）
+    day INTEGER NOT NULL,                               -- 日期（1-31）
+    suitable TEXT,                                      -- 宜：适宜做的事情，较长文本
+    taboo TEXT,                                         -- 忌：不宜做的事情，较长文本
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL  -- 记录最后更新时间
+);
+
+-- 为节气表常用查询字段创建索引
+CREATE INDEX idx_solar_term_date ON solar_term (year, month, day);
+CREATE INDEX idx_solar_term_name_year ON solar_term (name, year);
+
+-- 添加唯一约束，确保同一天不会重复记录同一个节气 (理论上一年只有一个同名节气，但为保险起见加上日期)
+CREATE UNIQUE INDEX idx_solar_term_unique_date_name ON solar_term (year, month, day, name);
+
+-- 节气表注释
+COMMENT ON TABLE solar_term IS '存储二十四节气信息，包含宜忌';
+COMMENT ON COLUMN solar_term.id IS '节气的唯一标识符 (主键)';
+COMMENT ON COLUMN solar_term.name IS '节气的名称';
+COMMENT ON COLUMN solar_term.year IS '节气所在年份';
+COMMENT ON COLUMN solar_term.month IS '节气所在月份（1-12）';
+COMMENT ON COLUMN solar_term.day IS '节气所在日期（1-31）';
+COMMENT ON COLUMN solar_term.suitable IS '该节气适宜做的事情';
+COMMENT ON COLUMN solar_term.taboo IS '该节气不宜做的事情';
+COMMENT ON COLUMN solar_term.created_at IS '记录的创建时间戳';
+COMMENT ON COLUMN solar_term.updated_at IS '记录的最后更新时间戳';
 
