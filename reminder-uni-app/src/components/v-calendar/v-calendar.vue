@@ -95,22 +95,22 @@
 			// 选中日期颜色
 			selColor:{
 				type:String,
-				default:'#4198f8'
+				default:'#FF6B35' // 温暖橘色
 			},
 			// 默认文字颜色
 			defColor:{
 				type:String,
-				default:'#333'
+				default:'#2C2C2E' // 深灰色
 			},
 			// 上个月文字
 			lastText:{
 				type:String,
-				default:'<'
+				default:'‹' // 更优雅的箭头
 			},
 			// 下个月文字
 			nextText:{
 				type:String,
-				default:'>'
+				default:'›' // 更优雅的箭头
 			},
 			// 上个月图标
 			lastIcon:{
@@ -140,22 +140,22 @@
 			// 工作日背景色
 			workDayBgColor:{
 				type:String,
-				default:'transparent'
+				default:'transparent' // 保持透明，简约风格
 			},
 			// 休息日背景色
 			restDayBgColor:{
 				type:String,
-				default:'#EFFFEF'
+				default:'#FFF4E6' // 浅橘色背景
 			},
 			// 休息日文字颜色
 			restDayColor:{
 				type:String,
-				default:'#ff4500'
+				default:'#FF6B35' // 橘色
 			},
 			// 休息日显示标记
 			showRestMark:{
 				type:Boolean,
-				default:false
+				default:true // 默认显示标记
 			},
 			// 休息日标记文本
 			restMarkText:{
@@ -182,22 +182,22 @@
 			// 法定假日背景色
 			legalHolidayBgColor:{
 				type:String,
-				default:'transparent'
+				default:'#FFE5CC' // 浅橘色背景
 			},
 			// 法定假日文字颜色
 			legalHolidayColor:{
 				type:String,
-				default:'#EFFFEF'
+				default:'#E55100' // 深橘色
 			},
 			// 法定补班日背景色
 			legalWorkdayBgColor:{
 				type:String,
-				default:'transparent'
+				default:'#F3E5AB' // 浅黄色背景
 			},
 			// 法定补班日文字颜色
 			legalWorkdayColor:{
 				type:String,
-				default:'#008000'
+				default:'#FF8F00' // 琥珀色
 			},
 			// 节日数据 [{date:'2023-1-1',name:'元旦'}]
 			holidays:{
@@ -209,7 +209,7 @@
 			// 节日文字颜色
 			holidayColor:{
 				type:String,
-				default:'#ff0000'
+				default:'#E55100' // 深橘色
 			},
 			// 节气数据 [{date:'2023-2-4',name:'立春'}]
 			solarTerms:{
@@ -221,7 +221,7 @@
 			// 节气文字颜色
 			solarTermColor:{
 				type:String,
-				default:'#1C5480'
+				default:'#8D6E63' // 棕色
 			},
 			// 默认时间{year:2020,month:5}
 			defaultTime:{
@@ -313,6 +313,236 @@
 				localHolidays: [], // 本地存储的节日数据
 				localLegalHolidays: [], // 本地存储的法定假日数据
 				
+				// 动态颜色配置（不修改props，而是使用data变量）
+				dynamicColors: {
+					selColor: '',
+					defColor: '',
+					restDayBgColor: '',
+					restDayColor: '',
+					legalHolidayBgColor: '',
+					legalHolidayColor: '',
+					legalWorkdayBgColor: '',
+					legalWorkdayColor: '',
+					holidayColor: '',
+					solarTermColor: '',
+					bgColor: '',
+					headerBgColor: '',
+					headerBorderColor: '',
+					weekTextColor: '',
+					buttonBgColor: '',
+					buttonActiveBgColor: '',
+					dotColor: ''
+				},
+				
+				// 12个月的固定色系配置
+				monthColorSchemes: {
+					1: { // 一月 - 冰雪蓝
+						name: '冰雪蓝',
+						primary: '#4A90E2',
+						background: '#F8FBFF',
+						
+						header: '#EBF4FF',
+						border: '#D1E7FF',
+						button: '#E3F2FD',
+						buttonActive: '#BBDEFB',
+						weekText: '#5C7CFA',
+						restDay: '#E3F2FD',
+						restDayText: '#4A90E2',
+						holiday: '#D1E7FF',
+						holidayText: '#1976D2',
+						workday: '#FFF3E0',
+						workdayText: '#FF8F00',
+						dot: '#1976D2'
+					},
+					2: { // 二月 - 浪漫粉
+						name: '浪漫粉',
+						primary: '#E91E63',
+						background: '#FFF8FA',
+						header: '#FCE4EC',
+						border: '#F8BBD9',
+						button: '#F3E5F5',
+						buttonActive: '#E1BEE7',
+						weekText: '#AD1457',
+						restDay: '#F3E5F5',
+						restDayText: '#E91E63',
+						holiday: '#F8BBD9',
+						holidayText: '#C2185B',
+						workday: '#FFF3E0',
+						workdayText: '#FF8F00',
+						dot: '#C2185B'
+					},
+					3: { // 三月 - 春绿色
+						name: '春绿色',
+						primary: '#4CAF50',
+						background: '#F9FFF9',
+						header: '#E8F5E8',
+						border: '#C8E6C9',
+						button: '#E8F5E8',
+						buttonActive: '#C8E6C9',
+						weekText: '#2E7D32',
+						restDay: '#E8F5E8',
+						restDayText: '#4CAF50',
+						holiday: '#C8E6C9',
+						holidayText: '#388E3C',
+						workday: '#FFF3E0',
+						workdayText: '#FF8F00',
+						dot: '#388E3C'
+					},
+					4: { // 四月 - 樱花粉
+						name: '樱花粉',
+						primary: '#FF9800',
+						background: '#FFFBF5',
+						header: '#FFF3E0',
+						border: '#FFCC80',
+						button: '#FFF3E0',
+						buttonActive: '#FFCC80',
+						weekText: '#E65100',
+						restDay: '#FFF3E0',
+						restDayText: '#FF9800',
+						holiday: '#FFCC80',
+						holidayText: '#F57C00',
+						workday: '#E8F5E8',
+						workdayText: '#4CAF50',
+						dot: '#F57C00'
+					},
+					5: { // 五月 - 薄荷绿
+						name: '薄荷绿',
+						primary: '#00BCD4',
+						background: '#F4FDFF',
+						header: '#E0F7FA',
+						border: '#B2EBF2',
+						button: '#E0F7FA',
+						buttonActive: '#B2EBF2',
+						weekText: '#00695C',
+						restDay: '#E0F7FA',
+						restDayText: '#00BCD4',
+						holiday: '#B2EBF2',
+						holidayText: '#0097A7',
+						workday: '#FFF3E0',
+						workdayText: '#FF8F00',
+						dot: '#0097A7'
+					},
+					6: { // 六月 - 阳光黄
+						name: '阳光黄',
+						primary: '#FFC107',
+						background: '#FFFEF7',
+						header: '#FFF8E1',
+						border: '#FFE082',
+						button: '#FFF8E1',
+						buttonActive: '#FFE082',
+						weekText: '#F57F17',
+						restDay: '#FFF8E1',
+						restDayText: '#FFC107',
+						holiday: '#FFE082',
+						holidayText: '#FF8F00',
+						workday: '#E0F7FA',
+						workdayText: '#00BCD4',
+						dot: '#FF8F00'
+					},
+					7: { // 七月 - 热情红
+						name: '热情红',
+						primary: '#F44336',
+						background: '#FFFAFA',
+						header: '#FFEBEE',
+						border: '#FFCDD2',
+						button: '#FFEBEE',
+						buttonActive: '#FFCDD2',
+						weekText: '#B71C1C',
+						restDay: '#FFEBEE',
+						restDayText: '#F44336',
+						holiday: '#FFCDD2',
+						holidayText: '#D32F2F',
+						workday: '#E0F7FA',
+						workdayText: '#00BCD4',
+						dot: '#D32F2F'
+					},
+					8: { // 八月 - 紫罗兰
+						name: '紫罗兰',
+						primary: '#9C27B0',
+						background: '#FEFAFF',
+						header: '#F3E5F5',
+						border: '#CE93D8',
+						button: '#F3E5F5',
+						buttonActive: '#CE93D8',
+						weekText: '#4A148C',
+						restDay: '#F3E5F5',
+						restDayText: '#9C27B0',
+						holiday: '#CE93D8',
+						holidayText: '#7B1FA2',
+						workday: '#FFF8E1',
+						workdayText: '#FFC107',
+						dot: '#7B1FA2'
+					},
+					9: { // 九月 - 深海蓝
+						name: '深海蓝',
+						primary: '#3F51B5',
+						background: '#F8F9FF',
+						header: '#E8EAF6',
+						border: '#C5CAE9',
+						button: '#E8EAF6',
+						buttonActive: '#C5CAE9',
+						weekText: '#1A237E',
+						restDay: '#E8EAF6',
+						restDayText: '#3F51B5',
+						holiday: '#C5CAE9',
+						holidayText: '#303F9F',
+						workday: '#FFF8E1',
+						workdayText: '#FFC107',
+						dot: '#303F9F'
+					},
+					10: { // 十月 - 金秋橙
+						name: '金秋橙',
+						primary: '#FF6B35',
+						background: '#FEFEFE',
+						header: '#FFF8F0',
+						border: '#FFE5CC',
+						button: '#FFF4E6',
+						buttonActive: '#FFE5CC',
+						weekText: '#8D6E63',
+						restDay: '#FFF4E6',
+						restDayText: '#FF6B35',
+						holiday: '#FFE5CC',
+						holidayText: '#E55100',
+						workday: '#F3E5AB',
+						workdayText: '#FF8F00',
+						dot: '#E55100'
+					},
+					11: { // 十一月 - 暖棕色
+						name: '暖棕色',
+						primary: '#795548',
+						background: '#FAFAFA',
+						header: '#EFEBE9',
+						border: '#D7CCC8',
+						button: '#EFEBE9',
+						buttonActive: '#D7CCC8',
+						weekText: '#3E2723',
+						restDay: '#EFEBE9',
+						restDayText: '#795548',
+						holiday: '#D7CCC8',
+						holidayText: '#5D4037',
+						workday: '#E8F5E8',
+						workdayText: '#4CAF50',
+						dot: '#5D4037'
+					},
+					12: { // 十二月 - 圣诞红绿
+						name: '圣诞红绿',
+						primary: '#D32F2F',
+						background: '#FFFAFA',
+						header: '#FFEBEE',
+						border: '#FFCDD2',
+						button: '#E8F5E8',
+						buttonActive: '#C8E6C9',
+						weekText: '#1B5E20',
+						restDay: '#FFEBEE',
+						restDayText: '#D32F2F',
+						holiday: '#FFCDD2',
+						holidayText: '#C62828',
+						workday: '#E8F5E8',
+						workdayText: '#2E7D32',
+						dot: '#C62828'
+					}
+				},
+				
 				// 统一的日期类型样式配置
 				dateTypeStyles: {
 					// 普通工作日样式
@@ -365,12 +595,29 @@
 						markShow: false
 					}
 				},
-				stylesInitialized: false
+				stylesInitialized: false,
+				currentColorScheme: {} // 当前月份的色系配置
 			};
 		},
 		created() {
 			console.log('v-calendar 组件创建, extraData:', this.extraData?.length || 0);
 			this.time = this.defaultTime == {} ? this.time : this.defaultTime;
+			
+			// 初始化动态颜色配置的默认值
+			this.dynamicColors.selColor = this.selColor;
+			this.dynamicColors.defColor = this.defColor;
+			this.dynamicColors.restDayBgColor = this.restDayBgColor;
+			this.dynamicColors.restDayColor = this.restDayColor;
+			this.dynamicColors.legalHolidayBgColor = this.legalHolidayBgColor;
+			this.dynamicColors.legalHolidayColor = this.legalHolidayColor;
+			this.dynamicColors.legalWorkdayBgColor = this.legalWorkdayBgColor;
+			this.dynamicColors.legalWorkdayColor = this.legalWorkdayColor;
+			this.dynamicColors.holidayColor = this.holidayColor;
+			this.dynamicColors.solarTermColor = this.solarTermColor;
+			this.dynamicColors.bgColor = this.bgColor;
+			
+			// 应用当前月份的色系
+			this.applyMonthColorScheme();
 			
 			// 初始化统一样式配置
 			this.initDateTypeStyles();
@@ -475,6 +722,41 @@
 			},
 		},
 		methods:{
+			// 应用当前月份的色系配置
+			applyMonthColorScheme() {
+				const month = this.time.month;
+				const colorScheme = this.monthColorSchemes[month];
+				
+				if (colorScheme) {
+					console.log(`应用${month}月色系: ${colorScheme.name}`);
+					this.currentColorScheme = colorScheme;
+					
+					// 更新动态颜色配置（不修改props）
+					this.dynamicColors.selColor = colorScheme.primary;
+					this.dynamicColors.defColor = '#2C2C2E';
+					this.dynamicColors.restDayBgColor = colorScheme.restDay;
+					this.dynamicColors.restDayColor = colorScheme.restDayText;
+					this.dynamicColors.legalHolidayBgColor = colorScheme.holiday;
+					this.dynamicColors.legalHolidayColor = colorScheme.holidayText;
+					this.dynamicColors.legalWorkdayBgColor = colorScheme.workday;
+					this.dynamicColors.legalWorkdayColor = colorScheme.workdayText;
+					this.dynamicColors.holidayColor = colorScheme.holidayText;
+					this.dynamicColors.solarTermColor = colorScheme.weekText;
+					this.dynamicColors.bgColor = colorScheme.background;
+					this.dynamicColors.headerBgColor = colorScheme.header;
+					this.dynamicColors.headerBorderColor = colorScheme.border;
+					this.dynamicColors.weekTextColor = colorScheme.weekText;
+					this.dynamicColors.buttonBgColor = colorScheme.button;
+					this.dynamicColors.buttonActiveBgColor = colorScheme.buttonActive;
+					this.dynamicColors.dotColor = colorScheme.dot;
+					
+					// 触发样式更新
+					this.$nextTick(() => {
+						this.updateDateTypeStyles();
+					});
+				}
+			},
+			
 			// 初始化统一样式配置
 			initDateTypeStyles() {
 				// 保存当前样式配置以便后续可能的恢复
@@ -489,32 +771,40 @@
 				// 标记是否是首次初始化
 				const isFirstInit = !this.stylesInitialized;
 				
+				// 获取有效颜色值（优先使用动态颜色，fallback到props）
+				const getEffectiveColor = (dynamicKey, propValue) => {
+					return this.dynamicColors[dynamicKey] || propValue;
+				};
+				
 				// 配置普通工作日样式
-				this.dateTypeStyles.workday.bgColor = this.workDayBgColor;
-				this.dateTypeStyles.workday.textColor = this.defColor;
+				this.dateTypeStyles.workday.bgColor = getEffectiveColor('workDayBgColor', this.workDayBgColor);
+				this.dateTypeStyles.workday.textColor = getEffectiveColor('defColor', this.defColor);
 				// 只在首次初始化时设置，或者尊重原始值
 				if (isFirstInit || !originalStyles.workday.eventTextColor) {
-					this.dateTypeStyles.workday.eventTextColor = this.defColor;
+					this.dateTypeStyles.workday.eventTextColor = getEffectiveColor('defColor', this.defColor);
 				} else {
 					this.dateTypeStyles.workday.eventTextColor = originalStyles.workday.eventTextColor;
 				}
 				if (isFirstInit || !originalStyles.workday.solarTermColor) {
-					this.dateTypeStyles.workday.solarTermColor = this.solarTermColor;
+					this.dateTypeStyles.workday.solarTermColor = getEffectiveColor('solarTermColor', this.solarTermColor);
 				} else {
 					this.dateTypeStyles.workday.solarTermColor = originalStyles.workday.solarTermColor;
 				}
+				// 工作日样式也需要支持标记显示（用于调休补班日）
+				this.dateTypeStyles.workday.markShow = true;
+				this.dateTypeStyles.workday.markText = this.legalWorkdayText;
 				
 				// 配置周末休息日样式
-				this.dateTypeStyles.weekend.bgColor = this.restDayBgColor;
-				this.dateTypeStyles.weekend.textColor = this.restDayColor;
+				this.dateTypeStyles.weekend.bgColor = getEffectiveColor('restDayBgColor', this.restDayBgColor);
+				this.dateTypeStyles.weekend.textColor = getEffectiveColor('restDayColor', this.restDayColor);
 				// 只在首次初始化时设置，或者尊重原始值
 				if (isFirstInit || !originalStyles.weekend.eventTextColor) {
-					this.dateTypeStyles.weekend.eventTextColor = this.restDayColor;
+					this.dateTypeStyles.weekend.eventTextColor = getEffectiveColor('restDayColor', this.restDayColor);
 				} else {
 					this.dateTypeStyles.weekend.eventTextColor = originalStyles.weekend.eventTextColor;
 				}
 				if (isFirstInit || !originalStyles.weekend.solarTermColor) {
-					this.dateTypeStyles.weekend.solarTermColor = this.solarTermColor;
+					this.dateTypeStyles.weekend.solarTermColor = getEffectiveColor('solarTermColor', this.solarTermColor);
 				} else {
 					this.dateTypeStyles.weekend.solarTermColor = originalStyles.weekend.solarTermColor;
 				}
@@ -522,16 +812,16 @@
 				this.dateTypeStyles.weekend.markText = this.restMarkText;
 				
 				// 配置法定节假日样式
-				this.dateTypeStyles.holiday.bgColor = this.legalHolidayBgColor;
-				this.dateTypeStyles.holiday.textColor = this.legalHolidayColor;
+				this.dateTypeStyles.holiday.bgColor = getEffectiveColor('legalHolidayBgColor', this.legalHolidayBgColor);
+				this.dateTypeStyles.holiday.textColor = getEffectiveColor('legalHolidayColor', this.legalHolidayColor);
 				// 只在首次初始化时设置，或者尊重原始值
 				if (isFirstInit || !originalStyles.holiday.eventTextColor) {
-					this.dateTypeStyles.holiday.eventTextColor = this.holidayColor;
+					this.dateTypeStyles.holiday.eventTextColor = getEffectiveColor('holidayColor', this.holidayColor);
 				} else {
 					this.dateTypeStyles.holiday.eventTextColor = originalStyles.holiday.eventTextColor;
 				}
 				if (isFirstInit || !originalStyles.holiday.solarTermColor) {
-					this.dateTypeStyles.holiday.solarTermColor = this.solarTermColor;
+					this.dateTypeStyles.holiday.solarTermColor = getEffectiveColor('solarTermColor', this.solarTermColor);
 				} else {
 					this.dateTypeStyles.holiday.solarTermColor = originalStyles.holiday.solarTermColor;
 				}
@@ -539,16 +829,16 @@
 				this.dateTypeStyles.holiday.markText = this.legalHolidayText;
 				
 				// 配置调休工作日样式
-				this.dateTypeStyles.adjustWorkday.bgColor = this.legalWorkdayBgColor;
-				this.dateTypeStyles.adjustWorkday.textColor = this.legalWorkdayColor;
+				this.dateTypeStyles.adjustWorkday.bgColor = getEffectiveColor('legalWorkdayBgColor', this.legalWorkdayBgColor);
+				this.dateTypeStyles.adjustWorkday.textColor = getEffectiveColor('legalWorkdayColor', this.legalWorkdayColor);
 				// 只在首次初始化时设置，或者尊重原始值
 				if (isFirstInit || !originalStyles.adjustWorkday.eventTextColor) {
-					this.dateTypeStyles.adjustWorkday.eventTextColor = this.legalWorkdayColor;
+					this.dateTypeStyles.adjustWorkday.eventTextColor = getEffectiveColor('legalWorkdayColor', this.legalWorkdayColor);
 				} else {
 					this.dateTypeStyles.adjustWorkday.eventTextColor = originalStyles.adjustWorkday.eventTextColor;
 				}
 				if (isFirstInit || !originalStyles.adjustWorkday.solarTermColor) {
-					this.dateTypeStyles.adjustWorkday.solarTermColor = this.solarTermColor;
+					this.dateTypeStyles.adjustWorkday.solarTermColor = getEffectiveColor('solarTermColor', this.solarTermColor);
 				} else {
 					this.dateTypeStyles.adjustWorkday.solarTermColor = originalStyles.adjustWorkday.solarTermColor;
 				}
@@ -556,7 +846,7 @@
 				this.dateTypeStyles.adjustWorkday.markText = this.legalWorkdayText;
 				
 				// 配置选中日期样式
-				this.dateTypeStyles.active.bgColor = this.selColor;
+				this.dateTypeStyles.active.bgColor = getEffectiveColor('selColor', this.selColor);
 				this.dateTypeStyles.active.textColor = '#fff';
 				this.dateTypeStyles.active.eventTextColor = '#fff';
 				this.dateTypeStyles.active.solarTermColor = '#fff';
@@ -792,6 +1082,111 @@
 				}
 				console.log('legalHolidaysMap 已更新:', this.legalHolidaysMap.size);
 			},
+			// 获取节假日信息 - 处理日期节假日和样式
+			getHolidayInfo(normalizedDate, isCurrentMonth, isActive, dayIdx) {
+				// 获取节日信息
+				const holiday = this.holidaysMap.get(normalizedDate) || '';
+				
+				// 获取法定假日信息
+				const legalHoliday = this.legalHolidaysMap.has(normalizedDate) ? 
+					this.legalHolidaysMap.get(normalizedDate) : null;
+				
+				// 计算是否为休息日
+				const isWeekend = dayIdx === 0 || dayIdx === 6;
+				
+				// 确定日期类型 - 修改逻辑以实现需求
+				let dateType = 'workday'; // 默认为工作日
+				let actualDisplay = 'workday'; // 实际显示样式
+				
+				if (isActive) {
+					dateType = 'active';
+					actualDisplay = 'active';
+				} else if (legalHoliday === true) {
+					// 法定假日：使用周末样式显示
+					dateType = 'holiday';
+					actualDisplay = 'weekend';
+				} else if (legalHoliday === false) {
+					// 调休补班：使用工作日样式显示
+					dateType = 'adjustWorkday';
+					actualDisplay = 'workday';
+				} else if (isWeekend) {
+					// 普通周末：使用周末样式显示
+					dateType = 'weekend';
+					actualDisplay = 'weekend';
+				}
+				
+				// 获取相应类型的样式配置 - 使用实际显示样式
+				const typeStyle = this.dateTypeStyles[actualDisplay];
+				
+				// 计算样式类名
+				const cssClass = [];
+				if (isCurrentMonth) {
+					cssClass.push(typeStyle.cssClass);
+				}
+				
+				// 计算背景颜色 - 使用实际显示样式
+				let bgColor = isCurrentMonth ? typeStyle.bgColor : '';
+				
+				// 计算日期数字文字颜色 - 使用实际显示样式
+				let textColor = isCurrentMonth ? typeStyle.textColor : this.defColor;
+				
+				// 计算是否显示休息日标记
+				// 法定假日和普通周末显示休息标记
+				const showRestMark = isCurrentMonth && !isActive && 
+					(dateType === 'holiday' || dateType === 'weekend') && 
+					this.dateTypeStyles[actualDisplay].markShow;
+				
+				// 计算是否显示补班日标记  
+				// 只有调休补班日显示补班标记
+				const showWorkMark = isCurrentMonth && !isActive && 
+					dateType === 'adjustWorkday' && 
+					this.dateTypeStyles.workday.markShow;
+				
+				// 计算要显示的文本及其颜色
+				let displayText = '';
+				let displayTextColor = '';
+				
+				if (holiday && isCurrentMonth) {
+					displayText = holiday;
+					// 使用实际显示样式的事件文字颜色
+					displayTextColor = isActive ? 
+						this.dateTypeStyles.active.eventTextColor : 
+						typeStyle.eventTextColor;
+				}
+				
+				// 获取标记文本
+				let restMarkText = '';
+				let workMarkText = '';
+				
+				if (dateType === 'holiday') {
+					// 法定假日显示"假"
+					restMarkText = this.legalHolidayText;
+				} else if (dateType === 'weekend') {
+					// 普通周末显示"休"
+					restMarkText = this.restMarkText;
+				} else if (dateType === 'adjustWorkday') {
+					// 调休补班显示"班"
+					workMarkText = this.legalWorkdayText;
+				}
+				
+				return {
+					holiday: holiday,
+					legalHoliday: legalHoliday,
+					cssClass: cssClass,
+					bgColor: bgColor,
+					textColor: textColor,
+					displayText: displayText,
+					displayTextColor: displayTextColor,
+					showRestMark: showRestMark,
+					showWorkMark: showWorkMark,
+					restMarkText: restMarkText,
+					workMarkText: workMarkText,
+					dateType: dateType, // 保留原始日期类型信息
+					actualDisplay: actualDisplay, // 添加实际显示样式类型
+					typeStyle: typeStyle // 使用实际显示样式配置
+				};
+			},
+			
 			// 1. 计算并获取节气信息
 			getSolarTermInfo(normalizedDate, isCurrentMonth, isActive, dateType, typeStyle) {
 				// 获取节气信息（优先使用手动设置的数据，其次使用计算得到的数据）
@@ -890,84 +1285,6 @@
 				};
 			},
 			
-			// 3. 获取节假日信息
-			getHolidayInfo(normalizedDate, isCurrentMonth, isActive, dayIdx) {
-				// 获取节日信息
-				const holiday = this.holidaysMap.get(normalizedDate) || '';
-				
-				// 获取法定假日信息
-				const legalHoliday = this.legalHolidaysMap.has(normalizedDate) ? 
-					this.legalHolidaysMap.get(normalizedDate) : null;
-				
-				// 计算是否为休息日
-				const isWeekend = dayIdx === 0 || dayIdx === 6;
-				
-				// 确定日期类型
-				let dateType = 'workday'; // 默认为工作日
-				
-				if (isActive) {
-					dateType = 'active';
-				} else if (legalHoliday === true) {
-					dateType = 'holiday';
-				} else if (legalHoliday === false) {
-					dateType = 'adjustWorkday';
-				} else if (isWeekend) {
-					dateType = 'weekend';
-				}
-				
-				// 获取相应类型的样式配置
-				const typeStyle = this.dateTypeStyles[dateType];
-				
-				// 计算样式类名
-				const cssClass = [];
-				if (isCurrentMonth) {
-					cssClass.push(typeStyle.cssClass);
-				}
-				
-				// 计算背景颜色
-				let bgColor = isCurrentMonth ? typeStyle.bgColor : '';
-				
-				// 计算日期数字文字颜色
-				let textColor = isCurrentMonth ? typeStyle.textColor : this.defColor;
-				
-				// 计算是否显示休息日和补班日标记
-				const showRestMark = isCurrentMonth && !isActive && 
-					(dateType === 'holiday' || dateType === 'weekend') && typeStyle.markShow;
-				
-				// 计算是否显示补班日标记
-				const showWorkMark = isCurrentMonth && !isActive && 
-					dateType === 'adjustWorkday' && typeStyle.markShow;
-				
-				// 计算要显示的文本（如果是节日）及其颜色
-				let displayText = '';
-				let displayTextColor = '';
-				
-				if (holiday && isCurrentMonth) {
-					displayText = holiday;
-					displayTextColor = isActive ? typeStyle.eventTextColor : typeStyle.eventTextColor;
-				}
-				
-				// 获取标记文本
-				const restMarkText = dateType === 'holiday' ? 
-					this.dateTypeStyles.holiday.markText : this.dateTypeStyles.weekend.markText;
-				
-				return {
-					holiday: holiday,
-					legalHoliday: legalHoliday,
-					cssClass: cssClass,
-					bgColor: bgColor,
-					textColor: textColor,
-					displayText: holiday ? holiday : '',
-					displayTextColor: displayTextColor || (holiday ? this.holidayColor : ''),
-					showRestMark: showRestMark,
-					showWorkMark: showWorkMark,
-					restMarkText: restMarkText,
-					workMarkText: this.dateTypeStyles.adjustWorkday.markText,
-					dateType: dateType, // 添加日期类型信息，方便其他方法使用
-					typeStyle: typeStyle // 添加样式配置信息，方便其他方法使用
-				};
-			},
-			
 			// 获取日期所有信息 - 统一处理日期数据
 			getDateInfo(date, type, dayIdx) {
 				// 规范化日期格式
@@ -979,14 +1296,14 @@
 				const isActive = this.selDate === date;
 				
 				// 3. 获取节假日信息 (先获取，以便确定日期类型)
-				const holidayInfo = this.getHolidayInfo(normalizedDate, isCurrentMonth, isActive, dayIdx);
+				const holidayInfo = this.getHolidayInfo(normalizedDate, true, isActive, dayIdx); // 改为true，让所有日期都应用节假日规则
 				
-				// 1. 获取节气信息 (使用节假日信息中的日期类型和样式配置)
+				// 1. 获取节气信息 (使用节假日信息中的实际显示样式)
 				const solarTermInfo = this.getSolarTermInfo(
 					normalizedDate, 
-					isCurrentMonth, 
+					true, // 改为true，让所有日期都显示节气
 					isActive, 
-					holidayInfo.dateType, 
+					holidayInfo.actualDisplay, // 使用实际显示样式类型
 					holidayInfo.typeStyle
 				);
 				
@@ -996,7 +1313,7 @@
 				// 合并样式类
 				let cssClass = [];
 				if (type === 'last' || type === 'next') {
-					cssClass.push('gray-text');
+					cssClass.push('gray-text'); // 保留灰色文字标识，但仍应用节假日背景色
 				}
 				cssClass = cssClass.concat(holidayInfo.cssClass);
 				
@@ -1010,7 +1327,7 @@
 				} else if (solarTermInfo.displayText) {
 					displayText = solarTermInfo.displayText;
 					displayTextColor = solarTermInfo.displayTextColor;
-				} else if (reminderInfo.value && isCurrentMonth) {
+				} else if (reminderInfo.value && isCurrentMonth) { // 只有当月才显示自定义值
 					displayText = reminderInfo.value;
 					// 使用事件文字颜色
 					if (holidayInfo.typeStyle && holidayInfo.typeStyle.eventTextColor) {
@@ -1020,27 +1337,38 @@
 					}
 				}
 				
+				// 对于非当月日期，调整文字颜色为较淡的颜色
+				let finalTextColor = holidayInfo.textColor;
+				let finalDisplayTextColor = displayTextColor;
+				
+				if (type === 'last' || type === 'next') {
+					// 非当月日期使用较淡的颜色
+					finalTextColor = this.adjustColorOpacity(holidayInfo.textColor, 0.4);
+					finalDisplayTextColor = this.adjustColorOpacity(displayTextColor, 0.4);
+				}
+				
 				// 返回统一的日期信息对象
 				return {
 					date: dateNumber,
 					type: type,
 					cssClass: cssClass.join(' '),
 					bgColor: holidayInfo.bgColor,
-					textColor: holidayInfo.textColor,
+					textColor: finalTextColor,
 					holiday: holidayInfo.holiday,
 					solarTerm: solarTermInfo.solarTerm,
 					value: reminderInfo.value, 
-					dot: reminderInfo.dot,
+					dot: reminderInfo.dot && isCurrentMonth, // 只有当月才显示红点
 					active: isActive,
 					legalHoliday: holidayInfo.legalHoliday,
 					displayText: displayText,
-					displayTextColor: displayTextColor,
-					showRestMark: holidayInfo.showRestMark,
-					showWorkMark: holidayInfo.showWorkMark,
+					displayTextColor: finalDisplayTextColor,
+					showRestMark: holidayInfo.showRestMark && isCurrentMonth, // 只有当月才显示标记
+					showWorkMark: holidayInfo.showWorkMark && isCurrentMonth, // 只有当月才显示标记
 					restMarkText: holidayInfo.restMarkText,
 					border: isActive && isCurrentMonth ? 'none' : '',
 					workMarkText: holidayInfo.workMarkText,
 					dateType: holidayInfo.dateType,
+					actualDisplay: holidayInfo.actualDisplay, // 添加实际显示样式类型
 					typeStyle: holidayInfo.typeStyle
 				};
 			},
@@ -1067,8 +1395,23 @@
 				let sum = days + firstDay; //当月总天数 + 前面空的天数 = 当月总格子数
 				let line = Math.ceil(sum / 7); //当月总行数
 				let curDate = this.time.year + '-' + this.time.month + '-'; //当前年月
-				let lastDate = this.time.year + '-' + (this.time.month-1) + '-'; //上月年月
-				let nextDate = this.time.year + '-' + (this.time.month+1) + '-'; //下月年月
+				
+				// 计算上个月和下个月的年月
+				let lastYear = this.time.year;
+				let lastMonth = this.time.month - 1;
+				if (lastMonth === 0) {
+					lastYear = this.time.year - 1;
+					lastMonth = 12;
+				}
+				let lastDate = lastYear + '-' + lastMonth + '-'; //上月年月
+				
+				let nextYear = this.time.year;
+				let nextMonth = this.time.month + 1;
+				if (nextMonth === 13) {
+					nextYear = this.time.year + 1;
+					nextMonth = 1;
+				}
+				let nextDate = nextYear + '-' + nextMonth + '-'; //下月年月
 				
 				// 赋值当前选中日期
 				this.selDate = type == 'last' ? lastDate + this.selDate.split('-')[2] : type == 'next' ? nextDate + this.selDate.split('-')[2] : this.selDate == '' ? curDate + new Date().getDate() : this.selDate;
@@ -1120,7 +1463,7 @@
 								.replace('legal-holiday', '')
 								.replace('legal-workday', '')
 								+ ' active-text';
-							this.date[i][j].bgColor = this.selColor;
+							this.date[i][j].bgColor = this.dynamicColors.selColor || this.selColor;
 							this.date[i][j].textColor = '#fff';
 							this.date[i][j].displayTextColor = '#fff';
 							this.date[i][j].border = 'none';
@@ -1147,6 +1490,10 @@
 				}else{
 					this.time.month --
 				}
+				
+				// 应用新月份的色系
+				this.applyMonthColorScheme();
+				
 				this.$emit('monthTap',this.time)
 				
 				// 如果启用了自动计算节气，则在月份变化时重新计算
@@ -1169,6 +1516,10 @@
 				}else{
 					this.time.month ++
 				}
+				
+				// 应用新月份的色系
+				this.applyMonthColorScheme();
+				
 				this.$emit('monthTap',this.time)
 				
 				// 如果启用了自动计算节气，则在月份变化时重新计算
@@ -1312,6 +1663,38 @@
 				console.log('手动刷新节日和调休数据');
 				this.fetchHolidayData();
 			},
+			
+			// 调整颜色透明度的辅助方法
+			adjustColorOpacity(color, opacity) {
+				if (!color || color === 'transparent') {
+					return color;
+				}
+				
+				// 如果是十六进制颜色
+				if (color.startsWith('#')) {
+					// 转换为rgba格式
+					const hex = color.replace('#', '');
+					const r = parseInt(hex.substr(0, 2), 16);
+					const g = parseInt(hex.substr(2, 2), 16);
+					const b = parseInt(hex.substr(4, 2), 16);
+					return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+				}
+				
+				// 如果已经是rgba格式
+				if (color.startsWith('rgba')) {
+					// 替换透明度值
+					return color.replace(/[\d\.]+\)$/g, `${opacity})`);
+				}
+				
+				// 如果是rgb格式
+				if (color.startsWith('rgb')) {
+					// 转换为rgba格式
+					return color.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
+				}
+				
+				// 如果是颜色名称，返回原色（无法直接调整透明度）
+				return color;
+			},
 		}
 	}
 </script>
@@ -1321,140 +1704,209 @@
 		width: 100%;
 		display: flex;
 		flex-direction: column;
-		// padding: 0 30upx;
 		box-sizing: border-box;
-		background: #fff;
-		color: #333;
+		border-radius: 16upx;
+		overflow: hidden;
+		transition: all 0.3s ease;
+		
 		.calendar-header{
 			width: 100%;
-			height: 100upx;
+			height: 120upx;
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
+			padding: 0 24upx;
+			transition: all 0.3s ease;
+			
 			.last-month,.next-month{
-				width: 100upx;
-				height: 100upx;
+				width: 80upx;
+				height: 80upx;
 				display: flex;
 				align-items: center;
 				justify-content: center;
+				border-radius: 50%;
+				transition: all 0.2s ease;
+				
+				&:active {
+					transform: scale(0.95);
+				}
+				
+				text {
+					font-size: 32upx;
+					font-weight: 500;
+				}
+				
 				image{
-					width: 30upx;
-					height: 30upx;
+					width: 32upx;
+					height: 32upx;
 				}
 			}
 			.header-time{
-				font-size: 30upx;
+				font-size: 34upx;
+				font-weight: 600;
 			}
 		}
+		
 		.calendar-week{
 			width: 100%;
 			display: flex;
+			transition: all 0.3s ease;
+			
 			.week-day{
 				width: calc(100% / 7);
 				height: 80upx;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				font-size: 28upx;
+				font-size: 26upx;
+				font-weight: 500;
 			}
 		}
+		
 		.calendar-board{
 			width: 100%;
 			display: flex;
 			flex-direction: column;
+			transition: all 0.3s ease;
+			
 			.board-row{
 				width: 100%;
 				display: flex;
+				
 				.row-col{
 					width: calc(100% / 7);
-					height: 100upx;
+					height: 120upx;
 					position: relative;
-					padding: 8upx 0;
+					padding: 12upx 8upx;
 					box-sizing: border-box;
+					display: flex;
+					flex-direction: column;
+					align-items: center;
+					justify-content: center;
+					transition: all 0.2s ease;
+					
+					&:active {
+						transform: scale(0.95);
+					}
 					
 					&.gray-text{
-						color: #C0C4CC;
+						.date-number {
+							color: #C7C7CC;
+						}
+						.date-info {
+							color: #C7C7CC;
+						}
 					}
+					
 					&.active-text{
-						background: #4198f8;
-						color: #fff;
-						border-radius: 50%;
+						color: #ffffff;
+						border-radius: 16upx;
+						
+						.date-number {
+							color: #ffffff !important;
+							font-weight: 600;
+						}
+						.date-info {
+							color: #ffffff !important;
+						}
 					}
+					
 					&.rest-day{
-						// 休息日样式可由属性控制
-						border-radius: 8upx;
+						border-radius: 12upx;
+						
+						.date-number {
+							font-weight: 500;
+						}
 					}
+					
 					&.work-day{
-						// 工作日样式可由属性控制
+						background: transparent;
+						border-radius: 12upx;
 					}
+					
 					&.legal-holiday{
-						// 法定假日样式
-						border-radius: 8upx;
+						border-radius: 12upx;
+						
+						.date-number {
+							font-weight: 500;
+						}
 					}
+					
 					&.legal-workday{
-						// 法定补班日样式
-						border-radius: 8upx;
+						border-radius: 12upx;
+						
+						.date-number {
+							font-weight: 500;
+						}
 					}
 					
 					// 日期数字
 					.date-number {
 						width: 100%;
-						height: 40upx;
-						line-height: 40upx;
+						height: 48upx;
+						line-height: 48upx;
 						text-align: center;
-						font-size: 28upx;
-						position: relative;
-						top: 4upx;
+						font-size: 32upx;
+						font-weight: 400;
+						margin-bottom: 4upx;
 					}
 					
 					// 下方文本区域
 					.date-info {
 						width: 100%;
-						height: 40upx;
+						height: 32upx;
 						display: flex;
 						justify-content: center;
 						align-items: center;
+						font-size: 20upx;
+						line-height: 1.2;
 					}
 					
 					.dot{
-						width: 16upx;
-						height: 16upx;
+						width: 12upx;
+						height: 12upx;
 						border-radius: 50%;
-						background: #ff4500;
 						position: absolute;
-						top: 0upx;
-						right: 20upx;
+						top: 16upx;
+						right: 16upx;
+						box-shadow: 0 2upx 4upx rgba(0, 0, 0, 0.3);
 					}
+					
 					.val{
 						font-size: 20upx;
+						font-weight: 400;
+						text-align: center;
+						line-height: 1.2;
 					}
+					
 					.festival{
 						font-size: 20upx;
-						font-weight: bold;
+						font-weight: 500;
+						text-align: center;
+						line-height: 1.2;
 					}
+					
 					.solar-term{
 						font-size: 20upx;
+						font-weight: 400;
+						text-align: center;
+						line-height: 1.2;
 					}
+					
 					.rest-mark, .work-mark{
 						position: absolute;
-						top: 8upx;
-						right: 8upx;
-						font-size: 16upx;
-						width: 24upx;
-						height: 24upx;
+						top: 12upx;
+						right: 12upx;
+						font-size: 18upx;
+						width: 32upx;
+						height: 32upx;
 						border-radius: 50%;
 						display: flex;
 						align-items: center;
 						justify-content: center;
-						font-weight: bold;
-					}
-					.rest-mark{
-						background: rgba(255, 69, 0, 0.1);
-						color: #ff4500;
-					}
-					.work-mark{
-						background: rgba(0, 128, 0, 0.1);
-						color: #008000;
+						font-weight: 600;
+						box-shadow: 0 2upx 8upx rgba(0, 0, 0, 0.1);
+						color: #ffffff;
 					}
 				}
 			}

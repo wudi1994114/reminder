@@ -1,8 +1,7 @@
 <template>
   <view class="login-page">
     <view class="logo-container">
-      <image class="logo" src="/static/images/logo.png"></image>
-      <text class="app-name">提醒应用</text>
+      <image class="logo" src="/static/images/logo.svg"></image>
     </view>
     
     <view class="content">
@@ -52,6 +51,7 @@ export default {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: #E6EFEC;
 }
 
 .logo-container {
@@ -62,8 +62,8 @@ export default {
 }
 
 .logo {
-  width: 180rpx;
-  height: 180rpx;
+  width: 400rpx;
+  height: 120rpx;
   margin-bottom: 30rpx;
 }
 

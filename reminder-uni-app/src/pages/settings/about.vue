@@ -2,7 +2,7 @@
   <view class="container">
     <view class="content-card">
       <view class="app-logo-section">
-        <image class="app-logo" src="/static/images/logo.png"></image>
+        <image class="app-logo" src="/static/images/logo.svg"></image>
         <text class="app-name">Reminder Pro</text>
         <text class="app-version">Version 1.0.0 (Uni-App)</text>
       </view>
@@ -72,11 +72,10 @@ export default {
 }
 
 .app-logo {
-  width: 150rpx;
-  height: 150rpx;
-  border-radius: 30rpx; /* Or 50% for circle */
+  width: 200rpx;
+  height: 60rpx;
   margin-bottom: 20rpx;
-  background-color: #eee; /* Placeholder if logo is transparent or fails to load */
+  background-color: transparent;
 }
 
 .app-name {

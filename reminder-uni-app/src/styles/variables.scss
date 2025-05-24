@@ -1,0 +1,137 @@
+// 设计系统变量定义
+
+// ===== 颜色系统 =====
+// 主色调
+$primary-color: #007aff;
+$primary-light: #40a9ff;
+$primary-dark: #096dd9;
+
+// 辅助色
+$success-color: #52c41a;
+$warning-color: #faad14;
+$error-color: #ff4d4f;
+$info-color: #1890ff;
+
+// 中性色
+$white: #ffffff;
+$gray-50: #fafafa;
+$gray-100: #f5f5f5;
+$gray-200: #f0f0f0;
+$gray-300: #d9d9d9;
+$gray-400: #bfbfbf;
+$gray-500: #8c8c8c;
+$gray-600: #595959;
+$gray-700: #434343;
+$gray-800: #262626;
+$gray-900: #1f1f1f;
+$black: #000000;
+
+// 文本颜色
+$text-primary: #1f2937;
+$text-secondary: #6b7280;
+$text-disabled: #9ca3af;
+$text-inverse: #ffffff;
+
+// 背景色
+$bg-primary: #ffffff;
+$bg-secondary: #f9fafb;
+$bg-tertiary: #f3f4f6;
+$bg-overlay: rgba(0, 0, 0, 0.5);
+
+// 边框颜色
+$border-light: #f0f0f0;
+$border-default: #d9d9d9;
+$border-dark: #bfbfbf;
+
+// ===== 尺寸系统 =====
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-xxl: 48px;
+
+// 字体大小
+$font-size-xs: 10px;
+$font-size-sm: 12px;
+$font-size-base: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 18px;
+$font-size-xxl: 20px;
+$font-size-xxxl: 24px;
+
+// 行高
+$line-height-tight: 1.2;
+$line-height-normal: 1.4;
+$line-height-relaxed: 1.6;
+
+// 字重
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// 圆角
+$border-radius-sm: 4px;
+$border-radius-md: 8px;
+$border-radius-lg: 12px;
+$border-radius-xl: 16px;
+$border-radius-full: 50%;
+
+// 阴影
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+
+// Z-index层级
+$z-index-dropdown: 1000;
+$z-index-modal: 1050;
+$z-index-popover: 1060;
+$z-index-tooltip: 1070;
+$z-index-toast: 1080;
+
+// ===== 断点系统 =====
+$breakpoint-sm: 576px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 992px;
+$breakpoint-xl: 1200px;
+
+// ===== 动画 =====
+$transition-fast: 0.15s ease-in-out;
+$transition-normal: 0.3s ease-in-out;
+$transition-slow: 0.5s ease-in-out;
+
+// ===== 组件特定变量 =====
+// 头部导航
+$header-height: 44px;
+$header-bg: $bg-primary;
+
+// 底部导航
+$tabbar-height: 50px;
+$tabbar-bg: $bg-primary;
+
+// 卡片
+$card-bg: $bg-primary;
+$card-padding: $spacing-md;
+$card-radius: $border-radius-lg;
+$card-shadow: $shadow-sm;
+
+// 按钮
+$button-height-sm: 28px;
+$button-height-md: 32px;
+$button-height-lg: 40px;
+$button-padding-x: $spacing-md;
+$button-radius: $border-radius-md;
+
+// 输入框
+$input-height: 32px;
+$input-padding-x: $spacing-sm;
+$input-border: $border-default;
+$input-radius: $border-radius-sm;
+
+// 日历
+$calendar-cell-size: 40px;
+$calendar-header-height: 44px; 
