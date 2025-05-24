@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { reminderState, uiState, showNotification } from '../services/store';
 import { getAllSimpleReminders, getAllComplexReminders, updateEvent, getHolidaysByYearRange } from '../services/api';
 import { simpleReminderToEvent, complexReminderToEvent } from '../utils/helpers';
+import { getSolarTermForDate, getLunarInfo } from '../utils/solarTermHelper';
 
 // Props received from App.vue
 const props = defineProps({
@@ -204,6 +205,163 @@ const updateHolidayDisplay = () => {
   console.log(`节假日显示更新完成: ${holidayCount}个节假日, ${workdayCount}个调休工作日, ${weekendCount}个普通周末`);
 };
 
+// 将日历单元格渲染分为三个独立的方法
+// 1. 渲染节气和农历信息
+const renderSolarTermAndLunarInfo = (arg) => {
+  const jsDate = arg.date; // JavaScript Date object
+  const dateISO = jsDate.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+  const dayTop = arg.el.querySelector('.fc-daygrid-day-top');
+  
+  // 清理旧的节气和农历元素
+  const lunarSelectors = ['.fc-day-lunar', '.fc-day-lunar-festival', '.fc-day-solar-term', '.fc-day-lunar-container'];
+  lunarSelectors.forEach(selector => {
+    const existingEl = arg.el.querySelector(selector);
+    if (existingEl) existingEl.remove();
+  });
+  
+  // 移除节气相关的类名
+  arg.el.classList.remove('solar-term-cell');
+  
+  // 确保dayTop是flex布局，以便更好地控制子元素排列
+  if (dayTop) {
+    dayTop.style.display = 'flex';
+    dayTop.style.flexDirection = 'column';
+    dayTop.style.alignItems = 'flex-start';
+  } else {
+    console.warn(`dayTop not found for ${dateISO}`);
+    return; // 如果没有找到dayTop，则无法添加节气和农历信息
+  }
+  
+  // 创建农历和节气信息容器
+  const lunarInfoContainer = document.createElement('div');
+  lunarInfoContainer.className = 'fc-day-lunar-container';
+  
+  // 获取农历信息
+  const lunarDateInfo = getLunarInfo(jsDate);
+  if (lunarDateInfo) {
+    if (lunarDateInfo.lunarFestival) {
+      // 如果有农历节日，优先显示节日
+      const lunarFestivalEl = document.createElement('div');
+      lunarFestivalEl.className = 'fc-day-lunar-festival';
+      lunarFestivalEl.textContent = lunarDateInfo.lunarFestival.split(',')[0]; // 只显示第一个节日
+      lunarInfoContainer.appendChild(lunarFestivalEl);
+    } else if (lunarDateInfo.lunarDayName) {
+      // 否则显示农历日期
+      const lunarEl = document.createElement('div');
+      lunarEl.className = 'fc-day-lunar';
+      lunarEl.textContent = lunarDateInfo.lunarDayName;
+      lunarInfoContainer.appendChild(lunarEl);
+    }
+  }
+  
+  // 获取并显示节气信息
+  const solarTermInfo = getSolarTermForDate(jsDate);
+  if (solarTermInfo) {
+    arg.el.classList.add('solar-term-cell');
+    const solarTermEl = document.createElement('div');
+    solarTermEl.className = 'fc-day-solar-term';
+    solarTermEl.textContent = solarTermInfo.name;
+    lunarInfoContainer.appendChild(solarTermEl);
+  }
+  
+  // 如果有农历或节气信息，将容器添加到dayTop
+  if (lunarInfoContainer.hasChildNodes()) {
+    dayTop.appendChild(lunarInfoContainer);
+  }
+};
+
+// 2. 渲染提醒事件红点
+const renderReminderDots = (arg) => {
+  const jsDate = arg.date;
+  const dateISO = jsDate.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+  
+  // 清理旧的提醒红点元素
+  const existingDots = arg.el.querySelectorAll('.reminder-dot');
+  existingDots.forEach(dot => dot.remove());
+  
+  // 检查这一天是否有提醒事项
+  const hasSimpleReminders = reminderState.simpleReminders.some(reminder => {
+    // 将提醒的事件时间转换为本地日期字符串，格式为YYYY-MM-DD
+    const reminderDate = new Date(reminder.eventTime);
+    const reminderDateISO = reminderDate.toISOString().split('T')[0];
+    return reminderDateISO === dateISO;
+  });
+  
+  const hasComplexReminders = reminderState.complexReminders.some(reminder => {
+    // 复杂提醒可能没有具体日期，但可以通过其他方式判断是否在当天触发
+    // 这里简化处理，实际可能需要根据cron表达式计算
+    return false; // 暂不实现复杂提醒的判断逻辑
+  });
+  
+  // 如果有提醒事项，添加红点标记
+  if (hasSimpleReminders || hasComplexReminders) {
+    const dotContainer = document.createElement('div');
+    dotContainer.className = 'reminder-dot-container';
+    
+    const dot = document.createElement('div');
+    dot.className = 'reminder-dot';
+    dotContainer.appendChild(dot);
+    
+    // 将红点添加到单元格中
+    arg.el.appendChild(dotContainer);
+  }
+};
+
+// 3. 渲染节假日信息
+const renderHolidayInfo = (arg) => {
+  const jsDate = arg.date;
+  const dateISO = jsDate.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+  const isWeekend = jsDate.getDay() === 0 || jsDate.getDay() === 6;
+  const dayTop = arg.el.querySelector('.fc-daygrid-day-top');
+  
+  // 清理旧的节假日元素和样式
+  const holidaySelectors = ['.holiday-label', '.workday-label', '.holiday-name', '.workday-name'];
+  holidaySelectors.forEach(selector => {
+    const existingEl = arg.el.querySelector(selector);
+    if (existingEl) existingEl.remove();
+  });
+  
+  // 移除节假日相关的类名
+  arg.el.classList.remove('holiday-cell', 'workday-cell', 'weekend-cell');
+  
+  // 获取节假日信息
+  const dayInfo = holidays.value[dateISO];
+  
+  // 处理节假日信息
+  if (dayInfo) {
+    if (dayInfo.holiday) {
+      // 法定节假日
+      arg.el.classList.add('holiday-cell');
+      
+      // 添加"休"标签
+      const label = document.createElement('div');
+      label.className = 'holiday-label';
+      label.textContent = '休';
+      arg.el.appendChild(label);
+      
+      // 添加节假日名称
+      if (dayTop) {
+        const nameElem = document.createElement('div');
+        nameElem.className = 'holiday-name';
+        nameElem.textContent = dayInfo.name;
+        dayTop.appendChild(nameElem);
+      }
+    } else {
+      // 调休工作日
+      arg.el.classList.add('workday-cell');
+      
+      // 添加"班"标签
+      const label = document.createElement('div');
+      label.className = 'workday-label';
+      label.textContent = '班';
+      arg.el.appendChild(label);
+    }
+  } else if (isWeekend) {
+    // 普通周末
+    arg.el.classList.add('weekend-cell');
+  }
+};
+
 // 日历配置
 const calendarOptions = computed(() => ({
   ...props.options,
@@ -367,96 +525,27 @@ const calendarOptions = computed(() => ({
     }
   },
   dayCellDidMount: (arg) => {
-    const year = arg.date.getFullYear();
-    const month = String(arg.date.getMonth() + 1).padStart(2, '0');
-    const day = String(arg.date.getDate()).padStart(2, '0');
-    const date = `${year}-${month}-${day}`;
+    const dateISO = arg.date.toISOString().split('T')[0]; // YYYY-MM-DD 格式
+    console.log(`dayCellDidMount for date: ${dateISO}`);
     
-    const isWeekend = arg.date.getDay() === 0 || arg.date.getDay() === 6;
-    const dayInfo = holidays.value[date];
+    // 清理所有旧样式和元素
+    arg.el.classList.remove('holiday-cell', 'workday-cell', 'weekend-cell', 'solar-term-cell');
+    const selectorsToRemove = ['.holiday-label', '.workday-label', '.holiday-name', '.workday-name', 
+                              '.fc-day-lunar', '.fc-day-lunar-festival', '.fc-day-solar-term', 
+                              '.fc-day-lunar-container', '.reminder-dot', '.reminder-dot-container'];
+    selectorsToRemove.forEach(selector => {
+      const existingEl = arg.el.querySelector(selector);
+      if (existingEl) existingEl.remove();
+    });
     
-    console.log(`渲染日期单元格 ${date}`, dayInfo ? `节假日信息: ${JSON.stringify(dayInfo)}` : '无节假日信息');
+    // 1. 渲染节气和农历信息
+    renderSolarTermAndLunarInfo(arg);
     
-    // 清除可能存在的旧标签和名称
-    const existingLabels = arg.el.querySelectorAll('.holiday-label, .workday-label, .holiday-name, .workday-name');
-    existingLabels.forEach(label => label.remove());
+    // 2. 渲染提醒事件红点
+    renderReminderDots(arg);
     
-    // 移除可能存在的旧类名
-    arg.el.classList.remove('holiday-cell', 'weekend-cell', 'workday-cell');
-    
-    // 设置日期属性，便于后续更新
-    arg.el.setAttribute('data-date', date);
-    
-    if (dayInfo) {
-      // 获取日期数字容器
-      const dayTop = arg.el.querySelector('.fc-daygrid-day-top');
-      
-      // 确保dayTop是flex布局，方向是row
-      if (dayTop) {
-        dayTop.style.display = 'flex';
-        dayTop.style.flexDirection = 'row';
-        dayTop.style.alignItems = 'center';
-        dayTop.style.justifyContent = 'flex-start';
-      }
-      
-      if (dayInfo.holiday) {
-        // 法定节假日样式 - 使用主题色
-        arg.el.classList.add('holiday-cell');
-        
-        // 添加角落的标签
-        const label = document.createElement('div');
-        label.className = 'holiday-label';
-        label.textContent = dayInfo.name;
-        arg.el.appendChild(label);
-        
-        // 添加日期前的节日名称
-        if (dayTop) {
-          const nameElem = document.createElement('div');
-          nameElem.className = 'holiday-name';
-          nameElem.textContent = dayInfo.name;
-          
-          // 插入到dayTop的开始位置，但保留日期位置不变
-          if (dayTop.childNodes.length > 0) {
-            dayTop.insertBefore(nameElem, dayTop.firstChild);
-          } else {
-            dayTop.appendChild(nameElem);
-          }
-        }
-        
-        console.log(`应用节假日样式到 ${date}: ${dayInfo.name}`);
-      } else {
-        // 法定调休工作日 - 标记为普通工作日
-        arg.el.classList.add('workday-cell');
-        
-        // 添加角落的标签
-        const label = document.createElement('div');
-        label.className = 'workday-label';
-        label.textContent = dayInfo.name || '调休工作日';
-        arg.el.appendChild(label);
-        
-        // 添加日期前的工作日名称
-        if (dayTop) {
-          const nameElem = document.createElement('div');
-          nameElem.className = 'workday-name';
-          nameElem.textContent = dayInfo.name || '调休工作日';
-          
-          // 插入到dayTop的开始位置，但保留日期位置不变
-          if (dayTop.childNodes.length > 0) {
-            dayTop.insertBefore(nameElem, dayTop.firstChild);
-          } else {
-            dayTop.appendChild(nameElem);
-          }
-        }
-        
-        console.log(`应用调休工作日样式到 ${date}: ${dayInfo.name || '调休工作日'}`);
-        
-        // 如果这一天原本是周末，移除周末样式
-        arg.el.classList.remove('weekend-cell');
-      }
-    } else if (isWeekend) {
-      // 普通周末样式 - 使用主题浅色
-      arg.el.classList.add('weekend-cell');
-    }
+    // 3. 渲染节假日信息
+    renderHolidayInfo(arg);
   },
   eventClick: (info) => {
     console.log('Event clicked in CalendarDisplay:', info.event);
@@ -1129,5 +1218,61 @@ const currentMonth = computed(() => {
     padding: 8px;
     max-height: 250px;
   }
+}
+
+/* 提醒事件红点样式 */
+:deep(.reminder-dot-container) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* 确保不会阻止点击事件 */
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+:deep(.reminder-dot) {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #ff4d4f; /* 红色 */
+  margin: 2px;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.2);
+}
+
+/* 节气和农历信息容器样式 */
+:deep(.fc-day-lunar-container) {
+  font-size: 0.75em; /* 较小的字体 */
+  color: #6c757d;   /* 柔和的颜色 */
+  margin-top: 2px;
+  line-height: 1.2;
+  width: 100%;
+}
+
+/* 农历日期样式 */
+:deep(.fc-day-lunar) {
+  font-size: 0.9em;
+  color: #6c757d;
+}
+
+/* 农历节日样式 */
+:deep(.fc-day-lunar-festival) {
+  color: #e91e63; /* 节日使用醒目的颜色 */
+  font-weight: bold;
+}
+
+/* 节气样式 */
+:deep(.fc-day-solar-term) {
+  color: #007bff; /* 节气使用另一种醒目的颜色 */
+  font-weight: bold;
+}
+
+/* 标记节气日的单元格 (可选，用于特殊背景等) */
+:deep(.solar-term-cell) {
+  /* background-color: #e7f3ff; */ /* 例如，给节气日一个淡淡的背景色 */
 }
 </style> 

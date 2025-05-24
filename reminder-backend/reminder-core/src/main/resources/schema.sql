@@ -177,7 +177,6 @@ CREATE TABLE legal_holiday (
     day INTEGER NOT NULL,                               -- 日期（1-31）
     holiday BOOLEAN NOT NULL,                           -- 是否是节假日（true为节假日，false为调休）
     name VARCHAR(100) NOT NULL,                         -- 节假日名称
-    solar_term VARCHAR(50),                             -- 节气名称
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL  -- 记录最后更新时间
 );
@@ -196,7 +195,6 @@ COMMENT ON COLUMN legal_holiday.month IS '节假日所在月份（1-12）';
 COMMENT ON COLUMN legal_holiday.day IS '节假日所在日期（1-31）';
 COMMENT ON COLUMN legal_holiday.holiday IS '是否是节假日（true为节假日，false为调休）';
 COMMENT ON COLUMN legal_holiday.name IS '节假日名称';
-COMMENT ON COLUMN legal_holiday.solar_term IS '节气名称';
 COMMENT ON COLUMN legal_holiday.created_at IS '记录的创建时间戳';
 COMMENT ON COLUMN legal_holiday.updated_at IS '记录的最后更新时间戳';
 

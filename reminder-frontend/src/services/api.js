@@ -148,4 +148,27 @@ export const getHolidaysByYearRange = async (startYear, endYear) => {
     });
 };
 
+/**
+ * 获取指定年份的所有节气信息
+ * @param {number} year - 年份
+ * @returns {Promise} - 返回节气数据
+ */
+export const getSolarTermsByYear = async (year) => {
+    return await apiClient.get(`/solarterms`, {
+        params: { year }
+    });
+};
+
+/**
+ * 获取指定年月的节气信息
+ * @param {number} year - 年份
+ * @param {number} month - 月份(1-12)
+ * @returns {Promise} - 返回指定月份的节气数据
+ */
+export const getSolarTermsByMonth = async (year, month) => {
+    return await apiClient.get(`/solarterms`, {
+        params: { year, month }
+    });
+};
+
 export default apiClient; 

@@ -44,222 +44,264 @@
 </template>
 
 <script>
+// 导入 Vue Composition API 中的核心函数
+// ref: 用于创建响应式数据引用
+// computed: 用于创建计算属性
+// onMounted: 生命周期钩子，在组件挂载后执行
+// watch: 用于侦听响应式数据的变化
 import { ref, computed, onMounted, watch } from 'vue';
+// 从后端服务 API 模块中导入获取简单提醒列表的函数
 import { getAllSimpleReminders } from '../../services/api';
+// 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
-import { reminderState } from '../../services/store';
-import VCalendar from '../../components/v-calendar/v-calendar.vue'; // 引入新日历组件
+// 导入自定义的 v-calendar 日历组件
+import VCalendar from '../../components/v-calendar/v-calendar.vue';
 
+// 默认导出一个 Vue 组件对象
 export default {
+  // 注册在本组件中使用的子组件
   components: {
-    VCalendar // 注册组件
+    VCalendar // 注册 v-calendar 组件，使其可以在模板中使用
   },
+  // uni-app 页面的生命周期钩子，页面显示时触发
   onShow() { 
-    // 页面显示时，使用 v-calendar 内部的当前年月重新加载数据
-    // 或者，如果需要强制刷新到今天的月份，可以重新设置 defaultTime
-    // this.currentCalendarDisplayTime.value = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    // 页面显示时，通常需要刷新当前月份的提醒数据
+    // 使用 v-calendar 内部维护的当前年份和月份来加载数据
+    // 注意：这里直接调用了 setup 函数中返回的方法，
+    // 在 Vue 3 Options API 或者 Vue 2 中，setup 返回的内容会暴露给 this
     this.loadRemindersForMonth(this.currentCalendarDisplayTime.year, this.currentCalendarDisplayTime.month);
+    // 如果之前已经有选中的日期，则重新加载该日期的提醒事项
     if (this.selectedDate) {
       this.loadRemindersForSelectedDate(this.selectedDate);
     }
   },
+  // Vue 3 Composition API 的入口点
   setup() {
-    const calendarComponentRef = ref(null); // ref for v-calendar component if needed
-    const calendarExtraData = ref([]); // For v-calendar markings
+    // 创建一个 ref 引用，用于将来可能需要直接操作 v-calendar 组件实例
+    const calendarComponentRef = ref(null); 
+    // 创建一个响应式数组，用于存放传递给 v-calendar 组件的额外数据（如日期标记）
+    const calendarExtraData = ref([]); 
+    // 创建一个响应式对象，存储当前日历显示的年份和月份
+    // 默认值为当前系统的年份和月份
     const currentCalendarDisplayTime = ref({
-      year: new Date().getFullYear(),
-      month: new Date().getMonth() + 1, // 1-12
+      year: new Date().getFullYear(), // 获取当前年份
+      month: new Date().getMonth() + 1, // 获取当前月份 (0-11)，所以 +1 变成 (1-12)
     });
 
-    const selectedDate = ref(null); // Date object for the selected date
+    // 创建一个响应式引用，存储用户当前选中的日期对象，默认为 null (未选中)
+    const selectedDate = ref(null); 
+    // 创建一个响应式数组，用于存储选中日期的提醒事项列表
     const selectedDateReminders = ref([]);
+    // 创建一个响应式布尔值，标记是否正在加载选中日期的提醒事项
     const loadingRemindersForDate = ref(false);
-    const allRemindersInCurrentMonth = ref([]); // Store all reminders for the current month
+    // 创建一个响应式数组，用于存储当前月份获取到的所有提醒事项
+    const allRemindersInCurrentMonth = ref([]); 
 
+    // 定义一个包含星期名称的数组，用于日期显示
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
 
+    // 创建一个计算属性，用于格式化显示选中的日期
     const formatSelectedDateForDisplay = computed(() => {
+      // 如果没有选中日期，则返回空字符串
       if (!selectedDate.value) return '';
-      const d = new Date(selectedDate.value); // Ensure it's a Date object
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const date = String(d.getDate()).padStart(2, '0');
-      const weekday = weekdays[d.getDay()];
+      // 将选中的日期字符串或时间戳转换为 Date 对象，确保操作的是 Date 实例
+      const d = new Date(selectedDate.value); 
+      const year = d.getFullYear(); // 获取年份
+      // 获取月份 (0-11)，+1 变为 (1-12)，并用 padStart 补零确保两位数
+      const month = String(d.getMonth() + 1).padStart(2, '0'); 
+      // 获取日期，并用 padStart 补零确保两位数
+      const date = String(d.getDate()).padStart(2, '0'); 
+      const weekday = weekdays[d.getDay()]; // 根据 getDay() 返回的星期索引 (0-6) 获取星期名称
+      // 返回格式化后的日期字符串，例如："2023年10月26日 星期四"
       return `${year}年${month}月${date}日 星期${weekday}`;
     });
 
+    // 定义一个异步函数，用于加载指定年份和月份的提醒事项
     const loadRemindersForMonth = async (year, month) => {
-      // month is 1-12
-      console.log(`Loading reminders for ${year}-${month}`);
+      // month 参数是 1-12 范围
+      console.log(`正在加载 ${year}-${month} 的提醒事项`);
       try {
+        // 调用后端 API 获取简单提醒数据
         const response = await getAllSimpleReminders(year, month);
         console.log('获取到的原始提醒数据:', JSON.stringify(response));
         
-        // 检查返回值是否是数组
+        // 校验 API 返回的是否为数组，如果不是，则进行错误处理
         if (!Array.isArray(response)) {
           console.warn('API 返回了非数组数据:', response);
-          allRemindersInCurrentMonth.value = [];
-          calendarExtraData.value = [];
-          return; // 提前返回，不再处理
+          allRemindersInCurrentMonth.value = []; // 清空当前月份的提醒
+          calendarExtraData.value = []; // 清空日历标记数据
+          return; // 提前退出函数执行
         }
         
-        allRemindersInCurrentMonth.value = response || [];
+        // 如果 API 调用成功且返回的是数组，则更新当前月份的所有提醒数据
+        allRemindersInCurrentMonth.value = response || []; // 使用获取到的数据，如果为 null 或 undefined 则设置为空数组
         
-        // 创建一个辅助对象，用于去重（同一天可能有多个提醒）
+        // 创建一个辅助对象，用于标记日期是否已处理，以避免在日历上对同一天重复打点
         const dateMap = {};
+        // 创建一个数组，用于存放处理后传递给 v-calendar 的标记数据
         const processedData = [];
         
-        // 遍历获取的提醒事件数据
+        // 遍历从 API 获取的提醒事件数据
         response.forEach(reminder => {
+          // 确保 reminder 对象存在且包含 eventTime 属性
           if (reminder && reminder.eventTime) {
-            // 解析 ISO 8601 格式的日期，提取年、月、日
+            // 将 ISO 8601 格式的 eventTime 字符串转换为 Date 对象
             const eventDate = new Date(reminder.eventTime);
-            const year = eventDate.getFullYear();
-            const month = eventDate.getMonth() + 1; // 月份是 1-12
-            const day = eventDate.getDate();
+            const reminderYear = eventDate.getFullYear(); // 提取年份
+            const reminderMonth = eventDate.getMonth() + 1; // 提取月份 (1-12)
+            const reminderDay = eventDate.getDate(); // 提取日期
             
-            // 格式化为 "YYYY-M-D" 格式，v-calendar 组件要求这种格式
-            // 注意：不要使用零填充的月份和日期 (2025-05-07 改为 2025-5-7)
-            const formattedDate = `${year}-${month}-${day}`;
-            console.log('格式化的日期:', formattedDate, '原始日期:', reminder.eventTime);
+            // 格式化日期为 "YYYY-M-D" 的字符串格式，这是 v-calendar 组件要求的格式
+            // 注意：月份和日期不进行零填充 (例如：2025-5-7 而不是 2025-05-07)
+            const formattedDate = `${reminderYear}-${reminderMonth}-${reminderDay}`;
             
-            // 如果这一天还没有添加到映射中，就添加它（确保每一天只有一个 dot）
+            // 检查该日期是否已在 dateMap 中处理过
+            // 如果没有，则表示这是该日期第一次遇到有提醒的事件
             if (!dateMap[formattedDate]) {
-              dateMap[formattedDate] = true;
+              dateMap[formattedDate] = true; // 标记该日期已处理
               
-              // 添加到 processedData 数组，包含 date 和 dot 属性
+              // 将格式化后的日期和打点信息添加到 processedData 数组中
               processedData.push({
-                date: formattedDate,
-                dot: true,
-                // 明确设置 dotColor 确保点是可见的，即使 v-calendar 组件不直接使用它，
-                // 下面的代码也有助于调试
-                dotColor: '#ff4500', // 鲜红色
-                // value: '', // 可选：如果您想在日期下显示一些信息
+                date: formattedDate, // 日期字符串
+                dot: true, // 显示红点标记
+                // 可以显式设置 dotColor，即使 v-calendar 组件当前不直接使用此属性，
+                // 也有助于调试或未来的扩展。
+                dotColor: '#ff4500', // 设置一个鲜艳的红色
+                // value: '', // 可选：如果想在日期下方显示一些文本信息，可以在这里设置
               });
             }
           }
         });
         
-        // 更新 calendarExtraData
+        // 更新传递给 v-calendar 组件的 extraData，使其在日历上显示红点
         calendarExtraData.value = processedData;
-        console.log("处理后的日历数据:", JSON.stringify(calendarExtraData.value));
+        console.log("处理后的日历标记数据:", JSON.stringify(calendarExtraData.value));
 
-        // If a date is already selected, refresh its reminders
+        // 如果在加载完月份数据后，已经有一个日期被选中，
+        // 则需要刷新该选中日期的提醒列表，以确保显示的是最新的数据。
         if (selectedDate.value) {
             loadRemindersForSelectedDate(selectedDate.value);
         }
 
       } catch (error) {
+        // 如果 API 调用或数据处理过程中发生错误，则打印错误信息
         console.error("获取月份提醒失败:", error);
+        // 清空相关数据，避免显示旧的或错误的数据
         allRemindersInCurrentMonth.value = [];
         calendarExtraData.value = [];
       }
     };
     
+    // 定义处理 v-calendar 组件月份切换事件 (monthTap) 的回调函数
     const handleMonthTap = (time) => {
-      // time is { year, month }
-      console.log('Month changed to:', time);
+      // time 对象包含切换后的 year 和 month
+      console.log('月份已切换至:', time);
+      // 更新当前日历显示的年月
       currentCalendarDisplayTime.value = { year: time.year, month: time.month };
-      selectedDate.value = null; // Clear selected date when month changes
+      // 月份切换时，清除之前选中的日期
+      selectedDate.value = null; 
+      // 清空选中日期的提醒列表
       selectedDateReminders.value = [];
+      // 加载新月份的提醒数据
       loadRemindersForMonth(time.year, time.month);
     };
 
+    // 定义处理 v-calendar 组件日期点击事件 (calendarTap) 的回调函数
     const handleDateTap = (dateString) => {
-      // dateString is YYYY-M-D from v-calendar
-      console.log('Date tapped:', dateString);
-      // Convert YYYY-M-D to a Date object, ensuring local timezone.
-      // Parts are 1-indexed for month, 0-indexed for Date constructor's month
-      const parts = dateString.split('-').map(Number);
+      // dateString 是从 v-calendar 传来的 "YYYY-M-D" 格式的日期字符串
+      console.log('日期被点击:', dateString);
+      // 将 "YYYY-M-D" 格式的字符串转换为 Date 对象
+      // 注意：JavaScript Date 构造函数的月份参数是 0-11，所以需要 parts[1] - 1
+      const parts = dateString.split('-').map(Number); // 将字符串按 '-' 分割并转换为数字数组
       const newSelectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      // 更新当前选中的日期
       selectedDate.value = newSelectedDate;
+      // 加载新选中日期的提醒事项列表
       loadRemindersForSelectedDate(newSelectedDate);
     };
 
+    // 定义加载特定选中日期提醒事项的函数
     const loadRemindersForSelectedDate = (dateObj) => {
+      // 如果 dateObj 为空 (未选中日期)，则不执行任何操作
       if (!dateObj) return;
+      // 开始加载数据，设置 loading 状态为 true
       loadingRemindersForDate.value = true;
-      const year = dateObj.getFullYear();
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const day = String(dateObj.getDate()).padStart(2, '0');
+      const year = dateObj.getFullYear(); // 获取年份
+      // 获取月份 (0-11)，+1 并补零
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0'); 
+      // 获取日期，并补零
+      const day = String(dateObj.getDate()).padStart(2, '0'); 
+      // 构建日期字符串前缀，格式为 "YYYY-MM-DD"，用于过滤
       const dateStringPrefix = `${year}-${month}-${day}`;
 
+      //从当前月份已加载的所有提醒中筛选出属于选中日期的提醒
+      // eventTime 通常是 "YYYY-MM-DDTHH:mm:ss" 格式
       selectedDateReminders.value = allRemindersInCurrentMonth.value.filter(r => 
         r.eventTime.startsWith(dateStringPrefix)
       );
-      console.log(`Reminders for ${dateStringPrefix}:`, selectedDateReminders.value);
+      console.log(`日期 ${dateStringPrefix} 的提醒事项:`, selectedDateReminders.value);
+      // 数据加载完成，设置 loading 状态为 false
       loadingRemindersForDate.value = false;
     };
     
+    // 定义查看提醒详情的函数
     const viewReminderDetail = (id) => {
+      // 使用 uni-app 的导航 API 跳转到详情页面，并传递提醒的 id
       uni.navigateTo({
         url: `/pages/detail/detail?id=${id}`
       });
     };
     
+    // 定义在选中日期上创建新提醒的函数
     const createReminderOnSelectedDate = () => {
+      // 确保有日期被选中
       if (selectedDate.value) {
+        // 将选中的 Date 对象转换为 "YYYY-MM-DD" 格式的字符串
         const d = new Date(selectedDate.value);
         const year = d.getFullYear();
         const monthStr = String(d.getMonth() + 1).padStart(2, '0');
         const dateStr = String(d.getDate()).padStart(2, '0');
         const dateString = `${year}-${monthStr}-${dateStr}`;
+        // 跳转到创建提醒页面，并预填选中日期
         uni.navigateTo({
           url: `/pages/create/create?date=${dateString}`
         });
       } else {
-        // This case should ideally not happen if button is only shown when selectedDate is true
+        // 如果没有选中日期（理论上按钮不应显示），提示用户
         uni.showToast({ title: '请先选择一个日期', icon: 'none'}); 
       }
     };
 
+    // 定义格式化显示提醒时间的函数
     const formatDisplayTime = (dateTimeStr) => {
+        // 如果日期时间字符串为空，则返回空字符串
         if(!dateTimeStr) return '';
+        // 使用导入的 formatTime 工具函数将 Date 对象格式化为 "HH:mm"
         return formatTime(new Date(dateTimeStr));
     };
     
+    // 组件挂载后执行的生命周期钩子
     onMounted(() => {
-      // Load reminders for the initial month
+      // 组件初次加载时，加载当前默认月份（通常是当前系统月份）的提醒数据
       loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
-      
-      // 添加一些测试数据，确保即使在未登录状态下也能看到圆点
-      setTimeout(() => {
-        if (calendarExtraData.value.length === 0) {
-          console.log('未获取到真实数据，添加测试数据');
-          const testYear = currentCalendarDisplayTime.value.year;
-          const testMonth = currentCalendarDisplayTime.value.month;
-          
-          // 在本月添加3个测试点
-          const day1 = 10;
-          const day2 = 15;
-          const day3 = 20;
-          
-          calendarExtraData.value = [
-            { date: `${testYear}-${testMonth}-${day1}`, dot: true },
-            { date: `${testYear}-${testMonth}-${day2}`, dot: true },
-            { date: `${testYear}-${testMonth}-${day3}`, dot: true }
-          ];
-          
-          console.log('添加测试数据后:', JSON.stringify(calendarExtraData.value));
-        }
-      }, 2000); // 2秒后检查
     });
     
+    // 从 setup 函数返回所有需要在模板中使用或在组件选项中访问的响应式数据和方法
     return {
-      calendarComponentRef,
-      calendarExtraData,
-      currentCalendarDisplayTime,
-      selectedDate,
-      formatSelectedDateForDisplay,
-      selectedDateReminders,
-      loadingRemindersForDate,
-      handleMonthTap,
-      handleDateTap,
-      loadRemindersForSelectedDate, // for onShow
-      loadRemindersForMonth, // for onShow
-      viewReminderDetail,
-      createReminderOnSelectedDate,
-      formatDisplayTime
+      calendarComponentRef,       // v-calendar 组件的引用
+      calendarExtraData,          // 传递给 v-calendar 的标记数据
+      currentCalendarDisplayTime, // 当前日历显示的年月
+      selectedDate,               // 用户选中的日期
+      formatSelectedDateForDisplay, // 格式化选中日期的计算属性
+      selectedDateReminders,      // 选中日期的提醒列表
+      loadingRemindersForDate,    // 是否正在加载选中日期的提醒
+      handleMonthTap,             // 处理月份切换的方法
+      handleDateTap,              // 处理日期点击的方法
+      loadRemindersForSelectedDate, // 加载选中日期提醒的方法 (也用于 onShow)
+      loadRemindersForMonth,      // 加载月份提醒的方法 (也用于 onShow)
+      viewReminderDetail,         // 查看提醒详情的方法
+      createReminderOnSelectedDate, // 创建新提醒的方法
+      formatDisplayTime           // 格式化提醒时间的方法
     };
   }
 };

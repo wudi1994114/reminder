@@ -3,6 +3,8 @@ package com.core.reminder.service;
 import com.core.reminder.model.SolarTerm;
 import com.core.reminder.model.LegalHoliday;
 import com.core.reminder.repository.SolarTermRepository;
+import com.nlf.calendar.Lunar;
+import com.nlf.calendar.Solar;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -165,6 +167,8 @@ public class SolarTermService {
         
         return null;
     }
+
+
     
     /**
      * 更新节气的宜忌信息
@@ -232,5 +236,11 @@ public class SolarTermService {
         }
         
         return calendar;
+    }
+
+    public static void main(String[] args) {
+        Lunar lunar = new Lunar(Solar.fromYmd(2025, 4, 20));
+        System.out.println(lunar.toFullString());
+        System.out.println(lunar.getJieQi());
     }
 } 

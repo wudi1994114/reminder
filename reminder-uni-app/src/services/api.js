@@ -94,7 +94,7 @@ export const getAllSimpleReminders = (year, month) => {
     if (year && month) {
         url += `?year=${year}&month=${month}`;
     }
-    
+    console.log('getAllSimpleReminders url:', url);
     return request({
         url,
         method: 'GET'
@@ -178,4 +178,46 @@ export const getHolidaysByYearRange = (startYear, endYear) => request({
     url: `/holidays`,
     method: 'GET',
     data: { startYear, endYear }
-}).catch(handleApiError); 
+}).catch(handleApiError);
+
+/**
+ * 获取日历数据（包括节假日、调休日等）
+ * @param {number} startYear - 开始年份
+ * @param {number} endYear - 结束年份
+ * @param {string} apiType - 数据类型: 'holidays'(节假日), 'events'(普通事件), 'all'(全部)
+ * @returns {Promise} - 返回日历数据
+ */
+export const getCalendarData = (startYear, endYear, apiType = 'all') => {
+    // 参数校验和处理
+    startYear = startYear || new Date().getFullYear();
+    endYear = endYear || (startYear + 1);
+    
+    console.log(`请求日历数据: ${startYear}-${endYear}, 类型: ${apiType}`);
+    
+    let url = `/holidays?startYear=${startYear}&endYear=${endYear}`;
+    
+    // 如果提供了apiType参数且不为空，添加到URL中
+    if (apiType && apiType !== 'all') {
+        url += `&type=${apiType}`;
+    }
+    
+    return request({
+        url,
+        method: 'GET'
+    })
+    .then(data => {
+        // 确保返回的数据是数组
+        if (!Array.isArray(data)) {
+            console.warn('日历API返回的数据不是数组:', data);
+            return []; // 返回空数组
+        }
+        
+        console.log(`获取到 ${data.length} 条日历数据`);
+        return data;
+    })
+    .catch(error => {
+        console.error('获取日历数据出错:', error);
+        // 对于日历数据，错误时返回空数组，避免阻断UI显示
+        return []; 
+    });
+}; 
