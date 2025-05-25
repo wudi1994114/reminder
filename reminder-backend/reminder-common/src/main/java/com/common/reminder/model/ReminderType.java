@@ -5,5 +5,6 @@ package com.common.reminder.model;
  */
 public enum ReminderType {
     EMAIL,
-    SMS
+    SMS,
+    WECHAT_MINI
 } 

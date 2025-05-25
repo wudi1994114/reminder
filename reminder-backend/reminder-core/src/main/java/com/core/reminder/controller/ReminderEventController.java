@@ -48,29 +48,25 @@ public class ReminderEventController {
      * POST /api/reminders/simple
      */
     @PostMapping("/simple")
-    public ResponseEntity<SimpleReminderDTO> createSimpleReminder(@RequestBody SimpleReminderDTO reminderDTO) {
-        // 验证必要参数
-        if (reminderDTO.getToUserId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "接收提醒的用户ID不能为空");
-        }
-
+    public ResponseEntity<SimpleReminderDTO> createSimpleReminder(
+            @RequestBody SimpleReminderDTO reminderDTO,
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
+        
         try {
-            // 获取当前登录用户（创建者）的ID
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户未登录");
-            }
-
-            // 确保toUserId已设置（如果前端没有设置，默认设置为当前用户）
-            if (reminderDTO.getToUserId() == null) {
-                // 假设我们可以从Authentication中获取用户ID
-                // 具体实现取决于你的用户认证系统
-                Long currentUserId = getCurrentUserId(auth);
-                reminderDTO.setToUserId(currentUserId);
-            }
+            log.info("接收到创建提醒请求，原始DTO: {}", reminderDTO);
+            log.info("当前用户信息: {}", userProfileDto);
+            
+            // 自动设置用户ID
+            Long currentUserId = userProfileDto.getId();
+            reminderDTO.setFromUserId(currentUserId);
+            reminderDTO.setToUserId(currentUserId);
+            
+            log.info("设置用户ID后的DTO: {}", reminderDTO);
 
             // 转换DTO为实体
             SimpleReminder simpleReminder = reminderMapper.toEntity(reminderDTO);
+            log.info("转换后的实体: fromUserId={}, toUserId={}, title={}", 
+                    simpleReminder.getFromUserId(), simpleReminder.getToUserId(), simpleReminder.getTitle());
 
             // 保存实体
             SimpleReminder created = reminderService.createSimpleReminder(simpleReminder);
@@ -78,20 +74,10 @@ public class ReminderEventController {
             // 转换实体为DTO并返回
             return new ResponseEntity<>(reminderMapper.toDTO(created), HttpStatus.CREATED);
         } catch (Exception e) {
+            log.error("创建简单提醒事项失败", e);
             // 处理创建/调度过程中的潜在异常
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "创建简单提醒事项失败", e);
         }
-    }
-
-    // 获取当前用户ID的辅助方法
-    private Long getCurrentUserId(Authentication auth) {
-        // 这里的具体实现取决于你的认证系统
-        // 例如，如果你使用自定义的UserDetails实现：
-        // CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-        // return userDetails.getId();
-
-        // 这里仅作示例，需要根据实际的认证实现来修改
-        throw new UnsupportedOperationException("需要实现获取当前用户ID的方法");
     }
 
     /**
@@ -165,17 +151,13 @@ public class ReminderEventController {
      * PUT /api/reminders/simple/{id}
      */
     @PutMapping("/simple/{id}")
-    public ResponseEntity<SimpleReminderDTO> updateSimpleReminder(@PathVariable Long id,
-            @RequestBody SimpleReminderDTO reminderDTO) {
+    public ResponseEntity<SimpleReminderDTO> updateSimpleReminder(
+            @PathVariable Long id,
+            @RequestBody SimpleReminderDTO reminderDTO,
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
         try {
             // 确保设置正确的ID
             reminderDTO.setId(id);
-
-            // 获取当前登录用户ID
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth == null || !auth.isAuthenticated()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "用户未登录");
-            }
 
             // 验证是否存在此提醒事项
             Optional<SimpleReminder> existingReminderOpt = reminderService.getSimpleReminderById(id);

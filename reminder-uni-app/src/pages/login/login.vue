@@ -1,7 +1,7 @@
 <template>
   <view class="login-page">
     <view class="logo-container">
-      <image class="logo" src="/static/images/logo.svg"></image>
+      <image class="logo" src="/static/images/logo.png"></image>
     </view>
     
     <view class="content">

@@ -8,7 +8,9 @@
       @monthTap="handleMonthTap"
       :selColor="'#3cc51f'" 
       :showDot="true"
-      :showText="false" 
+      :showText="false"
+      :legalWorkdayColor="'#FF0000'"
+      :showRestMark="false"
     />
     
     <view class="reminders-list-section" v-if="selectedDate">
@@ -88,8 +90,8 @@ export default {
       month: new Date().getMonth() + 1, // 获取当前月份 (0-11)，所以 +1 变成 (1-12)
     });
 
-    // 创建一个响应式引用，存储用户当前选中的日期对象，默认为 null (未选中)
-    const selectedDate = ref(null); 
+    // 创建一个响应式引用，存储用户当前选中的日期对象，默认为当前日期
+    const selectedDate = ref(new Date()); // 默认选中今天
     // 创建一个响应式数组，用于存储选中日期的提醒事项列表
     const selectedDateReminders = ref([]);
     // 创建一个响应式布尔值，标记是否正在加载选中日期的提醒事项
@@ -262,6 +264,11 @@ export default {
         const monthStr = String(d.getMonth() + 1).padStart(2, '0');
         const dateStr = String(d.getDate()).padStart(2, '0');
         const dateString = `${year}-${monthStr}-${dateStr}`;
+        
+        console.log('选中的日期:', selectedDate.value);
+        console.log('格式化后的日期:', dateString);
+        console.log('即将跳转的URL:', `/pages/create/create?date=${dateString}`);
+        
         // 跳转到创建提醒页面，并预填选中日期
         uni.navigateTo({
           url: `/pages/create/create?date=${dateString}`
@@ -284,6 +291,10 @@ export default {
     onMounted(() => {
       // 组件初次加载时，加载当前默认月份（通常是当前系统月份）的提醒数据
       loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
+      // 由于默认选中了当前日期，也需要加载当前日期的提醒事项
+      if (selectedDate.value) {
+        loadRemindersForSelectedDate(selectedDate.value);
+      }
     });
     
     // 从 setup 函数返回所有需要在模板中使用或在组件选项中访问的响应式数据和方法

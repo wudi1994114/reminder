@@ -69,6 +69,7 @@
 					<text 
 						class="work-mark" 
 						v-if="itm.showWorkMark"
+						:style="{ color: '#FF0000' }"
 					>
 						{{itm.workMarkText}}
 					</text>
@@ -632,6 +633,18 @@
 			}
 			
 			this.createCalendar();
+			
+			// 设置默认选中当前日期
+			const today = new Date();
+			const currentYear = today.getFullYear();
+			const currentMonth = today.getMonth() + 1;
+			const currentDay = today.getDate();
+			this.selDate = `${currentYear}-${currentMonth}-${currentDay}`;
+			
+			// 触发日期选中事件，通知父组件
+			this.$nextTick(() => {
+				this.$emit('calendarTap', this.selDate);
+			});
 		},
 		watch: {
 			// 监听样式相关props变化，更新统一样式配置
@@ -1437,6 +1450,33 @@
 					date.push(arr);
 				}
 				this.date = date;
+				
+				// 确保当前选中的日期在日历中正确显示为选中状态
+				if (this.selDate) {
+					const [selYear, selMonth, selDay] = this.selDate.split('-').map(Number);
+					if (selYear === this.time.year && selMonth === this.time.month) {
+						// 找到选中的日期并设置为active状态
+						for(let i = 0; i < this.date.length; i++) {
+							for(let j = 0; j < this.date[i].length; j++) {
+								if(this.date[i][j].type === 'cur' && this.date[i][j].date === selDay) {
+									this.date[i][j].active = true;
+									this.date[i][j].cssClass = this.date[i][j].cssClass.replace('rest-day', '')
+										.replace('work-day', '')
+										.replace('legal-holiday', '')
+										.replace('legal-workday', '')
+										+ ' active-text';
+									this.date[i][j].bgColor = this.dynamicColors.selColor || this.selColor;
+									this.date[i][j].textColor = '#fff';
+									this.date[i][j].displayTextColor = '#fff';
+									this.date[i][j].border = 'none';
+									this.date[i][j].showRestMark = false;
+									this.date[i][j].showWorkMark = false;
+									break;
+								}
+							}
+						}
+					}
+				}
 			},
 			// 点击日期
 			dateTap(itm,index,idx){
@@ -1906,6 +1946,9 @@
 						justify-content: center;
 						font-weight: 600;
 						box-shadow: 0 2upx 8upx rgba(0, 0, 0, 0.1);
+					}
+					
+					.rest-mark {
 						color: #ffffff;
 					}
 				}
