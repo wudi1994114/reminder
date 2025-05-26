@@ -1,12 +1,5 @@
 <template>
   <view class="page-container">
-    <!-- 顶部导航栏 -->
-    <view class="nav-header">
-      <view class="nav-back" @click="goBack">
-        <text class="back-icon">←</text>
-      </view>
-      <text class="nav-title">提醒</text>
-    </view>
     
     <!-- 日历区域 -->
     <view class="calendar-wrapper">
@@ -54,7 +47,7 @@
         <text class="loading-text">加载提醒...</text>
       </view>
       <view v-else-if="selectedDateReminders.length === 0" class="empty-state">
-        <text class="empty-text">当日无提醒</text>
+        <text class="empty-text">当日无即将到来的提醒</text>
       </view>
       <view v-else class="reminders-list">
         <view 
@@ -150,6 +143,7 @@ export default {
       
       const dates = [];
       const today = new Date();
+      const now = new Date(); // 当前时间，用于过滤未来提醒
       const selectedDateStr = selectedDate.value ? 
         `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
       
@@ -160,12 +154,16 @@ export default {
         const dateStr = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
         const isCurrentMonth = currentDate.getMonth() === month - 1;
         const isSelected = dateStr === selectedDateStr;
+        
+        // 检查该日期是否有未来的提醒
         const hasReminder = allRemindersInCurrentMonth.value.some(reminder => {
           if (!reminder.eventTime) return false;
           const reminderDate = new Date(reminder.eventTime);
-          return reminderDate.getFullYear() === currentDate.getFullYear() &&
+          const isSameDate = reminderDate.getFullYear() === currentDate.getFullYear() &&
                  reminderDate.getMonth() === currentDate.getMonth() &&
                  reminderDate.getDate() === currentDate.getDate();
+          // 只有未来的提醒才标记
+          return isSameDate && reminderDate >= now;
         });
         
         dates.push({
@@ -307,12 +305,28 @@ export default {
       // 构建日期字符串前缀，格式为 "YYYY-MM-DD"，用于过滤
       const dateStringPrefix = `${year}-${month}-${day}`;
 
+      // 获取当前时间，用于过滤
+      const now = new Date();
+
       //从当前月份已加载的所有提醒中筛选出属于选中日期的提醒
       // eventTime 通常是 "YYYY-MM-DDTHH:mm:ss" 格式
-      selectedDateReminders.value = allRemindersInCurrentMonth.value.filter(r => 
+      const dayReminders = allRemindersInCurrentMonth.value.filter(r => 
         r.eventTime.startsWith(dateStringPrefix)
       );
-      console.log(`日期 ${dateStringPrefix} 的提醒事项:`, selectedDateReminders.value);
+      
+      // 进一步过滤，只显示当前时间往后的提醒
+      selectedDateReminders.value = dayReminders.filter(reminder => {
+        if (!reminder.eventTime) return false;
+        const reminderTime = new Date(reminder.eventTime);
+        return reminderTime >= now;
+      }).sort((a, b) => {
+        // 按时间升序排列，最近的提醒在前面
+        const timeA = new Date(a.eventTime);
+        const timeB = new Date(b.eventTime);
+        return timeA - timeB;
+      });
+      
+      console.log(`日期 ${dateStringPrefix} 的未来提醒事项:`, selectedDateReminders.value);
       // 数据加载完成，设置 loading 状态为 false
       loadingRemindersForDate.value = false;
     };
@@ -451,7 +465,6 @@ export default {
   letter-spacing: -0.015em;
   flex: 1;
   text-align: center;
-  padding-right: 96rpx;
 }
 
 /* 日历区域 */

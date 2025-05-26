@@ -44,25 +44,6 @@
         <text class="setting-label">时间设置</text>
         <text class="setting-value">{{ getFormattedDateTime() }}</text>
       </view>
-      
-      <!-- 重复设置 -->
-      <view class="setting-item" @click="showRepeatSelector">
-        <text class="setting-label">重复</text>
-        <text class="setting-value">{{ repeatOptions[repeatIndex] }}</text>
-      </view>
-      
-      <!-- Cron表达式输入（自定义重复时显示） -->
-      <view class="input-section" v-if="showCronInput">
-        <input 
-          class="cron-input" 
-          v-model="reminderForm.cronExpression" 
-          placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
-          placeholder-class="input-placeholder"
-        />
-        <view class="cron-preview" v-if="cronPreview">
-          <text class="preview-text">{{ cronPreview }}</text>
-        </view>
-      </view>
     </scroll-view>
     
     <!-- 底部保存按钮 -->
@@ -120,9 +101,8 @@
 </template>
 
 <script>
-import { ref, computed, reactive, onMounted, watch, getCurrentInstance } from 'vue';
+import { ref, computed, reactive, onMounted, getCurrentInstance } from 'vue';
 import { createEvent, updateEvent, getSimpleReminderById } from '../../services/api';
-import cronstrue from 'cronstrue/i18n';
 
 export default {
   onLoad(options) {
@@ -139,7 +119,6 @@ export default {
       description: '',
       eventTime: '',
       reminderType: 'EMAIL', // 添加默认提醒方式
-      cronExpression: '',
       status: 'PENDING' // 默认为PENDING
     });
     
@@ -148,26 +127,10 @@ export default {
     const isSubmitting = ref(false);
     const showCustomPickers = ref(false);
     
-    const repeatOptions = ['不重复', '每天', '每周', '每月', '自定义'];
-    const repeatIndex = ref(0); 
-    
     // 提醒方式相关
     const reminderTypeOptions = ['邮件', '短信', '微信'];
     const reminderTypeValues = ['EMAIL', 'SMS', 'WECHAT_MINI'];
     const reminderTypeIndex = ref(0); // 默认选择邮件提醒
-    
-    const showCronInput = computed(() => repeatIndex.value === 4); // 自定义时显示Cron输入框
-
-    const cronPreview = computed(() => {
-      if (reminderForm.cronExpression && repeatIndex.value === 4) {
-        try {
-          return cronstrue.toString(reminderForm.cronExpression, { locale: "zh_CN" });
-        } catch (e) {
-          return '无效的Cron表达式';
-        }
-      }
-      return '';
-    });
     
     onMounted(async () => {
       // 获取页面参数 - 使用getCurrentPages方式
@@ -192,7 +155,6 @@ export default {
             reminderForm.title = result.title;
             reminderForm.description = result.description;
             reminderForm.eventTime = result.eventTime;
-            reminderForm.cronExpression = result.cronExpression;
             reminderForm.status = result.status;
             reminderForm.reminderType = result.reminderType || 'EMAIL'; // 设置提醒方式
             
@@ -231,15 +193,6 @@ export default {
                 reminderDate.value = date;
                 reminderTime.value = time ? time.substring(0, 5) : '09:00'; // HH:mm，如果没有时间则默认09:00
               }
-            }
-            
-            if (result.cronExpression) {
-              if (result.cronExpression === '0 0 8 * * ?') repeatIndex.value = 1;
-              else if (result.cronExpression === '0 0 8 ? * MON') repeatIndex.value = 2;
-              else if (result.cronExpression === '0 0 8 1 * ?') repeatIndex.value = 3;
-              else repeatIndex.value = 4; // 自定义
-            } else {
-              repeatIndex.value = 0; // 不重复
             }
             
             // 设置提醒方式索引
@@ -284,10 +237,6 @@ export default {
       updateEventTime();
     };
     
-    const onRepeatChange = (e) => {
-      repeatIndex.value = e.detail.value;
-    };
-    
     // 提醒方式相关方法
     const onReminderTypeChange = (e) => {
       reminderTypeIndex.value = e.detail.value;
@@ -320,16 +269,6 @@ export default {
       }
     };
     
-    watch(repeatIndex, (newIndex) => {
-      switch (Number(newIndex)) {
-        case 0: reminderForm.cronExpression = ''; break;
-        case 1: reminderForm.cronExpression = '0 0 8 * * ?'; break; // 每天早上8点
-        case 2: reminderForm.cronExpression = '0 0 8 ? * MON'; break; // 每周一早上8点
-        case 3: reminderForm.cronExpression = '0 0 8 1 * ?'; break; // 每月1号早上8点
-        // case 4 (自定义) 不做处理，用户自行输入
-      }
-    });
-    
     const saveReminder = async () => {
       if (!reminderForm.title) {
         uni.showToast({ title: '请输入提醒标题', icon: 'none' });
@@ -337,10 +276,6 @@ export default {
       }
       if (!reminderForm.eventTime) {
         uni.showToast({ title: '请选择提醒时间', icon: 'none' });
-        return;
-      }
-      if (repeatIndex.value === 4 && !reminderForm.cronExpression) {
-        uni.showToast({ title: '自定义重复需要填写Cron表达式', icon: 'none' });
         return;
       }
       
@@ -362,11 +297,6 @@ export default {
         // 移除不需要的字段
         delete dataToSave.toUserId; // 让后端自动设置
         delete dataToSave.status; // 后端会设置默认状态
-        
-        // 如果不是自定义重复，且cronExpression为空（例如不重复），则确保不传递cronExpression
-        if (repeatIndex.value !== 4 && !dataToSave.cronExpression) {
-            delete dataToSave.cronExpression;
-        }
 
         if (isEdit.value) {
           result = await updateEvent(reminderForm.id, dataToSave);
@@ -444,17 +374,6 @@ export default {
       }
     };
     
-    // 新增方法：显示重复选择器
-    const showRepeatSelector = () => {
-      uni.showActionSheet({
-        itemList: repeatOptions,
-        success: (res) => {
-          repeatIndex.value = res.tapIndex;
-          // 触发watch更新cron表达式
-        }
-      });
-    };
-    
     // 新增方法：格式化显示日期时间
     const getFormattedDateTime = () => {
       if (!reminderDate.value || !reminderTime.value) {
@@ -523,15 +442,10 @@ export default {
       reminderDate,
       reminderTime,
       isSubmitting,
-      repeatOptions,
-      repeatIndex,
-      showCronInput,
-      cronPreview,
       reminderTypeOptions,
       reminderTypeIndex,
       onDateChange,
       onTimeChange,
-      onRepeatChange,
       onReminderTypeChange,
       getReminderTypeIcon,
       getReminderTypeText: getReminderTypeTextUpdated,
@@ -539,7 +453,6 @@ export default {
       cancel,
       showReminderTypeSelector,
       showTimeSelector,
-      showRepeatSelector,
       getFormattedDateTime,
       showCustomPickers,
       showCustomDateTime,
@@ -670,33 +583,6 @@ export default {
   flex-shrink: 0;
 }
 
-/* Cron输入样式 */
-.cron-input {
-  width: 100%;
-  min-height: 112rpx;
-  padding: 32rpx;
-  background-color: #f4efe7;
-  border-radius: 24rpx;
-  border: none;
-  font-size: 32rpx;
-  color: #1c170d;
-  line-height: 1.4;
-}
-
-.cron-preview {
-  margin-top: 24rpx;
-  padding: 24rpx;
-  background-color: #f0f8ff;
-  border-radius: 16rpx;
-  border-left: 6rpx solid #007aff;
-}
-
-.preview-text {
-  font-size: 28rpx;
-  color: #007aff;
-  line-height: 1.4;
-}
-
 /* 底部容器 */
 .bottom-container {
   background-color: #fcfbf8;
@@ -790,8 +676,7 @@ export default {
   }
   
   .title-input,
-  .content-textarea,
-  .cron-input {
+  .content-textarea {
     font-size: 28rpx;
     padding: 24rpx;
   }

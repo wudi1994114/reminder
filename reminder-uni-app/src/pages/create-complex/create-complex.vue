@@ -3,8 +3,9 @@
     <!-- 顶部导航栏 -->
     <view class="nav-bar">
       <view class="nav-left" @click="goBack">
-        <text class="nav-icon">←</text>
-        <text class="nav-text">返回</text>
+        <view class="nav-icon">
+          <text class="icon-arrow">←</text>
+        </view>
       </view>
       <view class="nav-title">{{ isEdit ? '编辑复杂提醒' : '创建复杂提醒' }}</view>
       <view class="nav-right"></view>
@@ -14,65 +15,41 @@
     <scroll-view class="content-scroll" scroll-y>
       <view class="form-container">
         <!-- 基本信息 -->
-        <view class="form-section">
-          <view class="section-header">
-            <text class="section-icon">📝</text>
-            <text class="section-title">基本信息</text>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">标题</text>
-              <text class="required-mark">*</text>
-            </view>
-            <view class="input-wrapper">
-              <input 
-                class="form-input" 
-                v-model="reminderData.title" 
-                placeholder="请输入提醒标题"
-                placeholder-class="input-placeholder"
-                maxlength="50"
-              />
-            </view>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">描述</text>
-            </view>
-            <view class="textarea-wrapper">
-              <textarea 
-                class="form-textarea" 
-                v-model="reminderData.description" 
-                placeholder="请输入提醒描述（可选）"
-                placeholder-class="input-placeholder"
-                maxlength="200"
-                auto-height
-              />
-            </view>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">提醒方式</text>
-            </view>
-            <picker :range="reminderTypeOptions" :value="reminderTypeIndex" @change="onReminderTypeChange">
-              <view class="picker-display">
-                <text class="picker-icon">📧</text>
-                <text class="picker-text">{{ reminderTypeOptions[reminderTypeIndex] }}</text>
-                <text class="picker-arrow">›</text>
-              </view>
-            </picker>
-          </view>
+        <view class="input-section">
+          <input 
+            class="title-input" 
+            v-model="reminderData.title" 
+            placeholder="标题"
+            placeholder-class="input-placeholder"
+            maxlength="50"
+          />
         </view>
         
+        <view class="input-section">
+          <textarea 
+            class="content-textarea" 
+            v-model="reminderData.description" 
+            placeholder="内容"
+            placeholder-class="input-placeholder"
+            maxlength="200"
+            auto-height
+          />
+        </view>
+
+        <!-- 提醒方式 -->
+        <view class="setting-item" @click="showReminderTypeSelector">
+          <text class="setting-label">提醒方式</text>
+          <text class="setting-value">{{ reminderTypeOptions[reminderTypeIndex] }}</text>
+        </view>
+        
+        <!-- 时间设置 -->
+        <view class="setting-item" @click="showTimeSelector">
+          <text class="setting-label">时间设置</text>
+          <text class="setting-value">{{ getFormattedDateTime() }}</text>
+        </view>
+
         <!-- 时间设置模式选择 -->
         <view class="form-section">
-          <view class="section-header">
-            <text class="section-icon">⏰</text>
-            <text class="section-title">时间设置</text>
-          </view>
-          
           <!-- 模式切换标签 -->
           <view class="tab-container">
             <view class="tab-buttons">
@@ -95,91 +72,45 @@
           
           <!-- 简易模式内容 -->
           <view v-if="activeTab === 'simple'" class="tab-content">
+            <!-- 重复设置 -->
             <view class="input-group">
               <view class="input-label">
-                <text class="label-text">重复类型</text>
+                <text class="label-text">重复</text>
               </view>
-              <picker :range="recurrenceOptions" :value="recurrenceIndex" @change="onRecurrenceChange">
+              <picker :range="repeatOptions" :value="repeatIndex" @change="onRepeatChange">
                 <view class="picker-display">
                   <text class="picker-icon">🔄</text>
-                  <text class="picker-text">{{ recurrenceOptions[recurrenceIndex] }}</text>
+                  <text class="picker-text">{{ repeatOptions[repeatIndex] }}</text>
                   <text class="picker-arrow">›</text>
                 </view>
               </picker>
             </view>
-            
-            <view class="input-group">
+
+            <!-- Cron表达式输入（自定义重复时显示） -->
+            <view v-if="showCronInput" class="input-group">
               <view class="input-label">
-                <text class="label-text">提醒时间</text>
+                <text class="label-text">Cron表达式</text>
               </view>
-              <view class="time-picker-container">
-                <picker mode="time" :value="simpleTime" @change="onSimpleTimeChange">
-                  <view class="picker-display">
-                    <text class="picker-icon">🕐</text>
-                    <text class="picker-text">{{ simpleTime || '选择时间' }}</text>
-                    <text class="picker-arrow">›</text>
-                  </view>
-                </picker>
+              <view class="input-wrapper">
+                <input 
+                  class="form-input" 
+                  v-model="reminderData.cronExpression" 
+                  placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
+                  placeholder-class="input-placeholder"
+                />
               </view>
-            </view>
-            
-            <!-- 每周特定日选择 -->
-            <view v-if="simpleData.recurrenceType === 'WEEKLY'" class="input-group">
-              <view class="input-label">
-                <text class="label-text">星期几</text>
-              </view>
-              <picker :range="weekDays" :value="weekdayIndex" @change="onWeekdayChange">
-                <view class="picker-display">
-                  <text class="picker-icon">📅</text>
-                  <text class="picker-text">{{ weekDays[weekdayIndex] }}</text>
-                  <text class="picker-arrow">›</text>
-                </view>
-              </picker>
-            </view>
-            
-            <!-- 每月特定日选择 -->
-            <view v-if="simpleData.recurrenceType === 'MONTHLY'" class="input-group">
-              <view class="input-label">
-                <text class="label-text">每月第几天</text>
-              </view>
-              <picker :range="monthDays" :value="monthDayIndex" @change="onMonthDayChange">
-                <view class="picker-display">
-                  <text class="picker-icon">📅</text>
-                  <text class="picker-text">{{ monthDays[monthDayIndex] }}</text>
-                  <text class="picker-arrow">›</text>
-                </view>
-              </picker>
-            </view>
-            
-            <!-- 每年特定日选择 -->
-            <view v-if="simpleData.recurrenceType === 'YEARLY'" class="input-group">
-              <view class="input-label">
-                <text class="label-text">月份和日期</text>
-              </view>
-              <view class="year-date-container">
-                <picker :range="months" :value="monthIndex" @change="onMonthChange">
-                  <view class="picker-display half-width">
-                    <text class="picker-icon">📅</text>
-                    <text class="picker-text">{{ months[monthIndex] }}</text>
-                    <text class="picker-arrow">›</text>
-                  </view>
-                </picker>
-                <picker :range="getDaysInMonth()" :value="dayIndex" @change="onDayChange">
-                  <view class="picker-display half-width">
-                    <text class="picker-icon">📅</text>
-                    <text class="picker-text">{{ getDaysInMonth()[dayIndex] }}</text>
-                    <text class="picker-arrow">›</text>
-                  </view>
-                </picker>
+              <view v-if="cronPreview" class="cron-preview">
+                <text class="preview-text">{{ cronPreview }}</text>
               </view>
             </view>
           </view>
           
           <!-- 高级模式内容 -->
           <view v-if="activeTab === 'advanced'" class="tab-content">
+            <!-- 高级Cron表达式输入 -->
             <view class="input-group">
               <view class="input-label">
-                <text class="label-text">Cron表达式</text>
+                <text class="label-text">自定义Cron表达式</text>
               </view>
               <view class="input-wrapper">
                 <input 
@@ -193,88 +124,69 @@
                 <text class="help-text">格式：分钟 小时 日期 月份 星期 📝点击查看详细说明</text>
               </view>
             </view>
-          </view>
-        </view>
-        
-        <!-- 时间段设置 -->
-        <view class="form-section">
-          <view class="section-header">
-            <text class="section-icon">📅</text>
-            <text class="section-title">时间段设置</text>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">生效日期</text>
-            </view>
-            <picker mode="date" :value="reminderData.validFrom" @change="onValidFromChange">
-              <view class="picker-display">
-                <text class="picker-icon">📅</text>
-                <text class="picker-text">{{ reminderData.validFrom || '选择开始日期' }}</text>
-                <text class="picker-arrow">›</text>
-              </view>
-            </picker>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">失效日期（可选）</text>
-            </view>
-            <picker mode="date" :value="reminderData.validUntil" @change="onValidUntilChange">
-              <view class="picker-display">
-                <text class="picker-icon">📅</text>
-                <text class="picker-text">{{ reminderData.validUntil || '选择结束日期' }}</text>
-                <text class="picker-arrow">›</text>
-              </view>
-            </picker>
-          </view>
-          
-          <view class="input-group">
-            <view class="input-label">
-              <text class="label-text">最多执行次数（可选）</text>
-            </view>
-            <view class="input-wrapper">
-              <input 
-                class="form-input" 
-                v-model.number="reminderData.maxExecutions" 
-                type="number"
-                placeholder="不限制"
-                placeholder-class="input-placeholder"
-              />
-            </view>
-          </view>
-        </view>
-        
-        <!-- 预览区域 -->
-        <view class="form-section">
-          <view class="section-header">
-            <text class="section-icon">🔍</text>
-            <text class="section-title">触发时间预览</text>
-            <view class="preview-actions" @click="showPreviewActions">
-              <text class="action-text">更多</text>
-              <text class="action-icon">⋮</text>
-            </view>
-          </view>
-          
-          <view class="preview-content">
-            <view class="preview-description">
-              <text class="description-label">描述：</text>
-              <text class="description-text">{{ humanReadableDescription }}</text>
+            
+            <!-- 时间段设置 -->
+            <view class="section-header">
+              <text class="section-title">时间段设置</text>
             </view>
             
-            <view class="preview-times">
-              <text class="times-label">下次将在这些时间触发：</text>
-              <view class="times-list">
-                <view v-if="previewTimes.length === 0" class="no-preview">
-                  <text class="no-preview-text">暂无预览时间</text>
+            <view class="input-group">
+              <view class="input-label">
+                <text class="label-text">开始时间</text>
+              </view>
+              <picker mode="date" :value="reminderData.validFrom" @change="onValidFromChange">
+                <view class="picker-display">
+                  <text class="picker-icon">📅</text>
+                  <text class="picker-text">{{ reminderData.validFrom || '现在' }}</text>
+                  <text class="picker-arrow">›</text>
                 </view>
-                <view v-else>
-                  <view v-for="(time, index) in previewTimes.slice(0, 5)" :key="index" class="time-item">
-                    <text class="time-text">{{ time }}</text>
+              </picker>
+            </view>
+            
+            <view class="input-group">
+              <view class="input-label">
+                <text class="label-text">结束时间</text>
+              </view>
+              <picker mode="date" :value="reminderData.validUntil" @change="onValidUntilChange">
+                <view class="picker-display">
+                  <text class="picker-icon">📅</text>
+                  <text class="picker-text">{{ reminderData.validUntil || '无结束时间' }}</text>
+                  <text class="picker-arrow">›</text>
+                </view>
+              </picker>
+            </view>
+
+            <!-- 高级选项 -->
+            <view class="section-header">
+              <text class="section-title">高级选项</text>
+            </view>
+            
+            <view class="advanced-options">
+              <view class="option-item" @click="toggleCronExpression">
+                <view class="option-header">
+                  <text class="option-title">Cron表达式</text>
+                  <view class="option-toggle" :class="{ expanded: showCronExpression }">
+                    <text class="toggle-icon">▼</text>
                   </view>
-                  <view v-if="previewTimes.length > 5" class="more-times">
-                    <text class="more-text">…还有 {{ previewTimes.length - 5 }} 个时间</text>
-                  </view>
+                </view>
+                <view v-if="showCronExpression" class="option-content">
+                  <text class="option-value">{{ reminderData.cronExpression || '0 9 * * * ?' }}</text>
+                </view>
+              </view>
+            </view>
+
+            <!-- 下次触发时间 -->
+            <view class="section-header">
+              <text class="section-title">下次触发时间</text>
+            </view>
+            
+            <view class="trigger-times">
+              <view v-if="previewTimes.length === 0" class="no-preview">
+                <text class="no-preview-text">暂无预览时间</text>
+              </view>
+              <view v-else>
+                <view v-for="(time, index) in previewTimes.slice(0, 5)" :key="index" class="time-item">
+                  <text class="time-text">{{ time }}</text>
                 </view>
               </view>
             </view>
@@ -282,6 +194,44 @@
         </view>
       </view>
     </scroll-view>
+    
+    <!-- 自定义日期时间选择器 -->
+    <view class="custom-datetime" v-if="showCustomPickers">
+      <view class="custom-modal">
+        <view class="custom-header">
+          <text class="custom-title">选择自定义日期和时间</text>
+          <view class="custom-close" @click="hideCustomPickers">
+            <text class="close-icon">✕</text>
+          </view>
+        </view>
+        
+        <view class="picker-container">
+          <view class="picker-item">
+            <text class="picker-label">日期</text>
+            <picker mode="date" :value="reminderDate" @change="onDateChange">
+              <view class="picker-display-modal">
+                <text class="picker-text">{{ reminderDate || '选择日期' }}</text>
+              </view>
+            </picker>
+          </view>
+          
+          <view class="picker-item">
+            <text class="picker-label">时间</text>
+            <picker mode="time" :value="reminderTime" @change="onTimeChange">
+              <view class="picker-display-modal">
+                <text class="picker-text">{{ reminderTime || '选择时间' }}</text>
+              </view>
+            </picker>
+          </view>
+        </view>
+        
+        <view class="custom-actions">
+          <button class="custom-btn confirm-btn" @click="confirmCustomDateTime">
+            <text class="btn-text">确认</text>
+          </button>
+        </view>
+      </view>
+    </view>
     
     <!-- 底部操作按钮 -->
     <view class="bottom-actions">
@@ -308,6 +258,7 @@ export default {
       isEdit: false,
       isSubmitting: false,
       activeTab: 'simple', // 'simple' 或 'advanced'
+      showCronExpression: false, // 控制Cron表达式展开
       
       // 提醒数据
       reminderData: {
@@ -325,6 +276,17 @@ export default {
       reminderTypeOptions: ['邮件提醒', '短信提醒'],
       reminderTypeValues: ['EMAIL', 'SMS'],
       reminderTypeIndex: 0,
+      
+      // 自定义时间选择器显示状态
+      showCustomPickers: false,
+      
+      // 简单模式的日期时间设置
+      reminderDate: '',
+      reminderTime: '',
+      
+      // 重复选项
+      repeatOptions: ['不重复', '每天', '每周', '每月', '自定义'],
+      repeatIndex: 0,
       
       // 简易模式数据
       simpleData: {
@@ -359,6 +321,46 @@ export default {
     }
   },
   
+  computed: {
+    // 控制Cron输入框显示
+    showCronInput() {
+      return this.repeatIndex === 4; // 自定义时显示
+    },
+    
+    // Cron表达式预览
+    cronPreview() {
+      if (this.reminderData.cronExpression && this.repeatIndex === 4) {
+        try {
+          // 这里可以添加cronstrue库来解析Cron表达式
+          return '自定义Cron表达式';
+        } catch (e) {
+          return '无效的Cron表达式';
+        }
+      }
+      return '';
+    }
+  },
+  
+  watch: {
+    // 监听重复选项变化，自动更新Cron表达式
+    repeatIndex(newIndex) {
+      this.updateCronFromRepeat();
+    },
+    
+    // 监听时间变化，更新Cron表达式中的时间部分
+    reminderTime(newTime) {
+      if (newTime && this.repeatIndex > 0 && this.repeatIndex < 4) {
+        const [hour, minute] = newTime.split(':');
+        const cronParts = this.reminderData.cronExpression.split(' ');
+        if (cronParts.length >= 2) {
+          cronParts[0] = minute || '0';
+          cronParts[1] = hour || '8';
+          this.reminderData.cronExpression = cronParts.join(' ');
+        }
+      }
+    }
+  },
+  
   onLoad(options) {
     console.log('复杂提醒页面加载参数:', options);
     if (options.id) {
@@ -375,6 +377,19 @@ export default {
     initializeData() {
       const today = new Date();
       this.reminderData.validFrom = today.toISOString().split('T')[0];
+      
+      // 初始化简单模式的日期时间
+      this.reminderDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      
+      // 设置默认时间为当前时间的后一小时整点
+      const now = new Date();
+      now.setHours(now.getHours() + 1);
+      now.setMinutes(0);
+      now.setSeconds(0);
+      this.reminderTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      // 更新eventTime
+      this.updateEventTime();
     },
     
     // 切换标签
@@ -393,6 +408,52 @@ export default {
     onReminderTypeChange(e) {
       this.reminderTypeIndex = e.detail.value;
       this.reminderData.reminderType = this.reminderTypeValues[this.reminderTypeIndex];
+    },
+    
+    // 简单模式 - 日期改变
+    onDateChange(e) {
+      this.reminderDate = e.detail.value;
+      this.updateEventTime();
+    },
+    
+    // 简单模式 - 时间改变
+    onTimeChange(e) {
+      this.reminderTime = e.detail.value;
+      this.updateEventTime();
+    },
+    
+    // 简单模式 - 重复选项改变
+    onRepeatChange(e) {
+      this.repeatIndex = e.detail.value;
+      this.updateCronFromRepeat();
+    },
+    
+    // 更新eventTime
+    updateEventTime() {
+      if (this.reminderDate && this.reminderTime) {
+        this.reminderData.eventTime = `${this.reminderDate} ${this.reminderTime}:00`;
+      } else {
+        this.reminderData.eventTime = '';
+      }
+    },
+    
+    // 根据重复选项更新Cron表达式
+    updateCronFromRepeat() {
+      switch (Number(this.repeatIndex)) {
+        case 0: // 不重复
+          this.reminderData.cronExpression = '';
+          break;
+        case 1: // 每天
+          this.reminderData.cronExpression = '0 0 8 * * ?';
+          break;
+        case 2: // 每周
+          this.reminderData.cronExpression = '0 0 8 ? * MON';
+          break;
+        case 3: // 每月
+          this.reminderData.cronExpression = '0 0 8 1 * ?';
+          break;
+        // case 4 (自定义) 不做处理，用户自行输入
+      }
     },
     
     // 加载提醒数据（编辑模式）
@@ -888,6 +949,115 @@ export default {
         console.error('解析Cron表达式失败:', error);
         this.activeTab = 'advanced';
       }
+    },
+    
+    // 切换Cron表达式展开状态
+    toggleCronExpression() {
+      this.showCronExpression = !this.showCronExpression;
+    },
+    
+    // 选择重复类型
+    selectRecurrenceType(type, index) {
+      this.simpleData.recurrenceType = type;
+      this.recurrenceIndex = index;
+      this.updateCronFromSimple();
+      this.updatePreview();
+    },
+    
+    // 显示提醒方式选择器
+    showReminderTypeSelector() {
+      uni.showActionSheet({
+        itemList: this.reminderTypeOptions,
+        success: (res) => {
+          this.reminderTypeIndex = res.tapIndex;
+          this.reminderData.reminderType = this.reminderTypeValues[res.tapIndex];
+        }
+      });
+    },
+    
+    // 显示时间选择器
+    showTimeSelector() {
+      // 显示自定义日期时间选择器
+      this.showCustomDateTime();
+    },
+    
+    // 显示自定义日期时间选择
+    showCustomDateTime() {
+      this.showCustomPickers = true;
+    },
+    
+    // 隐藏自定义选择器
+    hideCustomPickers() {
+      this.showCustomPickers = false;
+    },
+    
+    // 确认自定义日期时间
+    confirmCustomDateTime() {
+      if (this.reminderDate && this.reminderTime) {
+        this.updateEventTime();
+        this.showCustomPickers = false;
+        uni.showToast({
+          title: '自定义时间设置成功',
+          icon: 'success'
+        });
+      } else {
+        uni.showToast({
+          title: '请选择日期和时间',
+          icon: 'none'
+        });
+      }
+    },
+    
+    // 格式化显示日期时间
+    getFormattedDateTime() {
+      if (!this.reminderDate || !this.reminderTime) {
+        return '选择时间';
+      }
+      
+      // 使用iOS兼容的日期格式创建Date对象
+      const dateTimeStr = `${this.reminderDate}T${this.reminderTime}:00`;
+      const date = new Date(dateTimeStr);
+      
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        console.error('无效的日期格式:', dateTimeStr);
+        return '选择时间';
+      }
+      
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // 判断是否是今天、明天
+      const isToday = date.toDateString() === now.toDateString();
+      const isTomorrow = date.toDateString() === tomorrow.toDateString();
+      
+      let dateStr = '';
+      if (isToday) {
+        dateStr = '今天';
+      } else if (isTomorrow) {
+        dateStr = '明天';
+      } else {
+        // 格式化为中文日期格式
+        const months = ['1月', '2月', '3月', '4月', '5月', '6月', 
+                       '7月', '8月', '9月', '10月', '11月', '12月'];
+        dateStr = `${months[date.getMonth()]}${date.getDate()}日`;
+      }
+      
+      // 格式化时间为中文格式
+      let hours = date.getHours();
+      const minutes = date.getMinutes();
+      let timeStr = '';
+      
+      if (hours < 12) {
+        const displayHour = hours === 0 ? 12 : hours;
+        timeStr = `上午${displayHour}:${String(minutes).padStart(2, '0')}`;
+      } else {
+        const displayHour = hours === 12 ? 12 : hours - 12;
+        timeStr = `下午${displayHour}:${String(minutes).padStart(2, '0')}`;
+      }
+      
+      return `${dateStr} ${timeStr}`;
     }
   }
 }
@@ -896,9 +1066,10 @@ export default {
 <style scoped>
 .page-container {
   height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #fcfbf8;
   display: flex;
   flex-direction: column;
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* 导航栏样式 */
@@ -906,224 +1077,178 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 80rpx;
-  padding: 0 24rpx;
-  background-color: #ffffff;
-  border-bottom: 1rpx solid #e5e5e5;
+  height: 88rpx;
+  padding: 0 32rpx;
+  background-color: #fcfbf8;
+  border-bottom: none;
 }
 
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  width: 96rpx;
 }
 
 .nav-icon {
-  font-size: 32rpx;
-  color: #007aff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
 }
 
-.nav-text {
-  font-size: 28rpx;
-  color: #007aff;
+.icon-arrow {
+  font-size: 48rpx;
+  color: #1c170d;
+  font-weight: 400;
 }
 
 .nav-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #333333;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #1c170d;
+  text-align: center;
+  flex: 1;
+  margin-right: 96rpx;
 }
 
 .nav-right {
-  width: 120rpx;
+  width: 96rpx;
 }
 
 /* 内容区域 */
 .content-scroll {
   flex: 1;
-  padding: 0 24rpx;
+  padding: 0;
 }
 
 .form-container {
-  padding: 24rpx 0;
+  padding: 32rpx;
+  max-width: 960rpx;
+  margin: 0 auto;
 }
 
 /* 表单区块 */
 .form-section {
-  background-color: #ffffff;
-  border-radius: 12rpx;
   margin-bottom: 24rpx;
-  overflow: hidden;
 }
 
 .section-header {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 24rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.section-icon {
-  font-size: 32rpx;
+  margin-bottom: 24rpx;
 }
 
 .section-title {
-  flex: 1;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #333333;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #1c170d;
+  line-height: 1.2;
 }
 
-.preview-actions {
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-  padding: 8rpx 12rpx;
-  background-color: #f0f0f0;
-  border-radius: 6rpx;
-  cursor: pointer;
-}
-
-.preview-actions:active {
-  background-color: #e0e0e0;
-}
-
-.action-text {
-  font-size: 24rpx;
-  color: #666666;
-}
-
-.action-icon {
-  font-size: 28rpx;
-  color: #666666;
-}
-
-/* 输入组 */
+/* 输入组样式 */
 .input-group {
-  padding: 24rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+  margin-bottom: 32rpx;
 }
 
-.input-group:last-child {
-  border-bottom: none;
-}
-
-.input-label {
-  display: flex;
-  align-items: center;
-  gap: 6rpx;
-  margin-bottom: 12rpx;
-}
-
-.label-text {
-  font-size: 26rpx;
-  color: #333333;
-  font-weight: 500;
-}
-
-.required-mark {
-  color: #ff4757;
-  font-size: 26rpx;
-}
-
-/* 输入框样式 */
 .input-wrapper, .textarea-wrapper {
-  background-color: #f8f9fa;
-  border-radius: 8rpx;
-  border: 1rpx solid #e9ecef;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  border: none;
+  overflow: hidden;
 }
 
 .form-input, .form-textarea {
   width: 100%;
-  padding: 20rpx;
-  font-size: 26rpx;
-  color: #333333;
+  padding: 28rpx 32rpx;
+  font-size: 32rpx;
+  color: #1c170d;
   background-color: transparent;
   border: none;
+  line-height: 1.4;
+}
+
+.form-textarea {
+  min-height: 144rpx;
+  resize: none;
 }
 
 .input-placeholder {
-  color: #999999;
+  color: #9d8148;
 }
 
-/* 选择器样式 */
-.picker-display {
+/* 单选按钮组 */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.radio-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20rpx;
-  background-color: #f8f9fa;
-  border-radius: 8rpx;
-  border: 1rpx solid #e9ecef;
+  padding: 30rpx;
+  background-color: #ffffff;
+  border: 2rpx solid #e9e0ce;
+  border-radius: 24rpx;
+  transition: all 0.2s ease;
 }
 
-.picker-icon {
-  font-size: 28rpx;
-  margin-right: 12rpx;
+.radio-item.active {
+  border-color: #f7bd4a;
+  background-color: #ffffff;
 }
 
-.picker-text {
+.radio-content {
   flex: 1;
-  font-size: 26rpx;
-  color: #333333;
 }
 
-.picker-arrow {
+.radio-text {
   font-size: 28rpx;
-  color: #999999;
+  font-weight: 500;
+  color: #1c170d;
 }
 
-/* 标签切换 */
-.tab-container {
-  padding: 0 24rpx 24rpx;
-}
-
-.tab-buttons {
+.radio-button {
+  width: 40rpx;
+  height: 40rpx;
+  border: 4rpx solid #e9e0ce;
+  border-radius: 50%;
   display: flex;
-  background-color: #f0f0f0;
-  border-radius: 8rpx;
-  padding: 6rpx;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
 }
 
-.tab-button {
-  flex: 1;
-  text-align: center;
-  padding: 16rpx;
-  border-radius: 6rpx;
-  transition: all 0.3s ease;
+.radio-item.active .radio-button {
+  border-color: #f7bd4a;
 }
 
-.tab-button.active {
-  background-color: #007aff;
-}
-
-.tab-text {
-  font-size: 26rpx;
-  color: #666666;
-}
-
-.tab-button.active .tab-text {
-  color: #ffffff;
-  font-weight: 600;
+.radio-dot {
+  width: 24rpx;
+  height: 24rpx;
+  background-color: #f7bd4a;
+  border-radius: 50%;
 }
 
 /* 底部按钮 */
 .bottom-actions {
   display: flex;
-  gap: 16rpx;
-  padding: 24rpx;
-  background-color: #ffffff;
-  border-top: 1rpx solid #e5e5e5;
+  gap: 32rpx;
+  padding: 32rpx;
+  background-color: #fcfbf8;
+  border-top: none;
 }
 
 .action-btn {
   flex: 1;
-  height: 76rpx;
-  border-radius: 8rpx;
-  font-size: 28rpx;
+  height: 96rpx;
+  border-radius: 16rpx;
+  font-size: 32rpx;
   font-weight: 600;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cancel-btn {
@@ -1132,8 +1257,8 @@ export default {
 }
 
 .submit-btn {
-  background-color: #007aff;
-  color: #ffffff;
+  background-color: #f7bd4a;
+  color: #1c170d;
 }
 
 .submit-btn:disabled,
@@ -1143,12 +1268,103 @@ export default {
 }
 
 .btn-text {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+/* 标签切换 */
+.tab-container {
+  padding: 0 0 48rpx;
+}
+
+.tab-buttons {
+  display: flex;
+  background-color: #f0f0f0;
+  border-radius: 16rpx;
+  padding: 8rpx;
+}
+
+.tab-button {
+  flex: 1;
+  text-align: center;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  transition: all 0.3s ease;
+}
+
+.tab-button.active {
+  background-color: #f7bd4a;
+}
+
+.tab-text {
   font-size: 28rpx;
+  color: #666666;
+  font-weight: 500;
+}
+
+.tab-button.active .tab-text {
+  color: #1c170d;
+  font-weight: 600;
 }
 
 /* 标签内容 */
 .tab-content {
-  padding: 0 24rpx 24rpx;
+  padding: 0;
+}
+
+/* 标签内容中的section-header */
+.tab-content .section-header {
+  margin: 48rpx 0 24rpx 0;
+}
+
+.tab-content .section-header:first-of-type {
+  margin-top: 24rpx;
+}
+
+/* 输入标签和选择器 */
+.input-label {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.label-text {
+  font-size: 28rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.required-mark {
+  color: #ff4757;
+  font-size: 28rpx;
+}
+
+/* 选择器样式 */
+.picker-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 32rpx;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  border: none;
+}
+
+.picker-icon {
+  font-size: 32rpx;
+  margin-right: 16rpx;
+}
+
+.picker-text {
+  flex: 1;
+  font-size: 28rpx;
+  color: #1c170d;
+}
+
+.picker-arrow {
+  font-size: 32rpx;
+  color: #9d8148;
 }
 
 /* 时间选择器 */
@@ -1156,124 +1372,371 @@ export default {
   width: 100%;
 }
 
-/* 年份日期选择器 */
-.year-date-container {
+/* 日期时间选择器布局 */
+.date-time-container {
   display: flex;
-  gap: 12rpx;
+  gap: 24rpx;
 }
 
-.half-width {
+.date-time-container .picker-display {
   flex: 1;
 }
 
-/* Cron帮助信息 */
-.cron-help {
-  margin-top: 12rpx;
-  padding: 12rpx;
-  background-color: #f0f8ff;
-  border-radius: 6rpx;
-  border-left: 3rpx solid #007aff;
-}
-
-.help-text {
-  font-size: 22rpx;
-  color: #666666;
-  line-height: 1.3;
-}
-
-/* 预览区域 */
-.preview-content {
+/* Cron表达式预览 */
+.cron-preview {
+  margin-top: 16rpx;
   padding: 24rpx;
+  background-color: #f0f8ff;
+  border-radius: 16rpx;
+  border-left: 6rpx solid #007aff;
 }
 
-.preview-description {
-  margin-bottom: 20rpx;
-  padding: 16rpx;
-  background-color: #f8f9fa;
-  border-radius: 8rpx;
-  border: 1rpx solid #e9ecef;
+.preview-text {
+  font-size: 28rpx;
+  color: #007aff;
+  line-height: 1.4;
 }
 
-.description-label {
-  font-size: 24rpx;
-  color: #666666;
+/* 年度日期选择容器 */
+.year-date-container {
+  display: flex;
+  gap: 24rpx;
+}
+
+.year-date-container .picker-display {
+  flex: 1;
+}
+
+/* 设置项样式 */
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 0;
+  border-bottom: 1rpx solid #e9e0ce;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-label {
+  font-size: 32rpx;
+  color: #1c170d;
+  font-weight: 400;
+  flex: 1;
+}
+
+.setting-value {
+  flex-shrink: 0;
+}
+
+.value-text {
+  font-size: 32rpx;
+  color: #1c170d;
+  font-weight: 400;
+}
+
+/* 高级选项 */
+.advanced-options {
+  display: flex;
+  flex-direction: column;
+}
+
+.option-item {
+  background-color: #ffffff;
+  border: 2rpx solid #e9e0ce;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+
+.option-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx 32rpx;
+  cursor: pointer;
+}
+
+.option-title {
+  font-size: 28rpx;
+  color: #1c170d;
   font-weight: 500;
 }
 
-.description-text {
+.option-toggle {
+  transition: transform 0.3s ease;
+}
+
+.option-toggle.expanded {
+  transform: rotate(180deg);
+}
+
+.toggle-icon {
+  font-size: 32rpx;
+  color: #1c170d;
+}
+
+.option-content {
+  padding: 0 32rpx 30rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.option-value {
   font-size: 24rpx;
-  color: #333333;
-  margin-left: 6rpx;
+  color: #9d8148;
+  font-weight: 400;
+  padding-top: 16rpx;
 }
 
-.preview-times {
-  background-color: #f8f9fa;
-  border-radius: 8rpx;
-  border: 1rpx solid #e9ecef;
-  padding: 16rpx;
-}
-
-.times-label {
-  font-size: 24rpx;
-  color: #666666;
-  font-weight: 500;
-  margin-bottom: 12rpx;
-  display: block;
-}
-
-.times-list {
-  margin-top: 12rpx;
+/* 触发时间列表 */
+.trigger-times {
+  background-color: #ffffff;
+  border-radius: 24rpx;
+  border: 2rpx solid #e9e0ce;
+  overflow: hidden;
 }
 
 .no-preview {
   text-align: center;
-  padding: 24rpx;
+  padding: 48rpx;
 }
 
 .no-preview-text {
-  font-size: 24rpx;
-  color: #999999;
+  font-size: 28rpx;
+  color: #9d8148;
 }
 
 .time-item {
-  padding: 12rpx 16rpx;
-  margin-bottom: 6rpx;
-  background-color: #ffffff;
-  border-radius: 6rpx;
-  border: 1rpx solid #e5e5e5;
+  padding: 28rpx 32rpx;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
 .time-item:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .time-text {
+  font-size: 32rpx;
+  color: #1c170d;
+  font-weight: 400;
+}
+
+/* Cron帮助信息 */
+.cron-help {
+  margin-top: 16rpx;
+  padding: 24rpx;
+  background-color: #f0f8ff;
+  border-radius: 16rpx;
+  border-left: 6rpx solid #f7bd4a;
+}
+
+.help-text {
   font-size: 24rpx;
-  color: #333333;
-}
-
-.more-times {
-  text-align: center;
-  padding: 12rpx;
-  margin-top: 6rpx;
-}
-
-.more-text {
-  font-size: 22rpx;
-  color: #999999;
-  font-style: italic;
+  color: #666666;
+  line-height: 1.4;
 }
 
 /* 响应式调整 */
 @media (max-width: 750rpx) {
   .year-date-container {
     flex-direction: column;
-    gap: 16rpx;
+    gap: 24rpx;
   }
   
   .half-width {
     flex: none;
     width: 100%;
   }
+  
+  .form-container {
+    padding: 24rpx;
+  }
+  
+  .tab-button {
+    font-size: 28rpx;
+  }
+  
+  .picker-display {
+    padding: 20rpx 24rpx;
+  }
+  
+  .section-title {
+    font-size: 32rpx;
+  }
+}
+
+/* 简单页面样式 */
+.input-section {
+  padding: 24rpx 32rpx;
+}
+
+.title-input {
+  width: 100%;
+  min-height: 112rpx;
+  padding: 32rpx;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  border: none;
+  font-size: 32rpx;
+  color: #1c170d;
+  line-height: 1.4;
+}
+
+.content-textarea {
+  width: 100%;
+  min-height: 288rpx;
+  padding: 32rpx;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  border: none;
+  font-size: 32rpx;
+  color: #1c170d;
+  line-height: 1.4;
+  resize: none;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32rpx;
+  background-color: #fcfbf8;
+  padding: 32rpx;
+  min-height: 112rpx;
+  cursor: pointer;
+}
+
+.setting-item:active {
+  background-color: #f4efe7;
+}
+
+.setting-label {
+  font-size: 32rpx;
+  font-weight: 400;
+  color: #1c170d;
+  line-height: 1.4;
+  flex: 1;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.setting-value {
+  font-size: 32rpx;
+  font-weight: 400;
+  color: #1c170d;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+/* 自定义日期时间选择器 */
+.custom-datetime {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.custom-modal {
+  background-color: #fcfbf8;
+  border-radius: 24rpx;
+  margin: 32rpx;
+  max-width: 600rpx;
+  width: 100%;
+  overflow: hidden;
+}
+
+.custom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32rpx;
+  border-bottom: 1rpx solid #f4efe7;
+}
+
+.custom-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1c170d;
+}
+
+.custom-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  cursor: pointer;
+}
+
+.close-icon {
+  font-size: 48rpx;
+  color: #1c170d;
+}
+
+.picker-container {
+  padding: 32rpx;
+}
+
+.picker-item {
+  margin-bottom: 32rpx;
+}
+
+.picker-item:last-child {
+  margin-bottom: 0;
+}
+
+.picker-label {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #1c170d;
+  margin-bottom: 16rpx;
+}
+
+.picker-display-modal {
+  padding: 24rpx 32rpx;
+  background-color: #f4efe7;
+  border-radius: 16rpx;
+  border: none;
+}
+
+.picker-text {
+  font-size: 28rpx;
+  color: #1c170d;
+}
+
+.custom-actions {
+  padding: 32rpx;
+  border-top: 1rpx solid #f4efe7;
+}
+
+.custom-btn {
+  width: 100%;
+  height: 88rpx;
+  background-color: #f7bd4a;
+  border-radius: 44rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.custom-btn:active {
+  background-color: #e6a73d;
+}
+
+.btn-text {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1c170d;
 }
 </style>

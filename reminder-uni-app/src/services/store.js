@@ -27,6 +27,7 @@ export const userState = reactive({
 export const reminderState = reactive({
     simpleReminders: [],
     complexReminders: [],
+    upcomingReminders: [],
     loading: false,
     error: null,
 });
