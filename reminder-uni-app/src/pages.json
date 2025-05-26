@@ -13,6 +13,12 @@
 			}
 		},
 		{
+			"path": "pages/create-complex/create-complex",
+			"style": {
+				"navigationBarTitleText": "创建复杂提醒"
+			}
+		},
+		{
 			"path": "pages/detail/detail",
 			"style": {
 				"navigationBarTitleText": "提醒详情"

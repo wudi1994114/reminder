@@ -2,7 +2,10 @@
   <view class="container">
     <view class="header">
       <text class="title">我的提醒</text>
-      <button class="add-btn" @click="navigateToCreate">新建提醒</button>
+      <view class="header-buttons">
+        <button class="add-btn" @click="navigateToCreate">新建提醒</button>
+        <button class="complex-btn" @click="navigateToComplexCreate">复杂提醒</button>
+      </view>
     </view>
     
     <view class="reminder-list">
@@ -86,6 +89,12 @@ export default {
       });
     };
     
+    const navigateToComplexCreate = () => {
+      uni.navigateTo({
+        url: '/pages/create-complex/create-complex'
+      });
+    };
+    
     const goToDetail = (id) => {
       uni.navigateTo({
         url: `/pages/detail/detail?id=${id}`
@@ -105,6 +114,7 @@ export default {
       reminders,
       loading,
       navigateToCreate,
+      navigateToComplexCreate,
       goToDetail,
       formatTime,
       loadReminders
@@ -125,6 +135,11 @@ export default {
   margin-bottom: 30rpx;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 16rpx;
+}
+
 .title {
   font-size: 36rpx;
   font-weight: bold;
@@ -135,6 +150,17 @@ export default {
   color: #ffffff;
   font-size: 28rpx;
   padding: 10rpx 30rpx;
+  border-radius: 8rpx;
+  border: none;
+}
+
+.complex-btn {
+  background-color: #007aff;
+  color: #ffffff;
+  font-size: 28rpx;
+  padding: 10rpx 30rpx;
+  border-radius: 8rpx;
+  border: none;
 }
 
 .reminder-list {

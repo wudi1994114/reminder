@@ -1,31 +1,62 @@
 <template>
-  <view class="container">
-    <v-calendar 
-      ref="calendarComponentRef" 
-      :extraData="calendarExtraData"
-      :defaultTime="currentCalendarDisplayTime"
-      @calendarTap="handleDateTap"
-      @monthTap="handleMonthTap"
-      :selColor="'#3cc51f'" 
-      :showDot="true"
-      :showText="false"
-      :legalWorkdayColor="'#FF0000'"
-      :showRestMark="false"
-    />
+  <view class="page-container">
+    <!-- 顶部导航栏 -->
+    <view class="nav-header">
+      <view class="nav-back" @click="goBack">
+        <text class="back-icon">←</text>
+      </view>
+      <text class="nav-title">提醒</text>
+    </view>
     
-    <view class="reminders-list-section" v-if="selectedDate">
-      <view class="list-header">
-        <text class="date-title">{{ formatSelectedDateForDisplay }}</text>
-        <button class="add-btn-inline" @click="createReminderOnSelectedDate">新增提醒</button>
+    <!-- 日历区域 -->
+    <view class="calendar-wrapper">
+      <view class="calendar-container">
+        <!-- 月份导航 -->
+        <view class="month-nav">
+          <button class="nav-btn" @click="previousMonth">
+            <text class="nav-arrow">‹</text>
+          </button>
+          <text class="month-title">{{ getMonthTitle() }}</text>
+          <button class="nav-btn" @click="nextMonth">
+            <text class="nav-arrow">›</text>
+          </button>
+        </view>
+        
+        <!-- 星期标题 -->
+        <view class="weekdays">
+          <text class="weekday-label" v-for="day in weekdayLabels" :key="day">{{ day }}</text>
+        </view>
+        
+        <!-- 日期网格 -->
+        <view class="dates-grid">
+          <button 
+            v-for="date in calendarDates" 
+            :key="date.key"
+            class="date-btn"
+            :class="{
+              'date-selected': date.isSelected,
+              'date-has-reminder': date.hasReminder,
+              'date-other-month': date.isOtherMonth
+            }"
+            @click="selectDate(date)"
+          >
+            <view class="date-content">{{ date.day }}</view>
+          </button>
+        </view>
       </view>
+    </view>
+    
+    <!-- 选中日期的提醒列表 -->
+    <view class="reminders-section" v-if="selectedDate">
+      <text class="section-title">{{ getSelectedDateTitle() }}</text>
       
-      <view v-if="loadingRemindersForDate" class="loading-reminders">
-          <text>加载提醒...</text>
+      <view v-if="loadingRemindersForDate" class="loading-state">
+        <text class="loading-text">加载提醒...</text>
       </view>
-      <view v-else-if="selectedDateReminders.length === 0" class="empty-tip-inline">
-        <text>当日无提醒</text>
+      <view v-else-if="selectedDateReminders.length === 0" class="empty-state">
+        <text class="empty-text">当日无提醒</text>
       </view>
-      <view v-else class="list-content">
+      <view v-else class="reminders-list">
         <view 
           v-for="(reminder, index) in selectedDateReminders" 
           :key="reminder.id || index" 
@@ -36,11 +67,23 @@
             <text class="reminder-title">{{ reminder.title }}</text>
             <text class="reminder-time">{{ formatDisplayTime(reminder.eventTime) }}</text>
           </view>
-          <view class="reminder-status" :class="reminder.status === 'PENDING' ? 'pending' : 'completed'">
-            <text>{{ reminder.status === 'PENDING' ? '待提醒' : '已完成' }}</text>
+          <view class="reminder-checkbox">
+            <checkbox 
+              :checked="reminder.status === 'COMPLETED'"
+              @change="toggleReminderStatus(reminder)"
+              class="custom-checkbox"
+            />
           </view>
         </view>
       </view>
+    </view>
+    
+    <!-- 底部添加按钮 -->
+    <view class="bottom-section">
+      <button class="add-btn" @click="createReminderOnSelectedDate" :disabled="!selectedDate">
+        <text class="add-icon">+</text>
+        <text class="add-text">添加提醒</text>
+      </button>
     </view>
   </view>
 </template>
@@ -56,15 +99,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { getAllSimpleReminders } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
-// 导入自定义的 v-calendar 日历组件
-import VCalendar from '../../components/v-calendar/v-calendar.vue';
-
 // 默认导出一个 Vue 组件对象
 export default {
-  // 注册在本组件中使用的子组件
-  components: {
-    VCalendar // 注册 v-calendar 组件，使其可以在模板中使用
-  },
   // uni-app 页面的生命周期钩子，页面显示时触发
   onShow() { 
     // 页面显示时，通常需要刷新当前月份的提醒数据
@@ -79,28 +115,71 @@ export default {
   },
   // Vue 3 Composition API 的入口点
   setup() {
-    // 创建一个 ref 引用，用于将来可能需要直接操作 v-calendar 组件实例
-    const calendarComponentRef = ref(null); 
-    // 创建一个响应式数组，用于存放传递给 v-calendar 组件的额外数据（如日期标记）
-    const calendarExtraData = ref([]); 
-    // 创建一个响应式对象，存储当前日历显示的年份和月份
-    // 默认值为当前系统的年份和月份
+    // 当前显示的年月
     const currentCalendarDisplayTime = ref({
-      year: new Date().getFullYear(), // 获取当前年份
-      month: new Date().getMonth() + 1, // 获取当前月份 (0-11)，所以 +1 变成 (1-12)
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
     });
 
-    // 创建一个响应式引用，存储用户当前选中的日期对象，默认为当前日期
-    const selectedDate = ref(new Date()); // 默认选中今天
-    // 创建一个响应式数组，用于存储选中日期的提醒事项列表
+    // 选中的日期
+    const selectedDate = ref(new Date());
+    // 选中日期的提醒列表
     const selectedDateReminders = ref([]);
-    // 创建一个响应式布尔值，标记是否正在加载选中日期的提醒事项
+    // 是否正在加载提醒
     const loadingRemindersForDate = ref(false);
-    // 创建一个响应式数组，用于存储当前月份获取到的所有提醒事项
-    const allRemindersInCurrentMonth = ref([]); 
+    // 当前月份的所有提醒
+    const allRemindersInCurrentMonth = ref([]);
 
-    // 定义一个包含星期名称的数组，用于日期显示
+    // 星期标签
+    const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    
+    // 月份名称
+    const monthNames = [
+      '一月', '二月', '三月', '四月', '五月', '六月',
+      '七月', '八月', '九月', '十月', '十一月', '十二月'
+    ];
+
+    // 计算日历日期数据
+    const calendarDates = computed(() => {
+      const { year, month } = currentCalendarDisplayTime.value;
+      const firstDay = new Date(year, month - 1, 1);
+      const lastDay = new Date(year, month, 0);
+      const startDate = new Date(firstDay);
+      startDate.setDate(startDate.getDate() - firstDay.getDay());
+      
+      const dates = [];
+      const today = new Date();
+      const selectedDateStr = selectedDate.value ? 
+        `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
+      
+      for (let i = 0; i < 42; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(startDate.getDate() + i);
+        
+        const dateStr = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+        const isCurrentMonth = currentDate.getMonth() === month - 1;
+        const isSelected = dateStr === selectedDateStr;
+        const hasReminder = allRemindersInCurrentMonth.value.some(reminder => {
+          if (!reminder.eventTime) return false;
+          const reminderDate = new Date(reminder.eventTime);
+          return reminderDate.getFullYear() === currentDate.getFullYear() &&
+                 reminderDate.getMonth() === currentDate.getMonth() &&
+                 reminderDate.getDate() === currentDate.getDate();
+        });
+        
+        dates.push({
+          key: `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`,
+          day: currentDate.getDate(),
+          date: new Date(currentDate),
+          isSelected,
+          hasReminder,
+          isOtherMonth: !isCurrentMonth
+        });
+      }
+      
+      return dates;
+    });
 
     // 创建一个计算属性，用于格式化显示选中的日期
     const formatSelectedDateForDisplay = computed(() => {
@@ -136,48 +215,7 @@ export default {
         }
         
         // 如果 API 调用成功且返回的是数组，则更新当前月份的所有提醒数据
-        allRemindersInCurrentMonth.value = response || []; // 使用获取到的数据，如果为 null 或 undefined 则设置为空数组
-        
-        // 创建一个辅助对象，用于标记日期是否已处理，以避免在日历上对同一天重复打点
-        const dateMap = {};
-        // 创建一个数组，用于存放处理后传递给 v-calendar 的标记数据
-        const processedData = [];
-        
-        // 遍历从 API 获取的提醒事件数据
-        response.forEach(reminder => {
-          // 确保 reminder 对象存在且包含 eventTime 属性
-          if (reminder && reminder.eventTime) {
-            // 将 ISO 8601 格式的 eventTime 字符串转换为 Date 对象
-            const eventDate = new Date(reminder.eventTime);
-            const reminderYear = eventDate.getFullYear(); // 提取年份
-            const reminderMonth = eventDate.getMonth() + 1; // 提取月份 (1-12)
-            const reminderDay = eventDate.getDate(); // 提取日期
-            
-            // 格式化日期为 "YYYY-M-D" 的字符串格式，这是 v-calendar 组件要求的格式
-            // 注意：月份和日期不进行零填充 (例如：2025-5-7 而不是 2025-05-07)
-            const formattedDate = `${reminderYear}-${reminderMonth}-${reminderDay}`;
-            
-            // 检查该日期是否已在 dateMap 中处理过
-            // 如果没有，则表示这是该日期第一次遇到有提醒的事件
-            if (!dateMap[formattedDate]) {
-              dateMap[formattedDate] = true; // 标记该日期已处理
-              
-              // 将格式化后的日期和打点信息添加到 processedData 数组中
-              processedData.push({
-                date: formattedDate, // 日期字符串
-                dot: true, // 显示红点标记
-                // 可以显式设置 dotColor，即使 v-calendar 组件当前不直接使用此属性，
-                // 也有助于调试或未来的扩展。
-                dotColor: '#ff4500', // 设置一个鲜艳的红色
-                // value: '', // 可选：如果想在日期下方显示一些文本信息，可以在这里设置
-              });
-            }
-          }
-        });
-        
-        // 更新传递给 v-calendar 组件的 extraData，使其在日历上显示红点
-        calendarExtraData.value = processedData;
-        console.log("处理后的日历标记数据:", JSON.stringify(calendarExtraData.value));
+        allRemindersInCurrentMonth.value = response || [];
 
         // 如果在加载完月份数据后，已经有一个日期被选中，
         // 则需要刷新该选中日期的提醒列表，以确保显示的是最新的数据。
@@ -190,36 +228,69 @@ export default {
         console.error("获取月份提醒失败:", error);
         // 清空相关数据，避免显示旧的或错误的数据
         allRemindersInCurrentMonth.value = [];
-        calendarExtraData.value = [];
       }
     };
     
-    // 定义处理 v-calendar 组件月份切换事件 (monthTap) 的回调函数
-    const handleMonthTap = (time) => {
-      // time 对象包含切换后的 year 和 month
-      console.log('月份已切换至:', time);
-      // 更新当前日历显示的年月
-      currentCalendarDisplayTime.value = { year: time.year, month: time.month };
-      // 月份切换时，清除之前选中的日期
-      selectedDate.value = null; 
-      // 清空选中日期的提醒列表
-      selectedDateReminders.value = [];
-      // 加载新月份的提醒数据
-      loadRemindersForMonth(time.year, time.month);
+    // 获取月份标题
+    const getMonthTitle = () => {
+      const { year, month } = currentCalendarDisplayTime.value;
+      return `${monthNames[month - 1]} ${year}`;
     };
-
-    // 定义处理 v-calendar 组件日期点击事件 (calendarTap) 的回调函数
-    const handleDateTap = (dateString) => {
-      // dateString 是从 v-calendar 传来的 "YYYY-M-D" 格式的日期字符串
-      console.log('日期被点击:', dateString);
-      // 将 "YYYY-M-D" 格式的字符串转换为 Date 对象
-      // 注意：JavaScript Date 构造函数的月份参数是 0-11，所以需要 parts[1] - 1
-      const parts = dateString.split('-').map(Number); // 将字符串按 '-' 分割并转换为数字数组
-      const newSelectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-      // 更新当前选中的日期
-      selectedDate.value = newSelectedDate;
-      // 加载新选中日期的提醒事项列表
-      loadRemindersForSelectedDate(newSelectedDate);
+    
+    // 获取选中日期标题
+    const getSelectedDateTitle = () => {
+      if (!selectedDate.value) return '';
+      const d = selectedDate.value;
+      const today = new Date();
+      const isToday = d.toDateString() === today.toDateString();
+      
+      if (isToday) {
+        return '今天';
+      } else {
+        const month = d.getMonth() + 1;
+        const date = d.getDate();
+        const weekday = weekdays[d.getDay()];
+        return `${month}月${date}日 星期${weekday}`;
+      }
+    };
+    
+    // 上一个月
+    const previousMonth = () => {
+      const { year, month } = currentCalendarDisplayTime.value;
+      if (month === 1) {
+        currentCalendarDisplayTime.value = { year: year - 1, month: 12 };
+      } else {
+        currentCalendarDisplayTime.value = { year, month: month - 1 };
+      }
+      loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
+    };
+    
+    // 下一个月
+    const nextMonth = () => {
+      const { year, month } = currentCalendarDisplayTime.value;
+      if (month === 12) {
+        currentCalendarDisplayTime.value = { year: year + 1, month: 1 };
+      } else {
+        currentCalendarDisplayTime.value = { year, month: month + 1 };
+      }
+      loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
+    };
+    
+    // 选择日期
+    const selectDate = (dateObj) => {
+      selectedDate.value = dateObj.date;
+      loadRemindersForSelectedDate(dateObj.date);
+    };
+    
+    // 返回上一页
+    const goBack = () => {
+      uni.navigateBack();
+    };
+    
+    // 切换提醒状态
+    const toggleReminderStatus = (reminder) => {
+      // 这里可以添加更新提醒状态的API调用
+      console.log('切换提醒状态:', reminder);
     };
 
     // 定义加载特定选中日期提醒事项的函数
@@ -283,8 +354,21 @@ export default {
     const formatDisplayTime = (dateTimeStr) => {
         // 如果日期时间字符串为空，则返回空字符串
         if(!dateTimeStr) return '';
+        
+        // 确保日期字符串格式兼容iOS
+        let isoDateStr = dateTimeStr;
+        // 如果是 "YYYY-MM-DD HH:mm:ss" 格式，转换为 ISO 格式
+        if (dateTimeStr.includes(' ') && !dateTimeStr.includes('T')) {
+            isoDateStr = dateTimeStr.replace(' ', 'T');
+        }
+        
         // 使用导入的 formatTime 工具函数将 Date 对象格式化为 "HH:mm"
-        return formatTime(new Date(dateTimeStr));
+        const date = new Date(isoDateStr);
+        if (isNaN(date.getTime())) {
+            console.error('无效的日期格式:', dateTimeStr);
+            return '';
+        }
+        return formatTime(date);
     };
     
     // 组件挂载后执行的生命周期钩子
@@ -299,135 +383,450 @@ export default {
     
     // 从 setup 函数返回所有需要在模板中使用或在组件选项中访问的响应式数据和方法
     return {
-      calendarComponentRef,       // v-calendar 组件的引用
-      calendarExtraData,          // 传递给 v-calendar 的标记数据
-      currentCalendarDisplayTime, // 当前日历显示的年月
-      selectedDate,               // 用户选中的日期
-      formatSelectedDateForDisplay, // 格式化选中日期的计算属性
-      selectedDateReminders,      // 选中日期的提醒列表
-      loadingRemindersForDate,    // 是否正在加载选中日期的提醒
-      handleMonthTap,             // 处理月份切换的方法
-      handleDateTap,              // 处理日期点击的方法
-      loadRemindersForSelectedDate, // 加载选中日期提醒的方法 (也用于 onShow)
-      loadRemindersForMonth,      // 加载月份提醒的方法 (也用于 onShow)
-      viewReminderDetail,         // 查看提醒详情的方法
-      createReminderOnSelectedDate, // 创建新提醒的方法
-      formatDisplayTime           // 格式化提醒时间的方法
+      // 数据
+      currentCalendarDisplayTime,
+      selectedDate,
+      selectedDateReminders,
+      loadingRemindersForDate,
+      weekdayLabels,
+      calendarDates,
+      
+      // 计算属性和方法
+      getMonthTitle,
+      getSelectedDateTitle,
+      previousMonth,
+      nextMonth,
+      selectDate,
+      goBack,
+      toggleReminderStatus,
+      loadRemindersForSelectedDate,
+      loadRemindersForMonth,
+      viewReminderDetail,
+      createReminderOnSelectedDate,
+      formatDisplayTime
     };
   }
 };
 </script>
 
 <style scoped>
-.container {
-  padding: 20rpx;
+/* 页面容器 */
+.page-container {
+  min-height: 100vh;
+  background-color: #fcfbf8;
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* Ensure container takes full height */
+  font-family: 'Manrope', 'Noto Sans', sans-serif;
 }
 
-/* Optional: Add some margin below the calendar */
-.v-calendar-component { /* Assuming you might wrap v-calendar or it has a root class */
-  margin-bottom: 20rpx;
-}
-
-.reminders-list-section {
-  margin-top: 30rpx;
-  background-color: #fff;
-  border-radius: 10rpx;
-  padding: 20rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0,0,0,0.05);
-  flex-grow: 1; /* Allow this section to take remaining space */
-  display: flex; /* Use flex to manage inner content if it might overflow */
-  flex-direction: column;
-}
-
-.list-header {
+/* 顶部导航栏 */
+.nav-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20rpx;
-  padding-bottom: 15rpx;
-  border-bottom: 1rpx solid #eee;
+  background-color: #fcfbf8;
+  padding: 32rpx 32rpx 16rpx;
+  justify-content: space-between;
 }
 
-.date-title {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333;
+.nav-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx;
+  color: #1c170d;
+  cursor: pointer;
 }
 
-.add-btn-inline {
-  background-color: #3cc51f;
-  color: white;
-  padding: 10rpx 25rpx;
-  font-size: 26rpx;
-  border-radius: 8rpx;
-  line-height: normal; /* Override default button line-height if necessary */
-  border: none;
+.back-icon {
+  font-size: 48rpx;
+  font-weight: 400;
 }
 
-.loading-reminders,
-.loading-calendar /* If you add a loading state for the calendar itself */
-.empty-tip-inline {
+.nav-title {
+  color: #1c170d;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  flex: 1;
   text-align: center;
-  color: #999;
-  padding: 40rpx 0;
-  font-size: 28rpx;
+  padding-right: 96rpx;
 }
 
-.list-content {
-  /* max-height: 500rpx; /* Example: set max height if list can be very long */
-  /* overflow-y: auto; */ /* And allow scrolling */
+/* 日历区域 */
+.calendar-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 48rpx;
+  padding: 32rpx;
+}
+
+.calendar-container {
+  display: flex;
+  min-width: 576rpx;
+  max-width: 672rpx;
+  flex: 1;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+/* 月份导航 */
+.month-nav {
+  display: flex;
+  align-items: center;
+  padding: 8rpx;
+  justify-content: space-between;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80rpx;
+  height: 80rpx;
+  color: #1c170d;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.nav-arrow {
+  font-size: 36rpx;
+  font-weight: 400;
+}
+
+.month-title {
+  color: #1c170d;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  flex: 1;
+  text-align: center;
+}
+
+/* 星期标题 */
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.weekday-label {
+  color: #1c170d;
+  font-size: 26rpx;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+  display: flex;
+  height: 96rpx;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 8rpx;
+}
+
+/* 提醒列表区域 */
+.reminders-section {
+  background-color: #fcfbf8;
+  padding: 32rpx;
+}
+
+/* 日期网格 */
+.dates-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.date-btn {
+  height: 96rpx;
+  width: 100%;
+  color: #1c170d;
+  font-size: 28rpx;
+  font-weight: 500;
+  line-height: 1.4;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.date-content {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.date-btn.date-selected .date-content {
+  background-color: #f7bd4a;
+}
+
+.date-btn.date-has-reminder::after {
+  content: '';
+  position: absolute;
+  top: 70rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12rpx;
+  height: 12rpx;
+  background-color: #ff4757;
+  border-radius: 50%;
+  z-index: 1;
+}
+
+.date-btn.date-selected.date-has-reminder::after {
+  background-color: #1c170d;
+}
+
+.date-btn.date-other-month {
+  color: #9d8148;
+  opacity: 0.5;
+}
+
+.date-btn:active .date-content {
+  background-color: #e6a73d;
+}
+
+.section-title {
+  color: #1c170d;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  padding: 32rpx 0 16rpx;
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200rpx;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #9d8148;
+  line-height: 1.4;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200rpx;
+  text-align: center;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #9d8148;
+  line-height: 1.4;
+}
+
+/* 提醒列表 */
+.reminders-list {
+  display: flex;
+  flex-direction: column;
 }
 
 .reminder-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 25rpx 10rpx;
-  border-bottom: 1rpx solid #f5f5f5;
-  background-color: #fff;
-  /* transition: background-color 0.2s; removed hover for touch devices */
+  gap: 32rpx;
+  background-color: #fcfbf8;
+  padding: 32rpx;
+  min-height: 144rpx;
+  padding-top: 16rpx;
+  padding-bottom: 16rpx;
+  justify-content: space-between;
+  cursor: pointer;
 }
 
-.reminder-item:last-child {
-  border-bottom: none;
+.reminder-item:active {
+  background-color: #f4efe7;
 }
 
 .reminder-info {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   flex: 1;
 }
 
 .reminder-title {
-  font-size: 30rpx;
-  color: #333;
+  color: #1c170d;
+  font-size: 32rpx;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   margin-bottom: 8rpx;
+}
+
+.reminder-time {
+  color: #9d8148;
+  font-size: 28rpx;
+  font-weight: 400;
+  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.reminder-time {
-  font-size: 26rpx;
-  color: #888;
+.reminder-checkbox {
+  flex-shrink: 0;
+  display: flex;
+  width: 56rpx;
+  height: 56rpx;
+  align-items: center;
+  justify-content: center;
 }
 
-.reminder-status {
-  padding: 8rpx 15rpx;
-  border-radius: 6rpx;
-  font-size: 24rpx;
+.custom-checkbox {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 8rpx;
+  border: 4rpx solid #e9e0ce;
+  background-color: transparent;
+  color: #f7bd4a;
 }
 
-.reminder-status.pending {
-  background-color: #fff5e6; /* Light orange */
-  color: #fa8c16;
+.custom-checkbox:checked {
+  background-color: #f7bd4a;
+  border-color: #f7bd4a;
 }
 
-.reminder-status.completed {
-  background-color: #f6ffed; /* Light green */
-  color: #52c41a;
+/* 底部按钮区域 */
+.bottom-section {
+  display: flex;
+  padding: 32rpx;
+  padding-top: 24rpx;
+}
+
+.add-btn {
+  display: flex;
+  min-width: 168rpx;
+  max-width: 960rpx;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 48rpx;
+  height: 96rpx;
+  padding: 0 40rpx;
+  flex: 1;
+  background-color: #f7bd4a;
+  color: #1c170d;
+  gap: 16rpx;
+  padding-left: 40rpx;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+  border: none;
+}
+
+.add-btn:active {
+  background-color: #e6a73d;
+}
+
+.add-btn:disabled {
+  background-color: #e9e0ce;
+  color: #9d8148;
+  cursor: not-allowed;
+}
+
+.add-icon {
+  color: #1c170d;
+  font-size: 48rpx;
+  font-weight: 400;
+}
+
+.add-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 响应式适配 */
+@media (max-width: 750rpx) {
+  .nav-header {
+    padding: 24rpx 24rpx 12rpx;
+  }
+  
+  .calendar-wrapper {
+    padding: 24rpx;
+    gap: 32rpx;
+  }
+  
+  .calendar-container {
+    min-width: 480rpx;
+  }
+  
+  .month-title {
+    font-size: 28rpx;
+  }
+  
+  .weekday-label {
+    font-size: 24rpx;
+    height: 80rpx;
+  }
+  
+  .date-btn {
+    height: 80rpx;
+    font-size: 26rpx;
+  }
+  
+  .date-btn.date-has-reminder::after {
+    top: 52rpx;
+    width: 10rpx;
+    height: 10rpx;
+  }
+  
+  .reminders-section {
+    padding: 24rpx;
+  }
+  
+  .section-title {
+    font-size: 32rpx;
+    padding: 24rpx 0 12rpx;
+  }
+  
+  .reminder-item {
+    padding: 24rpx;
+    min-height: 120rpx;
+  }
+  
+  .reminder-title {
+    font-size: 28rpx;
+  }
+  
+  .reminder-time {
+    font-size: 26rpx;
+  }
+  
+  .bottom-section {
+    padding: 24rpx;
+  }
+  
+  .add-btn {
+    height: 80rpx;
+    font-size: 28rpx;
+  }
+  
+  .add-icon {
+    font-size: 40rpx;
+  }
 }
 </style> 
