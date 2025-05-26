@@ -47,18 +47,23 @@
         <text class="loading-text">加载提醒...</text>
       </view>
       <view v-else-if="selectedDateReminders.length === 0" class="empty-state">
-        <text class="empty-text">当日无即将到来的提醒</text>
+        <text class="empty-text">当日无提醒安排</text>
       </view>
       <view v-else class="reminders-list">
         <view 
           v-for="(reminder, index) in selectedDateReminders" 
           :key="reminder.id || index" 
           class="reminder-item"
+          :class="{ 'reminder-past': reminder.isPast }"
           @click="viewReminderDetail(reminder.id)"
         >
           <view class="reminder-info">
-            <text class="reminder-title">{{ reminder.title }}</text>
-            <text class="reminder-time">{{ formatDisplayTime(reminder.eventTime) }}</text>
+            <text class="reminder-title" :class="{ 'title-past': reminder.isPast }">{{ reminder.title }}</text>
+            <view class="reminder-meta">
+              <text class="reminder-time" :class="{ 'time-past': reminder.isPast }">{{ formatDisplayTime(reminder.eventTime) }}</text>
+              <text v-if="reminder.isPast" class="past-indicator">已过期</text>
+            </view>
+            <text v-if="reminder.description" class="reminder-description" :class="{ 'desc-past': reminder.isPast }">{{ reminder.description }}</text>
           </view>
           <view class="reminder-checkbox">
             <checkbox 
@@ -89,7 +94,7 @@
 // watch: 用于侦听响应式数据的变化
 import { ref, computed, onMounted, watch } from 'vue';
 // 从后端服务 API 模块中导入获取简单提醒列表的函数
-import { getAllSimpleReminders } from '../../services/api';
+import { getAllSimpleReminders, getAllComplexReminders } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
 // 默认导出一个 Vue 组件对象
@@ -143,7 +148,6 @@ export default {
       
       const dates = [];
       const today = new Date();
-      const now = new Date(); // 当前时间，用于过滤未来提醒
       const selectedDateStr = selectedDate.value ? 
         `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
       
@@ -155,15 +159,29 @@ export default {
         const isCurrentMonth = currentDate.getMonth() === month - 1;
         const isSelected = dateStr === selectedDateStr;
         
-        // 检查该日期是否有未来的提醒
+        // 检查该日期是否有提醒（包括当天和未来的提醒）
         const hasReminder = allRemindersInCurrentMonth.value.some(reminder => {
           if (!reminder.eventTime) return false;
-          const reminderDate = new Date(reminder.eventTime);
+          
+          // 处理不同格式的日期时间字符串
+          let reminderDateTime = reminder.eventTime;
+          if (reminderDateTime.includes(' ') && !reminderDateTime.includes('T')) {
+            reminderDateTime = reminderDateTime.replace(' ', 'T');
+          }
+          
+          const reminderDate = new Date(reminderDateTime);
+          if (isNaN(reminderDate.getTime())) {
+            console.warn('无效的提醒时间格式:', reminder.eventTime);
+            return false;
+          }
+          
+          // 检查是否是同一天
           const isSameDate = reminderDate.getFullYear() === currentDate.getFullYear() &&
                  reminderDate.getMonth() === currentDate.getMonth() &&
                  reminderDate.getDate() === currentDate.getDate();
-          // 只有未来的提醒才标记
-          return isSameDate && reminderDate >= now;
+          
+          // 显示当天及未来的提醒（不过滤历史提醒，让用户看到所有安排）
+          return isSameDate;
         });
         
         dates.push({
@@ -200,20 +218,64 @@ export default {
       // month 参数是 1-12 范围
       console.log(`正在加载 ${year}-${month} 的提醒事项`);
       try {
-        // 调用后端 API 获取简单提醒数据
-        const response = await getAllSimpleReminders(year, month);
-        console.log('获取到的原始提醒数据:', JSON.stringify(response));
+        // 并行获取简单提醒和复杂提醒
+        const [simpleReminders, complexReminders] = await Promise.all([
+          getAllSimpleReminders(year, month),
+          getAllComplexReminders().then(data => {
+            // 过滤出当月的复杂提醒
+            if (!Array.isArray(data)) return [];
+            return data.filter(reminder => {
+              if (!reminder.eventTime && !reminder.cronExpression) return false;
+              
+              // 对于有明确时间的复杂提醒
+              if (reminder.eventTime) {
+                let dateTime = reminder.eventTime;
+                if (dateTime.includes(' ') && !dateTime.includes('T')) {
+                  dateTime = dateTime.replace(' ', 'T');
+                }
+                const reminderDate = new Date(dateTime);
+                if (!isNaN(reminderDate.getTime())) {
+                  return reminderDate.getFullYear() === year && 
+                         (reminderDate.getMonth() + 1) === month;
+                }
+              }
+              
+              // 对于基于Cron表达式的复杂提醒，这里可以扩展处理逻辑
+              // 暂时返回false，后续可以根据需要添加Cron解析
+              return false;
+            });
+          }).catch(error => {
+            console.warn('获取复杂提醒失败:', error);
+            return [];
+          })
+        ]);
         
-        // 校验 API 返回的是否为数组，如果不是，则进行错误处理
-        if (!Array.isArray(response)) {
-          console.warn('API 返回了非数组数据:', response);
-          allRemindersInCurrentMonth.value = []; // 清空当前月份的提醒
-          calendarExtraData.value = []; // 清空日历标记数据
-          return; // 提前退出函数执行
-        }
+        console.log('获取到的简单提醒数据:', simpleReminders);
+        console.log('获取到的复杂提醒数据:', complexReminders);
         
-        // 如果 API 调用成功且返回的是数组，则更新当前月份的所有提醒数据
-        allRemindersInCurrentMonth.value = response || [];
+        // 合并两种类型的提醒
+        const allReminders = [
+          ...(Array.isArray(simpleReminders) ? simpleReminders : []),
+          ...(Array.isArray(complexReminders) ? complexReminders : [])
+        ];
+        
+        // 按时间排序
+        allReminders.sort((a, b) => {
+          const getDateTime = (reminder) => {
+            if (!reminder.eventTime) return new Date(0);
+            let dateTime = reminder.eventTime;
+            if (dateTime.includes(' ') && !dateTime.includes('T')) {
+              dateTime = dateTime.replace(' ', 'T');
+            }
+            return new Date(dateTime);
+          };
+          
+          return getDateTime(a) - getDateTime(b);
+        });
+        
+        // 更新当前月份的所有提醒数据
+        allRemindersInCurrentMonth.value = allReminders;
+        console.log(`${year}-${month} 月份提醒总数:`, allReminders.length);
 
         // 如果在加载完月份数据后，已经有一个日期被选中，
         // 则需要刷新该选中日期的提醒列表，以确保显示的是最新的数据。
@@ -297,6 +359,7 @@ export default {
       if (!dateObj) return;
       // 开始加载数据，设置 loading 状态为 true
       loadingRemindersForDate.value = true;
+      
       const year = dateObj.getFullYear(); // 获取年份
       // 获取月份 (0-11)，+1 并补零
       const month = String(dateObj.getMonth() + 1).padStart(2, '0'); 
@@ -305,28 +368,51 @@ export default {
       // 构建日期字符串前缀，格式为 "YYYY-MM-DD"，用于过滤
       const dateStringPrefix = `${year}-${month}-${day}`;
 
-      // 获取当前时间，用于过滤
+      // 获取当前时间，用于标识未来的提醒
       const now = new Date();
 
       //从当前月份已加载的所有提醒中筛选出属于选中日期的提醒
-      // eventTime 通常是 "YYYY-MM-DDTHH:mm:ss" 格式
-      const dayReminders = allRemindersInCurrentMonth.value.filter(r => 
-        r.eventTime.startsWith(dateStringPrefix)
-      );
-      
-      // 进一步过滤，只显示当前时间往后的提醒
-      selectedDateReminders.value = dayReminders.filter(reminder => {
+      const dayReminders = allRemindersInCurrentMonth.value.filter(reminder => {
         if (!reminder.eventTime) return false;
-        const reminderTime = new Date(reminder.eventTime);
-        return reminderTime >= now;
-      }).sort((a, b) => {
-        // 按时间升序排列，最近的提醒在前面
-        const timeA = new Date(a.eventTime);
-        const timeB = new Date(b.eventTime);
-        return timeA - timeB;
+        
+        // 处理不同格式的日期时间字符串
+        let dateTime = reminder.eventTime;
+        if (dateTime.includes(' ') && !dateTime.includes('T')) {
+          dateTime = dateTime.replace(' ', 'T');
+        }
+        
+        const reminderDate = new Date(dateTime);
+        if (isNaN(reminderDate.getTime())) {
+          console.warn('无效的提醒时间格式:', reminder.eventTime);
+          return false;
+        }
+        
+        // 检查是否是同一天
+        return reminderDate.getFullYear() === year &&
+               reminderDate.getMonth() === (parseInt(month) - 1) &&
+               reminderDate.getDate() === parseInt(day);
       });
       
-      console.log(`日期 ${dateStringPrefix} 的未来提醒事项:`, selectedDateReminders.value);
+      // 按时间排序，并标记是否为未来提醒
+      selectedDateReminders.value = dayReminders
+        .map(reminder => ({
+          ...reminder,
+          isPast: new Date(reminder.eventTime.includes(' ') && !reminder.eventTime.includes('T') 
+            ? reminder.eventTime.replace(' ', 'T') 
+            : reminder.eventTime) < now
+        }))
+        .sort((a, b) => {
+          // 按时间升序排列，最近的提醒在前面
+          const timeA = new Date(a.eventTime.includes(' ') && !a.eventTime.includes('T') 
+            ? a.eventTime.replace(' ', 'T') 
+            : a.eventTime);
+          const timeB = new Date(b.eventTime.includes(' ') && !b.eventTime.includes('T') 
+            ? b.eventTime.replace(' ', 'T') 
+            : b.eventTime);
+          return timeA - timeB;
+        });
+      
+      console.log(`日期 ${dateStringPrefix} 的提醒事项:`, selectedDateReminders.value);
       // 数据加载完成，设置 loading 状态为 false
       loadingRemindersForDate.value = false;
     };
@@ -841,5 +927,61 @@ export default {
   .add-icon {
     font-size: 40rpx;
   }
+}
+
+/* 提醒元数据容器 */
+.reminder-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 8rpx;
+}
+
+/* 提醒描述 */
+.reminder-description {
+  color: #9d8148;
+  font-size: 26rpx;
+  font-weight: 400;
+  line-height: 1.3;
+  margin-top: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 过期标识 */
+.past-indicator {
+  color: #ff4757;
+  font-size: 24rpx;
+  font-weight: 500;
+  background-color: rgba(255, 71, 87, 0.1);
+  padding: 4rpx 12rpx;
+  border-radius: 16rpx;
+  white-space: nowrap;
+}
+
+/* 过去提醒的样式 */
+.reminder-item.reminder-past {
+  opacity: 0.7;
+  background-color: #f8f9fa;
+}
+
+.reminder-item.reminder-past:active {
+  background-color: #e9ecef;
+}
+
+.reminder-title.title-past {
+  color: #6c757d;
+  text-decoration: line-through;
+}
+
+.reminder-time.time-past {
+  color: #adb5bd;
+}
+
+.reminder-description.desc-past {
+  color: #adb5bd;
 }
 </style> 
