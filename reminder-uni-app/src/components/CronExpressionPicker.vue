@@ -41,6 +41,21 @@
         </view>
       </view>
       
+      <!-- 时间选择区域 -->
+      <view class="time-section">
+        <view class="time-header">
+          <text class="time-title">触发时间</text>
+        </view>
+        <view class="time-picker-container">
+          <picker mode="time" :value="selectedTime" @change="onTimeChange">
+            <view class="time-display">
+              <text class="time-text">{{ selectedTime || '09:00' }}</text>
+              <text class="time-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+      </view>
+      
       <!-- 选择内容区域 -->
       <view class="content-section">
         <!-- 年选择 - 显示月份、周、日 -->
@@ -107,10 +122,11 @@
         <view v-if="currentType === 'month'" class="selection-area">
           <!-- 周选择 -->
           <view class="level-section">
-            <view class="level-header">
+            <view class="level-header" @click="toggleWeekCollapse">
               <text class="section-title">选择周</text>
+              <text class="collapse-icon" :class="{ collapsed: isWeekCollapsed }">▼</text>
             </view>
-            <view class="options-grid">
+            <view v-if="!isWeekCollapsed" class="options-grid">
               <view 
                 v-for="weekday in weekdayOptions" 
                 :key="weekday.value"
@@ -190,16 +206,49 @@ export default {
     const selectedMonths = ref([]);
     const selectedDays = ref([]);
     const selectedWeekdays = ref([]);
+    const selectedTime = ref('09:00');  // 默认时间
     
-    // 折叠状态
-    const isMonthCollapsed = ref(false);
-    const isWeekCollapsed = ref(false);
-    const isDayCollapsed = ref(false);
+    // 折叠状态 - 设置默认折叠状态
+    const isMonthCollapsed = ref(true);  // 年模式下月份默认折叠
+    const isWeekCollapsed = ref(true);   // 年和月模式下周默认折叠
+    const isDayCollapsed = ref(true);    // 年和月模式下日默认折叠
     
     // 监听show属性变化
     watch(() => props.show, (newVal) => {
       console.log('CronExpressionPicker show changed:', newVal);
+      if (newVal && props.initialValue) {
+        // 当弹窗显示时，解析初始值
+        parseInitialValue();
+      }
     });
+    
+    // 解析初始cron表达式
+    const parseInitialValue = () => {
+      if (!props.initialValue) return;
+      
+      try {
+        const parts = props.initialValue.trim().split(/\s+/);
+        if (parts.length >= 3) {
+          let hour, minute;
+          
+          if (parts.length === 5) {
+            // 5位格式: 分 时 日 月 周
+            minute = parts[0];
+            hour = parts[1];
+          } else if (parts.length >= 6) {
+            // 6位或7位格式: 秒 分 时 日 月 周 [年]
+            minute = parts[1];
+            hour = parts[2];
+          }
+          
+          if (hour && minute) {
+            selectedTime.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          }
+        }
+      } catch (error) {
+        console.error('解析初始cron表达式失败:', error);
+      }
+    };
     
     // 月份选项
     const monthOptions = [
@@ -235,10 +284,29 @@ export default {
     const switchType = (type) => {
       console.log('切换类型到:', type);
       currentType.value = type;
+      
       // 切换类型时清空其他选择
       if (type !== 'year') selectedMonths.value = [];
       if (type !== 'month') selectedDays.value = [];
       if (type !== 'week') selectedWeekdays.value = [];
+      
+      // 根据类型设置折叠状态
+      if (type === 'year') {
+        // 年模式：所有内容默认折叠
+        isMonthCollapsed.value = true;
+        isWeekCollapsed.value = true;
+        isDayCollapsed.value = true;
+      } else if (type === 'month') {
+        // 月模式：周默认折叠，日可展开
+        isMonthCollapsed.value = false; // 月模式下不显示月份选择
+        isWeekCollapsed.value = true;   // 周默认折叠
+        isDayCollapsed.value = false;   // 日可以展开
+      } else if (type === 'week') {
+        // 周模式：只显示周选择，其他不相关
+        isMonthCollapsed.value = false;
+        isWeekCollapsed.value = false;  // 周展开
+        isDayCollapsed.value = false;
+      }
     };
     
     // 切换月份选择
@@ -269,6 +337,11 @@ export default {
       } else {
         selectedWeekdays.value.push(weekday);
       }
+    };
+    
+    // 时间变化处理
+    const onTimeChange = (e) => {
+      selectedTime.value = e.detail.value;
     };
     
     // 折叠切换方法
@@ -309,21 +382,26 @@ export default {
     // 生成cron表达式
     const generateCronExpression = () => {
       // 基础格式: 秒 分 时 日 月 周 年
-      // 这里简化处理，假设固定在某个时间点触发
-      const minute = '0';
-      const hour = '9'; // 默认上午9点
+      // 从选择的时间中提取小时和分钟
+      const [hour, minute] = selectedTime.value.split(':');
+      
+      console.log('生成cron表达式，当前类型:', currentType.value);
+      console.log('选择的时间:', selectedTime.value);
+      console.log('选择的月份:', selectedMonths.value);
+      console.log('选择的日期:', selectedDays.value);
+      console.log('选择的星期:', selectedWeekdays.value);
       
       if (currentType.value === 'year') {
         // 年度重复：每年指定月份的1号
-        const months = selectedMonths.value.length > 0 ? selectedMonths.value.join(',') : '*';
+        const months = selectedMonths.value.length > 0 ? selectedMonths.value.join(',') : '1'; // 默认1月
         return `0 ${minute} ${hour} 1 ${months} ? *`;
       } else if (currentType.value === 'month') {
         // 月度重复：每月指定日期
-        const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '*';
+        const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
         return `0 ${minute} ${hour} ${days} * ? *`;
       } else if (currentType.value === 'week') {
         // 周度重复：每周指定星期
-        const weekdays = selectedWeekdays.value.length > 0 ? selectedWeekdays.value.join(',') : '*';
+        const weekdays = selectedWeekdays.value.length > 0 ? selectedWeekdays.value.join(',') : '1'; // 默认周一
         return `0 ${minute} ${hour} ? * ${weekdays} *`;
       }
       
@@ -335,6 +413,7 @@ export default {
       selectedMonths,
       selectedDays,
       selectedWeekdays,
+      selectedTime,
       isMonthCollapsed,
       isWeekCollapsed,
       isDayCollapsed,
@@ -345,6 +424,7 @@ export default {
       toggleMonth,
       toggleDay,
       toggleWeekday,
+      onTimeChange,
       toggleMonthCollapse,
       toggleWeekCollapse,
       toggleDayCollapse,
@@ -389,7 +469,7 @@ export default {
   width: 100%;
   height: 100%;
   background-color: #fcfbf8;
-  border-radius: 0;
+  border-radius: 32rpx 32rpx 0 0;
   display: flex;
   flex-direction: column;
   
@@ -402,12 +482,17 @@ export default {
   
   /* 确保弹窗可以接收事件 */
   pointer-events: auto;
+  
+  /* 添加柔和阴影 */
+  box-shadow: 0 -8rpx 32rpx rgba(0, 0, 0, 0.15);
 }
 
 /* 顶部标题栏 */
 .header-section {
   padding: 32rpx;
   border-bottom: 1rpx solid #e9e0ce;
+  border-radius: 32rpx 32rpx 0 0;
+  background-color: #fcfbf8;
 }
 
 .header-content {
@@ -419,11 +504,18 @@ export default {
 .cancel-btn, .confirm-btn {
   background: none;
   border: none;
-  padding: 16rpx;
+  padding: 16rpx 24rpx;
   font-size: 32rpx;
   color: #9d8148;
   pointer-events: auto;
   cursor: pointer;
+  border-radius: 20rpx;
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:active, .confirm-btn:active {
+  background-color: rgba(157, 129, 72, 0.1);
+  transform: scale(0.95);
 }
 
 .confirm-btn {
@@ -445,14 +537,65 @@ export default {
 .type-switch-section {
   padding: 32rpx;
   border-bottom: 1rpx solid #e9e0ce;
+  background: linear-gradient(135deg, #fcfbf8 0%, #f8f5ed 100%);
+}
+
+/* 时间选择区域 */
+.time-section {
+  padding: 32rpx;
+  border-bottom: 1rpx solid #e9e0ce;
+  background-color: #fcfbf8;
+}
+
+.time-header {
+  margin-bottom: 24rpx;
+}
+
+.time-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
+.time-picker-container {
+  width: 100%;
+}
+
+.time-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 32rpx;
+  background-color: #f4efe7;
+  border-radius: 20rpx;
+  border: 2rpx solid transparent;
+  transition: all 0.2s ease;
+}
+
+.time-display:active {
+  background-color: #f0ede4;
+  border-color: #f7bd4a;
+}
+
+.time-text {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
+.time-arrow {
+  font-size: 24rpx;
+  color: #9d8148;
+  font-weight: 600;
 }
 
 .switch-container {
   display: flex;
   background-color: #f0ede4;
-  border-radius: 16rpx;
-  padding: 8rpx;
-  gap: 4rpx;
+  border-radius: 24rpx;
+  padding: 12rpx;
+  gap: 8rpx;
+  box-shadow: inset 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
 }
 
 .switch-btn {
@@ -460,18 +603,23 @@ export default {
   height: 72rpx;
   background: none;
   border: none;
-  border-radius: 12rpx;
+  border-radius: 18rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   pointer-events: auto;
   cursor: pointer;
 }
 
 .switch-btn.active {
   background-color: #fcfbf8;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.12), 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  transform: translateY(-1rpx);
+}
+
+.switch-btn:active {
+  transform: scale(0.96);
 }
 
 .switch-text {
@@ -488,33 +636,48 @@ export default {
 /* 内容区域 */
 .content-section {
   flex: 1;
-  padding: 32rpx;
+  padding: 32rpx 32rpx 64rpx 32rpx;
   overflow-y: auto;
   
   /* 允许内容区域滚动 */
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+  
+  /* 使用统一的背景色，避免渐变造成底部变淡 */
+  background-color: #fcfbf8;
 }
 
 .selection-area {
   display: flex;
   flex-direction: column;
   gap: 24rpx;
+  padding-bottom: 32rpx;
 }
 
 .level-section {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
-  margin-bottom: 24rpx;
+  margin-bottom: 32rpx;
+  background-color: rgba(255, 255, 255, 0.9);
+  border-radius: 24rpx;
+  padding: 8rpx;
+  box-shadow: 0 2rpx 16rpx rgba(0, 0, 0, 0.04);
+  border: 1rpx solid rgba(255, 255, 255, 0.8);
 }
 
 .level-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16rpx 0;
+  padding: 20rpx 24rpx;
   cursor: pointer;
+  border-radius: 16rpx;
+  transition: all 0.2s ease;
+}
+
+.level-header:active {
+  background-color: rgba(157, 129, 72, 0.05);
 }
 
 .section-title {
@@ -538,30 +701,35 @@ export default {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16rpx;
+  padding: 16rpx;
 }
 
 /* 日期选项网格 - 每行6个 */
 .options-grid.day-grid {
   grid-template-columns: repeat(6, 1fr);
   gap: 12rpx;
+  padding: 16rpx;
 }
 
 .option-btn {
   height: 80rpx;
   background-color: #f0ede4;
   border: 2rpx solid transparent;
-  border-radius: 12rpx;
+  border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   pointer-events: auto;
   cursor: pointer;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 
 .option-btn.selected {
   background-color: #f7bd4a;
   border-color: #f7bd4a;
+  box-shadow: 0 4rpx 16rpx rgba(247, 189, 74, 0.3), 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  transform: translateY(-2rpx);
 }
 
 .option-text {
@@ -579,10 +747,24 @@ export default {
   transform: scale(0.95);
 }
 
+.option-btn:hover {
+  background-color: #ebe7dc;
+  transform: translateY(-1rpx);
+}
+
+.option-btn.selected:hover {
+  background-color: #f7bd4a;
+  transform: translateY(-3rpx);
+}
+
 /* 响应式调整 */
 @media (max-width: 750rpx) {
-  .header-section, .type-switch-section, .content-section {
+  .header-section, .type-switch-section {
     padding: 24rpx;
+  }
+  
+  .content-section {
+    padding: 24rpx 24rpx 48rpx 24rpx;
   }
   
   .title {

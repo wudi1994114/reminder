@@ -42,107 +42,98 @@
           <text class="setting-value">{{ reminderTypeOptions[reminderTypeIndex] }}</text>
         </view>
 
-        <!-- 时间设置模式选择 -->
-        <view class="form-section">
-          <!-- 模式切换标签 -->
-          <view class="tab-container">
-            <view class="tab-buttons">
-              <view 
-                class="tab-button" 
-                :class="{ active: activeTab === 'simple' }"
-                @click="switchTab('simple')"
-              >
-                <text class="tab-text">简易模式</text>
-              </view>
-              <view 
-                class="tab-button" 
-                :class="{ active: activeTab === 'advanced' }"
-                @click="switchTab('advanced')"
-              >
-                <text class="tab-text">高级模式</text>
-              </view>
+        <!-- 模式切换标签 -->
+        <view class="tab-container">
+          <view class="tab-buttons">
+            <view 
+              class="tab-button" 
+              :class="{ active: activeTab === 'simple' }"
+              @click="switchTab('simple')"
+            >
+              <text class="tab-text">简易模式</text>
+            </view>
+            <view 
+              class="tab-button" 
+              :class="{ active: activeTab === 'advanced' }"
+              @click="switchTab('advanced')"
+            >
+              <text class="tab-text">高级模式</text>
             </view>
           </view>
-          
-          <!-- 简易模式内容 -->
-          <view v-if="activeTab === 'simple'" class="tab-content">
-            <!-- 重复设置 -->
-            <view class="setting-item" @click="showRepeatSelector">
-              <text class="setting-label">重复</text>
-              <text class="setting-value">{{ repeatOptions[repeatIndex] }}</text>
-            </view>
-
-            <!-- 时间设置 -->
-            <datetime-picker 
-              ref="simpleTimePickerRef"
-              label="提醒时间"
-              :initial-date="simpleDate"
-              :initial-time="simpleTime"
-              :auto-set-default="!isEdit"
-              :columns="timePickerColumns"
-              @change="onSimpleTimeChange"
-              @weekdayChange="onWeekdayChange"
-            />
-
-            <!-- Cron表达式输入（自定义重复时显示） -->
-            <view v-if="showCronInput" class="input-group">
-              <view class="input-label">
-                <text class="label-text">Cron表达式</text>
-              </view>
-              <view class="input-wrapper">
-                <input 
-                  class="form-input" 
-                  v-model="reminderData.cronExpression" 
-                  placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
-                  placeholder-class="input-placeholder"
-                />
-              </view>
-              <view v-if="cronPreview" class="cron-preview">
-                <text class="preview-text">{{ cronPreview }}</text>
-              </view>
-            </view>
-
-            <!-- 简单模式下的触发时间预览 -->
-            <trigger-preview
-              title="触发时间预览"
-              :preview-times="previewTimes"
-              :description="humanReadableDescription"
-              :max-display="3"
-              :show-description="true"
-              :show-action-button="false"
-              :highlight-first="true"
-              :show-index="true"
-              @refresh="updatePreview"
-            />
+        </view>
+        
+        <!-- 简易模式内容 -->
+        <view v-if="activeTab === 'simple'">
+          <!-- 重复设置 -->
+          <view class="setting-item" @click="showRepeatSelector">
+            <text class="setting-label">重复</text>
+            <text class="setting-value">{{ repeatOptions[repeatIndex] }}</text>
           </view>
-          
-          <!-- 高级模式内容 -->
-          <view v-if="activeTab === 'advanced'" class="tab-content">
-            <!-- 时间设置按钮 -->
-            <view class="option-item" @click="showTimeSettings">
-              <view class="option-header">
-                <text class="option-title">时间设置</text>
-                <text class="option-arrow">›</text>
-              </view>
-              <view class="cron-display-readonly">
-                <text class="cron-description">{{ cronDescription }}</text>
-              </view>
-            </view>
 
-            <!-- 下次触发时间预览 -->
-            <trigger-preview
-              title="下次触发时间"
-              :preview-times="previewTimes"
-              :description="humanReadableDescription"
-              :max-display="5"
-              :show-description="true"
-              :show-action-button="true"
-              :highlight-first="true"
-              @refresh="updatePreview"
-              @copy-description="onCopyDescription"
-              @copy-times="onCopyTimes"
-            />
+          <!-- 时间设置 -->
+          <datetime-picker 
+            ref="simpleTimePickerRef"
+            label="提醒时间"
+            :initial-date="simpleDate"
+            :initial-time="simpleTime"
+            :auto-set-default="!isEdit"
+            :columns="timePickerColumns"
+            @change="onSimpleTimeChange"
+            @weekdayChange="onWeekdayChange"
+          />
+
+          <!-- Cron表达式输入（自定义重复时显示） -->
+          <view v-if="showCronInput" class="input-group">
+            <view class="input-label">
+              <text class="label-text">Cron表达式</text>
+            </view>
+            <view class="input-wrapper">
+              <input 
+                class="form-input" 
+                v-model="reminderData.cronExpression" 
+                placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
+                placeholder-class="input-placeholder"
+              />
+            </view>
+            <view v-if="cronPreview" class="cron-preview">
+              <text class="preview-text">{{ cronPreview }}</text>
+            </view>
           </view>
+
+          <!-- 简单模式下的触发时间预览 -->
+          <trigger-preview
+            title="触发时间预览"
+            :preview-times="previewTimes"
+            :description="humanReadableDescription"
+            :max-display="3"
+            :show-description="true"
+            :show-action-button="false"
+            :highlight-first="true"
+            :show-index="true"
+            @refresh="updatePreview"
+          />
+        </view>
+        
+        <!-- 高级模式内容 -->
+        <view v-if="activeTab === 'advanced'">
+          <!-- 时间设置按钮 -->
+          <view class="setting-item" @click="showTimeSettings">
+            <text class="setting-label">时间设置</text>
+            <text class="setting-value">{{ cronDescription }}</text>
+          </view>
+
+          <!-- 触发时间预览 -->
+          <trigger-preview
+            title="触发时间预览"
+            :preview-times="previewTimes"
+            :description="humanReadableDescription"
+            :max-display="3"
+            :show-description="true"
+            :show-action-button="false"
+            :highlight-first="true"
+            :show-index="true"
+            @refresh="updatePreview"
+          />
         </view>
       </view>
     </scroll-view>
@@ -321,7 +312,9 @@ export default {
     
     // Cron表达式文字描述
     cronDescription() {
-      return this.parseCronToDescription(this.reminderData.cronExpression);
+      const result = this.parseCronToDescription(this.reminderData.cronExpression);
+      console.log('计算cronDescription:', this.reminderData.cronExpression, '->', result);
+      return result;
     },
     
     // 根据重复类型动态确定时间选择器显示的列
@@ -568,29 +561,56 @@ export default {
     
     // 解析Cron表达式为文字描述
     parseCronToDescription(cronExpression) {
+      console.log('解析Cron表达式:', cronExpression);
+      
       if (!cronExpression || cronExpression.trim() === '') {
+        console.log('Cron表达式为空');
         return '请设置重复规则';
       }
       
       try {
         // 解析cron表达式 (格式: 秒 分 时 日 月 周 年)
         const parts = cronExpression.trim().split(/\s+/);
-        if (parts.length < 6) {
+        console.log('Cron表达式分割结果:', parts);
+        
+        if (parts.length < 5) {
+          console.log('Cron表达式位数不足');
           return '无效的Cron表达式';
         }
         
-        const [second, minute, hour, day, month, weekday, year] = parts;
+        let second, minute, hour, day, month, weekday, year;
+        
+        if (parts.length === 5) {
+          // 5位格式: 分 时 日 月 周
+          [minute, hour, day, month, weekday] = parts;
+          second = '0';
+          year = '*';
+          console.log('解析为5位格式');
+        } else if (parts.length === 6) {
+          // 6位格式: 秒 分 时 日 月 周
+          [second, minute, hour, day, month, weekday] = parts;
+          year = '*';
+          console.log('解析为6位格式');
+        } else {
+          // 7位格式: 秒 分 时 日 月 周 年
+          [second, minute, hour, day, month, weekday, year] = parts;
+          console.log('解析为7位格式');
+        }
+        
+        console.log('解析结果:', { second, minute, hour, day, month, weekday, year });
         
         let description = '';
         
         // 解析时间
         const timeStr = this.formatTime(hour, minute);
+        console.log('格式化时间结果:', timeStr);
         
         // 解析重复模式
         if (weekday !== '?' && weekday !== '*') {
           // 按周重复
           const weekdays = this.parseWeekdays(weekday);
           description = `每${weekdays}${timeStr}`;
+          console.log('识别为周重复:', description);
         } else if (day !== '?' && day !== '*') {
           // 按月重复
           if (day.includes(',')) {
@@ -599,15 +619,19 @@ export default {
           } else {
             description = `每月${day}日${timeStr}`;
           }
+          console.log('识别为月重复:', description);
         } else if (month !== '*') {
           // 按年重复
           const months = this.parseMonths(month);
           description = `每年${months}${timeStr}`;
+          console.log('识别为年重复:', description);
         } else {
           // 每天重复
           description = `每天${timeStr}`;
+          console.log('识别为每天重复:', description);
         }
         
+        console.log('最终描述:', description);
         return description;
       } catch (error) {
         console.error('解析Cron表达式失败:', error);
@@ -1254,7 +1278,19 @@ export default {
     
     // Cron选择器确认
     onCronConfirm(cronExpression) {
+      console.log('接收到的cron表达式:', cronExpression);
+      console.log('更新前的cronExpression:', this.reminderData.cronExpression);
+      
+      // 直接赋值应该能触发响应式更新
       this.reminderData.cronExpression = cronExpression;
+      
+      console.log('更新后的cronExpression:', this.reminderData.cronExpression);
+      
+      // 延迟计算以确保数据已更新
+      this.$nextTick(() => {
+        console.log('nextTick中计算的cronDescription:', this.cronDescription);
+      });
+      
       this.showCronPicker = false;
       this.updatePreview();
       
