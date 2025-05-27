@@ -1,0 +1,141 @@
+/* 弹窗全局样式 */
+
+/* 弹窗遮罩层基础样式 */
+.modal-overlay,
+.custom-modal,
+.custom-datetime,
+.cron-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  
+  /* 阻止滚动穿透 */
+  overflow: hidden;
+  touch-action: none;
+  
+  /* 防止在iOS上出现弹性滚动 */
+  -webkit-overflow-scrolling: auto;
+}
+
+/* 弹窗内容容器 */
+.modal-content,
+.modal-container,
+.custom-modal,
+.cron-picker-container {
+  background-color: #ffffff;
+  border-radius: 24rpx;
+  overflow: hidden;
+  max-height: 80vh;
+  max-width: 90vw;
+  
+  /* 允许弹窗内容滚动 */
+  overflow-y: auto;
+  touch-action: pan-y;
+  
+  /* iOS滚动优化 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 弹窗内容区域可滚动 */
+.modal-body,
+.picker-container,
+.content-section {
+  /* 允许内容区域滚动 */
+  overflow-y: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 防止弹窗背景滚动的辅助类 */
+.modal-open {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 弹窗动画 */
+.modal-overlay {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.modal-content,
+.modal-container,
+.custom-modal .modal-content,
+.cron-picker-container {
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(50rpx) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 750rpx) {
+  .modal-content,
+  .modal-container,
+  .custom-modal .modal-content,
+  .cron-picker-container {
+    margin: 32rpx;
+    max-width: calc(100vw - 64rpx);
+  }
+}
+
+/* 特殊情况：全屏弹窗 */
+.modal-fullscreen {
+  .modal-content,
+  .modal-container {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+  }
+}
+
+/* 底部弹窗样式 */
+.modal-bottom {
+  align-items: flex-end;
+  
+  .modal-content,
+  .modal-container {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 24rpx 24rpx 0 0;
+    margin: 0;
+    animation: modalSlideUp 0.3s ease-out;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+} 

@@ -7,7 +7,7 @@
           <text class="icon-arrow">←</text>
         </view>
       </view>
-      <view class="nav-title">{{ isEdit ? '编辑复杂提醒' : '创建复杂提醒' }}</view>
+      <view class="nav-title">{{ isEdit ? '编辑高级提醒' : '创建高级提醒' }}</view>
       <view class="nav-right"></view>
     </view>
     
@@ -41,12 +41,6 @@
           <text class="setting-label">提醒方式</text>
           <text class="setting-value">{{ reminderTypeOptions[reminderTypeIndex] }}</text>
         </view>
-        
-        <!-- 时间设置 -->
-        <view class="setting-item" @click="showTimeSelector">
-          <text class="setting-label">时间设置</text>
-          <text class="setting-value">{{ getFormattedDateTime() }}</text>
-        </view>
 
         <!-- 时间设置模式选择 -->
         <view class="form-section">
@@ -73,18 +67,22 @@
           <!-- 简易模式内容 -->
           <view v-if="activeTab === 'simple'" class="tab-content">
             <!-- 重复设置 -->
-            <view class="input-group">
-              <view class="input-label">
-                <text class="label-text">重复</text>
-              </view>
-              <picker :range="repeatOptions" :value="repeatIndex" @change="onRepeatChange">
-                <view class="picker-display">
-                  <text class="picker-icon">🔄</text>
-                  <text class="picker-text">{{ repeatOptions[repeatIndex] }}</text>
-                  <text class="picker-arrow">›</text>
-                </view>
-              </picker>
+            <view class="setting-item" @click="showRepeatSelector">
+              <text class="setting-label">重复</text>
+              <text class="setting-value">{{ repeatOptions[repeatIndex] }}</text>
             </view>
+
+            <!-- 时间设置 -->
+            <datetime-picker 
+              ref="simpleTimePickerRef"
+              label="提醒时间"
+              :initial-date="simpleDate"
+              :initial-time="simpleTime"
+              :auto-set-default="!isEdit"
+              :columns="timePickerColumns"
+              @change="onSimpleTimeChange"
+              @weekdayChange="onWeekdayChange"
+            />
 
             <!-- Cron表达式输入（自定义重复时显示） -->
             <view v-if="showCronInput" class="input-group">
@@ -103,101 +101,55 @@
                 <text class="preview-text">{{ cronPreview }}</text>
               </view>
             </view>
+
+            <!-- 简单模式下的触发时间预览 -->
+            <trigger-preview
+              title="触发时间预览"
+              :preview-times="previewTimes"
+              :description="humanReadableDescription"
+              :max-display="3"
+              :show-description="true"
+              :show-action-button="false"
+              :highlight-first="true"
+              :show-index="true"
+              @refresh="updatePreview"
+            />
           </view>
           
           <!-- 高级模式内容 -->
           <view v-if="activeTab === 'advanced'" class="tab-content">
-            <!-- 高级Cron表达式输入 -->
-            <view class="input-group">
-              <view class="input-label">
-                <text class="label-text">自定义Cron表达式</text>
+            <!-- 时间设置按钮 -->
+            <view class="option-item" @click="showTimeSettings">
+              <view class="option-header">
+                <text class="option-title">时间设置</text>
+                <text class="option-arrow">›</text>
               </view>
-              <view class="input-wrapper">
-                <input 
-                  class="form-input" 
-                  v-model="reminderData.cronExpression" 
-                  placeholder="请输入Cron表达式，如：0 8 * * *"
-                  placeholder-class="input-placeholder"
-                />
-              </view>
-              <view class="cron-help" @click="showCronHelp">
-                <text class="help-text">格式：分钟 小时 日期 月份 星期 📝点击查看详细说明</text>
-              </view>
-            </view>
-            
-            <!-- 时间段设置 -->
-            <view class="section-header">
-              <text class="section-title">时间段设置</text>
-            </view>
-            
-            <view class="input-group">
-              <view class="input-label">
-                <text class="label-text">开始时间</text>
-              </view>
-              <picker mode="date" :value="reminderData.validFrom" @change="onValidFromChange">
-                <view class="picker-display">
-                  <text class="picker-icon">📅</text>
-                  <text class="picker-text">{{ reminderData.validFrom || '现在' }}</text>
-                  <text class="picker-arrow">›</text>
-                </view>
-              </picker>
-            </view>
-            
-            <view class="input-group">
-              <view class="input-label">
-                <text class="label-text">结束时间</text>
-              </view>
-              <picker mode="date" :value="reminderData.validUntil" @change="onValidUntilChange">
-                <view class="picker-display">
-                  <text class="picker-icon">📅</text>
-                  <text class="picker-text">{{ reminderData.validUntil || '无结束时间' }}</text>
-                  <text class="picker-arrow">›</text>
-                </view>
-              </picker>
-            </view>
-
-            <!-- 高级选项 -->
-            <view class="section-header">
-              <text class="section-title">高级选项</text>
-            </view>
-            
-            <view class="advanced-options">
-              <view class="option-item" @click="toggleCronExpression">
-                <view class="option-header">
-                  <text class="option-title">Cron表达式</text>
-                  <view class="option-toggle" :class="{ expanded: showCronExpression }">
-                    <text class="toggle-icon">▼</text>
-                  </view>
-                </view>
-                <view v-if="showCronExpression" class="option-content">
-                  <text class="option-value">{{ reminderData.cronExpression || '0 9 * * * ?' }}</text>
-                </view>
+              <view class="cron-display-readonly">
+                <text class="cron-description">{{ cronDescription }}</text>
               </view>
             </view>
 
-            <!-- 下次触发时间 -->
-            <view class="section-header">
-              <text class="section-title">下次触发时间</text>
-            </view>
-            
-            <view class="trigger-times">
-              <view v-if="previewTimes.length === 0" class="no-preview">
-                <text class="no-preview-text">暂无预览时间</text>
-              </view>
-              <view v-else>
-                <view v-for="(time, index) in previewTimes.slice(0, 5)" :key="index" class="time-item">
-                  <text class="time-text">{{ time }}</text>
-                </view>
-              </view>
-            </view>
+            <!-- 下次触发时间预览 -->
+            <trigger-preview
+              title="下次触发时间"
+              :preview-times="previewTimes"
+              :description="humanReadableDescription"
+              :max-display="5"
+              :show-description="true"
+              :show-action-button="true"
+              :highlight-first="true"
+              @refresh="updatePreview"
+              @copy-description="onCopyDescription"
+              @copy-times="onCopyTimes"
+            />
           </view>
         </view>
       </view>
     </scroll-view>
     
     <!-- 自定义日期时间选择器 -->
-    <view class="custom-datetime" v-if="showCustomPickers">
-      <view class="custom-modal">
+    <view class="custom-datetime" v-if="showCustomPickers" @touchmove.stop.prevent @click.self="hideCustomPickers">
+      <view class="custom-modal" @click.stop>
         <view class="custom-header">
           <text class="custom-title">选择自定义日期和时间</text>
           <view class="custom-close" @click="hideCustomPickers">
@@ -235,9 +187,6 @@
     
     <!-- 底部操作按钮 -->
     <view class="bottom-actions">
-      <button class="action-btn cancel-btn" @click="goBack">
-        <text class="btn-text">取消</text>
-      </button>
       <button 
         class="action-btn submit-btn" 
         @click="saveReminder" 
@@ -247,18 +196,40 @@
         <text class="btn-text" v-if="!isSubmitting">{{ isEdit ? '保存修改' : '创建提醒' }}</text>
         <text class="btn-text" v-else>保存中...</text>
       </button>
+      <button class="action-btn cancel-btn" @click="goBack">
+        <text class="btn-text">取消</text>
+      </button>
     </view>
+    
+    <!-- Cron表达式选择器 -->
+    <CronExpressionPicker 
+      :show="showCronPicker"
+      :initialValue="reminderData.cronExpression"
+      @confirm="onCronConfirm"
+      @cancel="onCronCancel"
+      @update:show="showCronPicker = $event"
+    />
   </view>
 </template>
 
 <script>
+import CronExpressionPicker from '../../components/CronExpressionPicker.vue';
+import DateTimePicker from '../../components/datetime-picker/datetime-picker.vue';
+import TriggerPreview from '../../components/trigger-preview/trigger-preview.vue';
+
 export default {
+  components: {
+    CronExpressionPicker,
+    DateTimePicker,
+    TriggerPreview
+  },
   data() {
     return {
       isEdit: false,
       isSubmitting: false,
       activeTab: 'simple', // 'simple' 或 'advanced'
       showCronExpression: false, // 控制Cron表达式展开
+      showCronPicker: false, // 控制Cron选择器显示
       
       // 提醒数据
       reminderData: {
@@ -283,10 +254,18 @@ export default {
       // 简单模式的日期时间设置
       reminderDate: '',
       reminderTime: '',
+      simpleDate: '',
+      simpleTime: '',
       
       // 重复选项
-      repeatOptions: ['不重复', '每天', '每周', '每月', '自定义'],
+      repeatOptions: ['不重复', '每天', '每周', '每月'],
       repeatIndex: 0,
+      
+      // 时间选择器选项
+      hourOptions: Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')),
+      minuteOptions: Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')),
+      selectedHour: 8, // 默认8点
+      selectedMinute: 0, // 默认0分
       
       // 简易模式数据
       simpleData: {
@@ -338,6 +317,27 @@ export default {
         }
       }
       return '';
+    },
+    
+    // Cron表达式文字描述
+    cronDescription() {
+      return this.parseCronToDescription(this.reminderData.cronExpression);
+    },
+    
+    // 根据重复类型动态确定时间选择器显示的列
+    timePickerColumns() {
+      switch (this.repeatIndex) {
+        case 0: // 不重复 - 显示月日时分
+          return ['month', 'day', 'hour', 'minute'];
+        case 1: // 每天 - 只显示时分
+          return ['hour', 'minute'];
+        case 2: // 每周 - 显示周几和时分
+          return ['weekday', 'hour', 'minute'];
+        case 3: // 每月 - 显示日时分
+          return ['day', 'hour', 'minute'];
+        default:
+          return ['month', 'day', 'hour', 'minute'];
+      }
     }
   },
   
@@ -380,6 +380,7 @@ export default {
       
       // 初始化简单模式的日期时间
       this.reminderDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      this.simpleDate = this.reminderDate;
       
       // 设置默认时间为当前时间的后一小时整点
       const now = new Date();
@@ -387,9 +388,21 @@ export default {
       now.setMinutes(0);
       now.setSeconds(0);
       this.reminderTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      this.simpleTime = this.reminderTime;
+      
+      // 同步简单模式数据
+      this.simpleData.hour = now.getHours();
+      this.simpleData.minute = 0;
+      // 使用默认的重复选项（repeatIndex = 0 对应 "不重复"）
+      this.updateCronFromRepeat();
       
       // 更新eventTime
       this.updateEventTime();
+      
+      console.log('初始化数据完成:');
+      console.log('今天日期:', this.reminderDate);
+      console.log('设置时间:', this.reminderTime);
+      console.log('简单模式数据:', this.simpleData);
     },
     
     // 切换标签
@@ -398,6 +411,12 @@ export default {
       console.log('切换到模式:', tab);
       
       if (tab === 'simple') {
+        // 确保简单模式数据完整
+        if (!this.simpleData.hour && !this.simpleData.minute) {
+          this.simpleData.hour = 8;
+          this.simpleData.minute = 0;
+          this.simpleTime = '08:00';
+        }
         this.updateCronFromSimple();
       }
       
@@ -428,6 +447,82 @@ export default {
       this.updateCronFromRepeat();
     },
     
+    // 小时选择改变
+    onHourChange(e) {
+      this.selectedHour = e.detail.value;
+      this.updateCronFromTime();
+    },
+    
+    // 分钟选择改变
+    onMinuteChange(e) {
+      this.selectedMinute = e.detail.value;
+      this.updateCronFromTime();
+    },
+    
+    // 简单模式时间变化处理
+    onSimpleTimeChange(dateTimeData) {
+      this.simpleDate = dateTimeData.date;
+      this.simpleTime = dateTimeData.time;
+      
+      // 解析时间
+      const [hour, minute] = dateTimeData.time.split(':');
+      
+      // 更新简易模式数据
+      this.simpleData.hour = parseInt(hour);
+      this.simpleData.minute = parseInt(minute);
+      
+      // 解析日期（如果有的话）
+      if (dateTimeData.date) {
+        const [year, month, day] = dateTimeData.date.split('-');
+        this.simpleData.month = parseInt(month);
+        this.simpleData.dayOfMonth = parseInt(day);
+      }
+      
+      // 根据当前重复类型更新Cron表达式
+      this.updateCronFromSimple();
+      
+      // 更新预览
+      this.updatePreview();
+    },
+    
+    // 周几变化处理
+    onWeekdayChange(weekday) {
+      // weekday: 0-6 (周日到周六)
+      this.simpleData.weekday = weekday;
+      
+      // 根据当前重复类型更新Cron表达式
+      this.updateCronFromSimple();
+      
+      // 更新预览
+      this.updatePreview();
+    },
+    
+    // 根据时间选择更新Cron表达式
+    updateCronFromTime() {
+      const hour = parseInt(this.hourOptions[this.selectedHour]);
+      const minute = parseInt(this.minuteOptions[this.selectedMinute]);
+      
+      // 更新简易模式数据
+      this.simpleData.hour = hour;
+      this.simpleData.minute = minute;
+      
+      // 根据当前重复类型更新Cron表达式
+      switch (Number(this.repeatIndex)) {
+        case 1: // 每天
+          this.reminderData.cronExpression = `0 ${minute} ${hour} * * ?`;
+          break;
+        case 2: // 每周
+          this.reminderData.cronExpression = `0 ${minute} ${hour} ? * MON`;
+          break;
+        case 3: // 每月
+          this.reminderData.cronExpression = `0 ${minute} ${hour} 1 * ?`;
+          break;
+        default:
+          // 不重复或自定义不处理
+          break;
+      }
+    },
+    
     // 更新eventTime
     updateEventTime() {
       if (this.reminderDate && this.reminderTime) {
@@ -439,20 +534,132 @@ export default {
     
     // 根据重复选项更新Cron表达式
     updateCronFromRepeat() {
+      // 使用简单模式的时间数据
+      const hour = this.simpleData.hour;
+      const minute = this.simpleData.minute;
+      
       switch (Number(this.repeatIndex)) {
         case 0: // 不重复
           this.reminderData.cronExpression = '';
+          this.simpleData.recurrenceType = 'NONE';
           break;
         case 1: // 每天
-          this.reminderData.cronExpression = '0 0 8 * * ?';
+          this.reminderData.cronExpression = `${minute} ${hour} * * *`;
+          this.simpleData.recurrenceType = 'DAILY';
           break;
         case 2: // 每周
-          this.reminderData.cronExpression = '0 0 8 ? * MON';
+          this.reminderData.cronExpression = `${minute} ${hour} * * 1`;
+          this.simpleData.recurrenceType = 'WEEKLY';
+          this.simpleData.weekday = 1; // 默认周一
           break;
         case 3: // 每月
-          this.reminderData.cronExpression = '0 0 8 1 * ?';
+          const dayOfMonth = this.simpleData.dayOfMonth || 1; // 使用已选择的日期，默认1号
+          this.reminderData.cronExpression = `${minute} ${hour} ${dayOfMonth} * *`;
+          this.simpleData.recurrenceType = 'MONTHLY';
+          if (!this.simpleData.dayOfMonth) {
+            this.simpleData.dayOfMonth = 1; // 只有在没有设置时才默认为1号
+          }
           break;
-        // case 4 (自定义) 不做处理，用户自行输入
+      }
+      
+      // 更新预览
+      this.updatePreview();
+    },
+    
+    // 解析Cron表达式为文字描述
+    parseCronToDescription(cronExpression) {
+      if (!cronExpression || cronExpression.trim() === '') {
+        return '请设置重复规则';
+      }
+      
+      try {
+        // 解析cron表达式 (格式: 秒 分 时 日 月 周 年)
+        const parts = cronExpression.trim().split(/\s+/);
+        if (parts.length < 6) {
+          return '无效的Cron表达式';
+        }
+        
+        const [second, minute, hour, day, month, weekday, year] = parts;
+        
+        let description = '';
+        
+        // 解析时间
+        const timeStr = this.formatTime(hour, minute);
+        
+        // 解析重复模式
+        if (weekday !== '?' && weekday !== '*') {
+          // 按周重复
+          const weekdays = this.parseWeekdays(weekday);
+          description = `每${weekdays}${timeStr}`;
+        } else if (day !== '?' && day !== '*') {
+          // 按月重复
+          if (day.includes(',')) {
+            const days = day.split(',').join('日、');
+            description = `每月${days}日${timeStr}`;
+          } else {
+            description = `每月${day}日${timeStr}`;
+          }
+        } else if (month !== '*') {
+          // 按年重复
+          const months = this.parseMonths(month);
+          description = `每年${months}${timeStr}`;
+        } else {
+          // 每天重复
+          description = `每天${timeStr}`;
+        }
+        
+        return description;
+      } catch (error) {
+        console.error('解析Cron表达式失败:', error);
+        return '无效的Cron表达式';
+      }
+    },
+    
+    // 格式化时间
+    formatTime(hour, minute) {
+      const h = hour === '*' ? '0' : hour;
+      const m = minute === '*' ? '0' : minute;
+      const hourNum = parseInt(h);
+      const minuteNum = parseInt(m);
+      
+      if (hourNum < 12) {
+        return `上午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
+      } else if (hourNum === 12) {
+        return `中午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
+      } else {
+        return `下午${hourNum - 12}:${String(minuteNum).padStart(2, '0')}`;
+      }
+    },
+    
+    // 解析星期
+    parseWeekdays(weekday) {
+      const weekMap = {
+        '0': '周日', '7': '周日',
+        '1': '周一', '2': '周二', '3': '周三', 
+        '4': '周四', '5': '周五', '6': '周六',
+        'SUN': '周日', 'MON': '周一', 'TUE': '周二', 
+        'WED': '周三', 'THU': '周四', 'FRI': '周五', 'SAT': '周六'
+      };
+      
+      if (weekday.includes(',')) {
+        return weekday.split(',').map(w => weekMap[w.trim()] || w).join('、');
+      } else {
+        return weekMap[weekday] || weekday;
+      }
+    },
+    
+    // 解析月份
+    parseMonths(month) {
+      const monthMap = {
+        '1': '1月', '2': '2月', '3': '3月', '4': '4月',
+        '5': '5月', '6': '6月', '7': '7月', '8': '8月',
+        '9': '9月', '10': '10月', '11': '11月', '12': '12月'
+      };
+      
+      if (month.includes(',')) {
+        return month.split(',').map(m => monthMap[m.trim()] || m).join('、');
+      } else {
+        return monthMap[month] || month;
       }
     },
     
@@ -602,7 +809,17 @@ export default {
       });
     },
     
-    // 显示预览操作菜单
+    // 复制描述事件处理
+    onCopyDescription(description) {
+      console.log('描述已复制:', description);
+    },
+    
+    // 复制时间表事件处理
+    onCopyTimes(timeList) {
+      console.log('时间表已复制:', timeList);
+    },
+    
+    // 显示预览操作菜单（保留兼容性）
     showPreviewActions() {
       uni.showActionSheet({
         itemList: ['刷新预览', '复制描述', '导出时间表'],
@@ -678,23 +895,9 @@ export default {
       this.updatePreview();
     },
     
-    // 简易时间改变
-    onSimpleTimeChange(e) {
-      this.simpleTime = e.detail.value;
-      const [hour, minute] = e.detail.value.split(':');
-      this.simpleData.hour = parseInt(hour);
-      this.simpleData.minute = parseInt(minute);
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
+
     
-    // 星期几改变
-    onWeekdayChange(e) {
-      this.weekdayIndex = e.detail.value;
-      this.simpleData.weekday = this.weekdayIndex;
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
+
     
     // 每月第几天改变
     onMonthDayChange(e) {
@@ -787,6 +990,9 @@ export default {
         const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
         
         switch (recurrenceType) {
+          case 'NONE':
+            this.humanReadableDescription = `单次提醒 ${timeStr}`;
+            break;
           case 'DAILY':
             this.humanReadableDescription = `每天 ${timeStr}`;
             break;
@@ -794,10 +1000,24 @@ export default {
             this.humanReadableDescription = `每${this.weekDays[weekday]} ${timeStr}`;
             break;
           case 'MONTHLY':
-            this.humanReadableDescription = `每月${dayOfMonth}日 ${timeStr}`;
+            // 检查是否有月份不存在该日期
+            const hasInvalidMonths = this.checkInvalidMonthsForDay(dayOfMonth);
+            if (hasInvalidMonths.length > 0) {
+              this.humanReadableDescription = `每月${dayOfMonth}日 ${timeStr} (${hasInvalidMonths.join('、')}月将使用月末)`;
+            } else {
+              this.humanReadableDescription = `每月${dayOfMonth}日 ${timeStr}`;
+            }
             break;
           case 'YEARLY':
-            this.humanReadableDescription = `每年${this.months[month-1]}${dayOfMonth}日 ${timeStr}`;
+            // 检查是否是2月29日（闰年问题）
+            if (month === 2 && dayOfMonth === 29) {
+              this.humanReadableDescription = `每年${this.months[month-1]}${dayOfMonth}日 ${timeStr} (非闰年将使用2月28日)`;
+            } else {
+              this.humanReadableDescription = `每年${this.months[month-1]}${dayOfMonth}日 ${timeStr}`;
+            }
+            break;
+          default:
+            this.humanReadableDescription = `单次提醒 ${timeStr}`;
             break;
         }
       } else {
@@ -821,12 +1041,18 @@ export default {
         const endDate = this.reminderData.validUntil ? new Date(this.reminderData.validUntil) : null;
         const maxExecutions = this.reminderData.maxExecutions || 10;
         
-        let currentDate = new Date(Math.max(startDate.getTime(), now.getTime()));
+        // 从当前时间开始查找
+        let currentDate = new Date(now.getTime());
         const generatedTimes = [];
+        
+        console.log('开始生成预览时间，当前时间:', this.formatDateTime(now));
+        console.log('简单模式数据:', this.simpleData);
         
         // 根据重复类型生成时间
         for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
           const targetDate = this.getNextTriggerTime(currentDate);
+          
+          console.log(`第${i+1}次查找，从时间:`, this.formatDateTime(currentDate), '找到:', targetDate ? this.formatDateTime(targetDate) : 'null');
           
           if (!targetDate) break;
           
@@ -834,11 +1060,20 @@ export default {
           
           generatedTimes.push(this.formatDateTime(targetDate));
           
-          // 移动到下一个周期
-          currentDate = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
+          // 移动到下一个周期的起始点
+          if (this.simpleData.recurrenceType === 'DAILY') {
+            // 每天重复：移动到下一天的0点
+            currentDate = new Date(targetDate.getTime());
+            currentDate.setDate(currentDate.getDate() + 1);
+            currentDate.setHours(0, 0, 0, 0);
+          } else {
+            // 其他重复类型：移动到目标时间后1分钟
+            currentDate = new Date(targetDate.getTime() + 60 * 1000);
+          }
         }
         
         this.previewTimes = generatedTimes;
+        console.log('生成的预览时间:', generatedTimes);
       } catch (error) {
         console.error('生成预览时间出错:', error);
         this.previewTimes = ['生成预览时出错'];
@@ -849,14 +1084,29 @@ export default {
     getNextTriggerTime(fromDate) {
       const { recurrenceType, hour, minute, weekday, dayOfMonth, month } = this.simpleData;
       
+      // 创建目标时间，从fromDate的日期开始，设置为指定的小时和分钟
       let targetDate = new Date(fromDate);
-      targetDate.setHours(hour, minute, 0, 0);
+      targetDate.setHours(hour || 0, minute || 0, 0, 0);
       
       switch (recurrenceType) {
+        case 'NONE':
+          // 单次提醒，如果时间已过，则使用设定的日期时间
+          if (this.simpleDate && this.simpleTime) {
+            const specificDate = new Date(`${this.simpleDate}T${this.simpleTime}:00`);
+            if (specificDate > fromDate) {
+              return specificDate;
+            }
+          }
+          // 如果没有设定具体日期或时间已过，返回null
+          return null;
+          
         case 'DAILY':
+          // 如果目标时间小于等于当前时间，移动到下一天
           if (targetDate <= fromDate) {
             targetDate.setDate(targetDate.getDate() + 1);
+            targetDate.setHours(hour || 0, minute || 0, 0, 0);
           }
+          console.log('DAILY计算结果:', this.formatDateTime(targetDate), '从时间:', this.formatDateTime(fromDate));
           break;
           
         case 'WEEKLY':
@@ -869,18 +1119,50 @@ export default {
           break;
           
         case 'MONTHLY':
-          targetDate.setDate(dayOfMonth);
+          // 处理月份日期不存在的情况（如2月30日、6月31日等）
+          const setValidMonthlyDate = (date, targetDay) => {
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            // 如果目标日期超过当月最大天数，使用当月最后一天
+            const validDay = Math.min(targetDay, daysInMonth);
+            date.setDate(validDay);
+            return validDay;
+          };
+          
+          let actualDay = setValidMonthlyDate(targetDate, dayOfMonth);
+          
           if (targetDate <= fromDate) {
+            // 移动到下个月
             targetDate.setMonth(targetDate.getMonth() + 1);
-            targetDate.setDate(dayOfMonth);
+            actualDay = setValidMonthlyDate(targetDate, dayOfMonth);
           }
+          
+          console.log(`MONTHLY计算: 目标日期${dayOfMonth}日, 实际使用${actualDay}日`);
           break;
           
         case 'YEARLY':
-          targetDate.setMonth(month - 1, dayOfMonth);
+          // 处理年度重复中的日期不存在情况（如闰年2月29日）
+          const setValidYearlyDate = (date, targetMonth, targetDay) => {
+            const year = date.getFullYear();
+            const daysInMonth = new Date(year, targetMonth, 0).getDate();
+            
+            // 如果目标日期超过当月最大天数，使用当月最后一天
+            const validDay = Math.min(targetDay, daysInMonth);
+            date.setMonth(targetMonth - 1, validDay);
+            return validDay;
+          };
+          
+          let actualYearDay = setValidYearlyDate(targetDate, month, dayOfMonth);
+          
           if (targetDate <= fromDate) {
+            // 移动到下一年
             targetDate.setFullYear(targetDate.getFullYear() + 1);
+            actualYearDay = setValidYearlyDate(targetDate, month, dayOfMonth);
           }
+          
+          console.log(`YEARLY计算: 目标${month}月${dayOfMonth}日, 实际使用${month}月${actualYearDay}日`);
           break;
           
         default:
@@ -902,6 +1184,21 @@ export default {
       });
     },
     
+    // 检查哪些月份不存在指定的日期
+    checkInvalidMonthsForDay(day) {
+      const invalidMonths = [];
+      const currentYear = new Date().getFullYear();
+      
+      for (let month = 1; month <= 12; month++) {
+        const daysInMonth = new Date(currentYear, month, 0).getDate();
+        if (day > daysInMonth) {
+          invalidMonths.push(month);
+        }
+      }
+      
+      return invalidMonths;
+    },
+    
     // 解析Cron表达式到简易模式
     parseCronToSimple(cronExpression) {
       try {
@@ -914,36 +1211,28 @@ export default {
         this.simpleData.hour = parseInt(hour) || 0;
         this.simpleTime = `${String(this.simpleData.hour).padStart(2, '0')}:${String(this.simpleData.minute).padStart(2, '0')}`;
         
+        // 设置默认日期为今天
+        if (!this.simpleDate) {
+          const today = new Date();
+          this.simpleDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+        
         // 判断重复类型
         if (day === '*' && month === '*' && weekday === '*') {
           // 每天
           this.simpleData.recurrenceType = 'DAILY';
-          this.recurrenceIndex = 0;
+          this.repeatIndex = 1; // 对应repeatOptions中的"每天"
         } else if (day === '*' && month === '*' && weekday !== '*') {
           // 每周
           this.simpleData.recurrenceType = 'WEEKLY';
-          this.recurrenceIndex = 1;
-          this.simpleData.weekday = parseInt(weekday) || 0;
-          this.weekdayIndex = this.simpleData.weekday;
+          this.repeatIndex = 2; // 对应repeatOptions中的"每周"
+          this.simpleData.weekday = parseInt(weekday) || 1;
         } else if (day !== '*' && month === '*' && weekday === '*') {
           // 每月
           this.simpleData.recurrenceType = 'MONTHLY';
-          this.recurrenceIndex = 2;
+          this.repeatIndex = 3; // 对应repeatOptions中的"每月"
           this.simpleData.dayOfMonth = parseInt(day) || 1;
-          this.monthDayIndex = this.simpleData.dayOfMonth - 1;
-        } else if (day !== '*' && month !== '*' && weekday === '*') {
-          // 每年
-          this.simpleData.recurrenceType = 'YEARLY';
-          this.recurrenceIndex = 3;
-          this.simpleData.dayOfMonth = parseInt(day) || 1;
-          this.simpleData.month = parseInt(month) || 1;
-          this.monthIndex = this.simpleData.month - 1;
-          this.dayIndex = this.simpleData.dayOfMonth - 1;
-        } else {
-          // 复杂表达式，切换到高级模式
-          this.activeTab = 'advanced';
         }
-        
         console.log('解析Cron表达式成功:', this.simpleData);
       } catch (error) {
         console.error('解析Cron表达式失败:', error);
@@ -954,6 +1243,31 @@ export default {
     // 切换Cron表达式展开状态
     toggleCronExpression() {
       this.showCronExpression = !this.showCronExpression;
+    },
+    
+    // 显示时间设置
+    showTimeSettings() {
+      console.log('点击了时间设置按钮');
+      this.showCronPicker = true;
+      console.log('showCronPicker设置为:', this.showCronPicker);
+    },
+    
+    // Cron选择器确认
+    onCronConfirm(cronExpression) {
+      this.reminderData.cronExpression = cronExpression;
+      this.showCronPicker = false;
+      this.updatePreview();
+      
+      uni.showToast({
+        title: '时间设置已更新',
+        icon: 'success',
+        duration: 1500
+      });
+    },
+    
+    // Cron选择器取消
+    onCronCancel() {
+      this.showCronPicker = false;
     },
     
     // 选择重复类型
@@ -971,6 +1285,25 @@ export default {
         success: (res) => {
           this.reminderTypeIndex = res.tapIndex;
           this.reminderData.reminderType = this.reminderTypeValues[res.tapIndex];
+        }
+      });
+    },
+    
+    // 显示重复选择器
+    showRepeatSelector() {
+      uni.showActionSheet({
+        itemList: this.repeatOptions,
+        success: (res) => {
+          this.repeatIndex = res.tapIndex;
+          // 确保有时间数据后再更新Cron表达式
+          if (this.simpleData.hour !== undefined && this.simpleData.minute !== undefined) {
+            this.updateCronFromRepeat();
+          } else {
+            // 如果没有时间数据，使用默认时间
+            this.simpleData.hour = 8;
+            this.simpleData.minute = 0;
+            this.updateCronFromRepeat();
+          }
         }
       });
     },
@@ -1120,6 +1453,7 @@ export default {
 .content-scroll {
   flex: 1;
   padding: 0;
+  padding-bottom: 160rpx; /* 为固定底部按钮留出空间 */
 }
 
 .form-container {
@@ -1232,11 +1566,17 @@ export default {
 
 /* 底部按钮 */
 .bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 32rpx;
-  padding: 32rpx;
+  padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); /* 适配安全区域 */
   background-color: #fcfbf8;
-  border-top: none;
+  border-top: 1rpx solid #e9e0ce;
+  z-index: 100;
 }
 
 .action-btn {
@@ -1274,7 +1614,7 @@ export default {
 
 /* 标签切换 */
 .tab-container {
-  padding: 0 0 48rpx;
+  padding: 0 0 0rpx;
 }
 
 .tab-buttons {
@@ -1372,6 +1712,40 @@ export default {
   width: 100%;
 }
 
+/* 时间选择器行 */
+.time-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.time-picker-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.time-label {
+  font-size: 24rpx;
+  color: #9d8148;
+  font-weight: 500;
+  text-align: center;
+}
+
+.time-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 32rpx;
+}
+
+.separator-text {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
 /* 日期时间选择器布局 */
 .date-time-container {
   display: flex;
@@ -1423,7 +1797,8 @@ export default {
 .setting-label {
   font-size: 32rpx;
   color: #1c170d;
-  font-weight: 400;
+  font-weight: 600;
+  line-height: 1.4;
   flex: 1;
 }
 
@@ -1441,6 +1816,7 @@ export default {
 .advanced-options {
   display: flex;
   flex-direction: column;
+  gap: 24rpx;
 }
 
 .option-item {
@@ -1489,37 +1865,73 @@ export default {
   padding-top: 16rpx;
 }
 
-/* 触发时间列表 */
-.trigger-times {
-  background-color: #ffffff;
-  border-radius: 24rpx;
-  border: 2rpx solid #e9e0ce;
-  overflow: hidden;
-}
-
-.no-preview {
-  text-align: center;
-  padding: 48rpx;
-}
-
-.no-preview-text {
-  font-size: 28rpx;
-  color: #9d8148;
-}
-
-.time-item {
-  padding: 28rpx 32rpx;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.time-item:last-child {
-  border-bottom: none;
-}
-
-.time-text {
+.option-arrow {
   font-size: 32rpx;
-  color: #1c170d;
+  color: #9d8148;
   font-weight: 400;
+}
+
+.option-description {
+  padding: 0 32rpx 16rpx;
+}
+
+.option-desc-text {
+  font-size: 24rpx;
+  color: #9d8148;
+  font-weight: 400;
+}
+
+
+
+/* Cron表达式显示 */
+.cron-display-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 24rpx 32rpx;
+  background-color: #f4efe7;
+  border-radius: 16rpx;
+  border: 2rpx solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.cron-display-wrapper:active {
+  background-color: #f0ede4;
+  border-color: #f7bd4a;
+}
+
+/* 只读Cron表达式显示 */
+.cron-display-readonly {
+  padding: 24rpx 32rpx;
+  background-color: #f8f9fa;
+  border-radius: 16rpx;
+  border: 1rpx solid #e9ecef;
+}
+
+.cron-description {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+  line-height: 1.4;
+}
+
+.cron-expression {
+  font-size: 24rpx;
+  color: #9d8148;
+  font-family: 'Courier New', monospace;
+  line-height: 1.2;
+}
+
+.picker-arrow {
+  position: absolute;
+  right: 24rpx;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 32rpx;
+  color: #9d8148;
+  font-weight: 600;
 }
 
 /* Cron帮助信息 */

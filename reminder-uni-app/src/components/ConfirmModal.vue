@@ -1,6 +1,6 @@
 <template>
-  <view v-if="show" class="modal-overlay" @click.self="handleCancel">
-    <view class="modal-container">
+  <view v-if="show" class="modal-overlay" @touchmove.stop.prevent @click.self="handleCancel">
+    <view class="modal-container" @click.stop>
       <view class="modal-header">
         <text class="modal-title">{{ title }}</text>
       </view>

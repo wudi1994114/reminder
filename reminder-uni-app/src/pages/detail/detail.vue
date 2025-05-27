@@ -1,89 +1,130 @@
 <template>
-  <view class="container">
-    <view v-if="loading" class="loading-container">
-      <text>加载中...</text>
-    </view>
-    <view v-else-if="!reminder.id" class="empty-tip">
-      <text>提醒信息不存在</text>
-    </view>
-    <view v-else class="detail-card">
-      <view class="detail-header">
-        <text class="detail-title">{{reminder.title}}</text>
-        <view class="detail-status" :class="[reminder.status === 'PENDING' ? 'pending' : 'completed']">
-          <text>{{reminder.status === 'PENDING' ? '待提醒' : '已完成'}}</text>
-        </view>
-      </view>
-      
-      <view class="detail-info">
-        <view class="info-item">
-          <text class="label">提醒时间：</text>
-          <text class="value">{{formatDisplayTime(reminder.eventTime)}}</text>
-        </view>
-        <view class="info-item" v-if="reminder.cronExpression">
-          <text class="label">提醒频率：</text>
-          <text class="value">{{ cronExpressionToText(reminder.cronExpression) }}</text>
-        </view>
-        <view class="info-item">
-          <text class="label">创建时间：</text>
-          <text class="value">{{formatDisplayTime(reminder.createTime)}}</text>
-        </view>
-        <view class="info-item desc" v-if="reminder.description">
-          <text class="label">提醒内容：</text>
-          <text class="value">{{reminder.description}}</text>
-        </view>
-      </view>
-      
-      <view class="detail-actions">
-        <button class="action-btn edit" @click="editReminder">编辑</button>
-        <button class="action-btn delete" @click="showDeleteConfirm">删除</button>
-        <button 
-          class="action-btn complete" 
-          v-if="reminder.status === 'PENDING'" 
-          @click="completeReminder"
-          :disabled="actionLoading"
-        >
-          {{ actionLoading && currentAction === 'complete' ? '处理中...' : '完成' }}
+  <view class="page-container">
+    <!-- 顶部导航栏 -->
+    <view class="header-section">
+      <view class="nav-container">
+        <button class="back-btn" @click="goBack">
+          <text class="back-icon">×</text>
         </button>
+        <view class="title-container">
+          <text class="page-title">提醒详情</text>
+        </view>
       </view>
     </view>
-
-    <ConfirmDialog
-      :show="showConfirmDialog"
-      title="确认删除"
-      message="确定要删除这条提醒吗？"
-      @confirm="handleDeleteConfirm"
-      @cancel="handleDeleteCancel"
-    />
+    
+    <!-- 内容区域 -->
+    <scroll-view class="content-scroll" scroll-y>
+      <view class="content-container">
+        <!-- 加载状态 -->
+        <view v-if="loading" class="loading-state">
+          <view class="loading-content">
+            <text class="loading-text">加载中...</text>
+          </view>
+        </view>
+        
+        <!-- 空状态 -->
+        <view v-else-if="!reminder.id" class="empty-state">
+          <view class="empty-content">
+            <text class="empty-icon">❌</text>
+            <text class="empty-title">提醒不存在</text>
+            <text class="empty-desc">该提醒可能已被删除或ID无效</text>
+            <button class="empty-action-btn" @click="goBack">
+              <text class="btn-text">返回</text>
+            </button>
+          </view>
+        </view>
+        
+        <!-- 提醒详情 -->
+        <view v-else class="detail-container">
+          <!-- 标题 -->
+          <view class="title-section">
+            <text class="reminder-title">{{ reminder.title }}</text>
+          </view>
+          
+          <!-- 备注标题和内容 -->
+          <view v-if="reminder.description" class="notes-section">
+            <text class="notes-title">备注</text>
+            <text class="notes-content">{{ reminder.description }}</text>
+          </view>
+          
+          <!-- 提醒设置 -->
+          <view class="remind-section">
+            <text class="section-title">提醒我</text>
+            
+            <view class="remind-details">
+              <view class="setting-item">
+                <text class="setting-label">方式</text>
+                <text class="value-text">{{ getReminderTypeText(reminder.reminderType) }}</text>
+              </view>
+              
+              <view class="setting-item">
+                <text class="setting-label">时间</text>
+                <text class="value-text">{{ formatDisplayTime(reminder.eventTime) }}</text>
+              </view>
+              
+              <view class="setting-item" v-if="reminder.cronExpression">
+                <text class="setting-label">重复</text>
+                <text class="value-text">{{ cronExpressionToText(reminder.cronExpression) }}</text>
+              </view>
+              
+              <view class="setting-item">
+                <text class="setting-label">下次提醒时间</text>
+                <text class="value-text">{{ formatDisplayTime(reminder.eventTime) }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+    
+    <!-- 底部按钮 -->
+    <view class="bottom-actions">
+      <button class="action-button edit-btn" @click="editReminder">
+        <text class="button-text">编辑</text>
+      </button>
+      <button class="action-button cancel-btn" @click="goBack">
+        <text class="button-text">取消</text>
+      </button>
+    </view>
   </view>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
-import { getSimpleReminderById, deleteEvent, updateEvent } from '../../services/api';
+import { ref, onMounted, getCurrentInstance } from 'vue';
+import { getSimpleReminderById } from '../../services/api';
 import { formatDate } from '../../utils/helpers';
-import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import cronstrue from 'cronstrue/i18n';
 
 export default {
-  components: {
-    ConfirmDialog
-  },
   setup() {
     const reminder = ref({});
     const loading = ref(true);
-    const actionLoading = ref(false); // 用于标记完成/删除操作的加载状态
-    const currentAction = ref(''); // 当前执行的操作类型
-    const showConfirmDialog = ref(false);
-    let reminderId = null;
+    const reminderId = ref('');
+    
+    // 在setup中直接获取页面参数
+    const getCurrentPageOptions = () => {
+      const pages = getCurrentPages();
+      const currentPage = pages[pages.length - 1];
+      return currentPage.options || {};
+    };
     
     onMounted(async () => {
-      const pages = getCurrentPages();
-      const page = pages[pages.length - 1];
-      reminderId = page.$page?.options?.id || '';
+      // 直接获取页面参数
+      const options = getCurrentPageOptions();
+      const id = options.id || '';
       
-      if (reminderId) {
-        await loadReminderDetail(reminderId);
+      console.log('=== Detail页面调试信息 ===');
+      console.log('页面参数options:', options);
+      console.log('获取到的ID:', id);
+      console.log('ID类型:', typeof id);
+      console.log('ID是否为空:', !id);
+      
+      if (id) {
+        console.log('开始加载提醒详情，ID:', id);
+        reminderId.value = id;
+        await loadReminderDetail(id);
       } else {
+        console.error('无效的提醒ID，停止加载');
         loading.value = false;
         uni.showToast({ title: '无效的提醒ID', icon: 'none' });
       }
@@ -92,80 +133,42 @@ export default {
     const loadReminderDetail = async (id) => {
       try {
         loading.value = true;
+        console.log('=== API调用调试信息 ===');
+        console.log('调用getSimpleReminderById，参数ID:', id);
+        
         const result = await getSimpleReminderById(id);
+        
+        console.log('API调用结果:', result);
+        console.log('结果类型:', typeof result);
+        console.log('结果是否为空:', !result);
+        
         if (result) {
           reminder.value = result;
+          console.log('提醒详情设置成功:', reminder.value);
+        } else {
+          console.warn('API返回空结果');
         }
       } catch (error) {
         console.error('获取提醒详情失败:', error);
+        console.error('错误详情:', JSON.stringify(error));
         uni.showToast({ title: '获取提醒详情失败', icon: 'none' });
       } finally {
         loading.value = false;
       }
     };
     
+    const goBack = () => {
+      uni.navigateBack();
+    };
+    
     const editReminder = () => {
-      uni.navigateTo({
-        url: `/pages/create/create?id=${reminder.value.id}&mode=edit`
-      });
-    };
-    
-    const showDeleteConfirm = () => {
-      showConfirmDialog.value = true;
-    };
-
-    const handleDeleteConfirm = async () => {
-      showConfirmDialog.value = false;
-      if (actionLoading.value) return;
-      try {
-        actionLoading.value = true;
-        currentAction.value = 'delete';
-        await deleteEvent(reminder.value.id);
-        uni.showToast({
-          title: '删除成功',
-          icon: 'success',
-          duration: 1500
+      if (reminder.value.id) {
+        uni.navigateTo({
+          url: `/pages/create/create?id=${reminder.value.id}&mode=edit`
         });
-        setTimeout(() => {
-          uni.navigateBack();
-        }, 1500);
-      } catch (error) {
-        console.error('删除提醒失败:', error);
-        uni.showToast({ title: '删除失败', icon: 'none' });
-      } finally {
-        actionLoading.value = false;
-        currentAction.value = '';
       }
-    };
-
-    const handleDeleteCancel = () => {
-      showConfirmDialog.value = false;
     };
     
-    const completeReminder = async () => {
-      if (actionLoading.value) return;
-      try {
-        actionLoading.value = true;
-        currentAction.value = 'complete';
-        const updatedReminder = { ...reminder.value, status: 'COMPLETED' };
-        const result = await updateEvent(reminder.value.id, updatedReminder);
-        if (result) {
-          reminder.value = result;
-          uni.showToast({
-            title: '已标记为完成',
-            icon: 'success',
-            duration: 1500
-          });
-        }
-      } catch (error) {
-        console.error('标记完成失败:', error);
-        uni.showToast({ title: '操作失败', icon: 'none' });
-      } finally {
-        actionLoading.value = false;
-        currentAction.value = '';
-      }
-    };
-
     const formatDisplayTime = (timeString) => {
       if (!timeString) return '-';
       return formatDate(timeString);
@@ -180,127 +183,354 @@ export default {
       }
     };
     
+    const getStatusClass = (status) => {
+      if (status === 'PENDING') {
+        return 'pending';
+      } else if (status === 'COMPLETED') {
+        return 'completed';
+      }
+      return '';
+    };
+    
+    const getStatusText = (status) => {
+      if (status === 'PENDING') {
+        return '待提醒';
+      } else if (status === 'COMPLETED') {
+        return '已完成';
+      }
+      return '';
+    };
+    
+    const getReminderTypeText = (type) => {
+      switch (type) {
+        case 'EMAIL': return '通知';
+        case 'SMS': return '短信';
+        case 'WECHAT_MINI': return '微信';
+        default: return '通知';
+      }
+    };
+    
     return {
       reminder,
       loading,
-      actionLoading,
-      currentAction,
-      showConfirmDialog,
+      goBack,
       editReminder,
-      showDeleteConfirm,
-      handleDeleteConfirm,
-      handleDeleteCancel,
-      completeReminder,
       formatDisplayTime,
-      cronExpressionToText
+      cronExpressionToText,
+      getStatusClass,
+      getStatusText,
+      getReminderTypeText
     };
   }
 };
 </script>
 
-<style>
-.container {
-  padding: 30rpx;
+<style scoped>
+.page-container {
+  height: 100vh;
+  background-color: #fcfbf8;
+  display: flex;
+  flex-direction: column;
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.loading-container, .empty-tip {
+/* 顶部导航区域 */
+.header-section {
+  padding: 32rpx;
+  background-color: #fcfbf8;
+  border-bottom: none;
+}
+
+.nav-container {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.back-btn {
+  width: 72rpx;
+  height: 72rpx;
+  background-color: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.back-icon {
+  font-size: 36rpx;
+  color: #1c170d;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.title-container {
+  flex: 1;
+}
+
+.page-title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #1c170d;
+  line-height: 1.2;
+}
+
+/* 内容区域 */
+.content-scroll {
+  flex: 1;
+  background-color: #fcfbf8;
+  padding-bottom: 120rpx; /* 为底部按钮留出空间 */
+}
+
+.content-container {
+  padding: 0 32rpx 32rpx;
+  max-width: 960rpx;
+  margin: 0 auto;
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 120rpx 0;
+}
+
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #9d8148;
+  font-weight: 500;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 120rpx 32rpx;
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 60rpx 0;
-  color: #999999;
+  max-width: 480rpx;
+}
+
+.empty-icon {
+  font-size: 96rpx;
+  margin-bottom: 32rpx;
+  opacity: 0.6;
+}
+
+.empty-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1c170d;
+  margin-bottom: 16rpx;
+}
+
+.empty-desc {
+  font-size: 28rpx;
+  color: #9d8148;
+  line-height: 1.4;
+  margin-bottom: 48rpx;
+}
+
+.empty-action-btn {
+  height: 88rpx;
+  padding: 0 48rpx;
+  background-color: #f7bd4a;
+  color: #1c170d;
+  border-radius: 16rpx;
+  border: none;
+  font-size: 32rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-text {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+/* 详情容器 */
+.detail-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+/* 标题区域 */
+.title-section {
+  padding: 8 8rpx;
+}
+
+.reminder-title {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #1c170d;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+/* 备注区域 */
+.notes-section {
+  padding: 0 8rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.notes-title {
+  margin-top: 24rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
+.notes-content {
   font-size: 30rpx;
+  color: #666666;
+  line-height: 1.6;
+  word-break: break-word;
 }
 
-.detail-card {
-  background-color: #ffffff;
-  border-radius: 10rpx;
-  padding: 30rpx;
-  box-shadow: 0 2rpx 20rpx rgba(0, 0, 0, 0.1);
+/* 提醒设置区域 */
+.remind-section {
+  padding: 32rpx 8rpx;
+  margin-top: 24rpx;
 }
 
-.detail-header {
+.section-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+  margin-bottom: 16rpx;
+}
+
+.remind-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30rpx;
-  padding-bottom: 20rpx;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 16rpx 0;
 }
 
-.detail-title {
-  font-size: 36rpx;
-  font-weight: bold;
+.setting-label {
+  font-size: 30rpx;
+  color: #1c170d;
+  font-weight: 500;
 }
 
-.detail-status {
-  padding: 6rpx 16rpx;
-  border-radius: 6rpx;
-  font-size: 24rpx;
-}
-
-.pending {
-  background-color: #fef0f0;
-  color: #f56c6c;
-}
-
-.completed {
-  background-color: #f0f9eb;
-  color: #67c23a;
-}
-
-.detail-info {
-  margin-bottom: 30rpx;
-}
-
-.info-item {
-  display: flex;
-  margin-bottom: 20rpx;
-}
-
-.info-item.desc {
-  flex-direction: column;
-}
-
-.label {
-  font-size: 28rpx;
+.value-text {
+  font-size: 30rpx;
   color: #666666;
-  min-width: 160rpx;
+  font-weight: 400;
 }
 
-.value {
-  font-size: 28rpx;
-  color: #333333;
+
+
+
+
+/* 响应式调整 */
+@media (max-width: 750rpx) {
+  .content-container {
+    padding: 0 24rpx 24rpx;
+  }
+  
+  .notes-section {
+    padding: 0 8rpx;
+  }
+  
+  .remind-section {
+    padding: 24rpx 8rpx;
+  }
+  
+  .setting-item {
+    padding: 12rpx 0;
+  }
+  
+  .setting-label, .value-text {
+    font-size: 28rpx;
+  }
+  
+  .section-title {
+    font-size: 30rpx;
+  }
+  
+  .notes-content {
+    font-size: 28rpx;
+  }
+  
+  .bottom-actions {
+    padding: 20rpx 24rpx;
+    padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+    gap: 20rpx;
+  }
+  
+  .action-button {
+    height: 80rpx;
+  }
+  
+  .button-text {
+    font-size: 30rpx;
+  }
 }
 
-.detail-actions {
+/* 底部按钮区域 */
+.bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #fcfbf8;
+  padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   display: flex;
-  justify-content: space-around;
-  margin-top: 40rpx;
+  gap: 24rpx;
+  border-top: 1rpx solid #f0ede4;
 }
 
-.action-btn {
-  width: 200rpx;
-  font-size: 28rpx;
-  padding: 12rpx 0;
-  text-align: center;
-  border-radius: 8rpx;
+.action-button {
+  flex: 1;
+  height: 88rpx;
+  border-radius: 16rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
 }
 
-.edit {
-  background-color: #e6a23c;
-  color: #ffffff;
+.cancel-btn {
+  background-color: #f5f5f5;
+  color: #666666;
 }
 
-.delete {
-  background-color: #f56c6c;
-  color: #ffffff;
+.edit-btn {
+  background-color: #f7bd4a;
+  color: #1c170d;
 }
 
-.complete {
-  background-color: #67c23a;
-  color: #ffffff;
-}
-
-.complete:disabled {
-  background-color: #a0cfff;
+.button-text {
+  font-size: 32rpx;
+  font-weight: 600;
 }
 </style> 

@@ -88,6 +88,15 @@ export default {
         reminderState.loading = true;
         
         const result = await getUpcomingReminders();
+        console.log('=== Index页面提醒数据调试 ===');
+        console.log('getUpcomingReminders结果:', result);
+        console.log('结果类型:', typeof result);
+        console.log('是否为数组:', Array.isArray(result));
+        if (Array.isArray(result) && result.length > 0) {
+          console.log('第一个提醒项:', result[0]);
+          console.log('第一个提醒项的ID:', result[0].id);
+        }
+        
         if (result) {
           reminderState.upcomingReminders = result;
         } else {
@@ -124,6 +133,11 @@ export default {
     };
     
     const goToDetail = (id) => {
+      console.log('=== Index页面跳转调试信息 ===');
+      console.log('点击的提醒ID:', id);
+      console.log('ID类型:', typeof id);
+      console.log('跳转URL:', `/pages/detail/detail?id=${id}`);
+      
       uni.navigateTo({
         url: `/pages/detail/detail?id=${id}`
       });

@@ -83,8 +83,8 @@
     </scroll-view>
     
     <!-- 自定义弹窗 -->
-    <view class="custom-modal" v-if="showCustom">
-      <view class="modal-content">
+    <view class="custom-modal" v-if="showCustom" @touchmove.stop.prevent @click.self="hideCustomModal">
+      <view class="modal-content" @click.stop>
         <view class="modal-header">
           <text class="modal-title">自定义弹窗</text>
           <view class="close-btn" @click="hideCustomModal">
@@ -102,8 +102,8 @@
     </view>
     
     <!-- 测试用自定义时间选择器 -->
-    <view class="custom-modal" v-if="showTimeCustom">
-      <view class="modal-content">
+    <view class="custom-modal" v-if="showTimeCustom" @touchmove.stop.prevent @click.self="hideTimeCustom">
+      <view class="modal-content" @click.stop>
         <view class="modal-header">
           <text class="modal-title">选择日期和时间</text>
           <view class="close-btn" @click="hideTimeCustom">

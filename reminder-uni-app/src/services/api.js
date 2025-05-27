@@ -1,7 +1,7 @@
 import { handleApiError } from '../utils/helpers';
 
 // API基础URL
-const API_URL = 'http://localhost:8080/api';
+const API_URL = 'http://192.168.100.154:8080/api';
 
 // 封装uni.request为Promise风格
 const request = (options) => {

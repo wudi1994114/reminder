@@ -1,50 +1,73 @@
 <template>
-  <view class="container">
-    <view class="user-card">
-      <view class="user-info" @click="goToUserProfile">
-        <image class="avatar" :src="userState.user?.avatarUrl || '/static/images/avatar.png'"></image>
-        <view class="user-details">
-          <text class="username">{{ userState.user?.nickname || userState.user?.username || '未登录' }}</text>
-          <text class="user-id" v-if="userState.user?.id">ID: {{ userState.user?.id }}</text>
+  <view class="page-container">
+    <!-- 顶部导航栏 -->
+    <view class="header-section">
+      <view class="nav-container">
+        <view class="title-container">
+          <text class="page-title">我的</text>
         </view>
       </view>
-      <button class="login-btn" v-if="!userState.isAuthenticated" @click="goToLogin">登录/注册</button>
     </view>
     
-    <view class="stat-card" v-if="userState.isAuthenticated">
-      <view class="stat-item">
-        <text class="stat-num">{{ stats.totalReminders || 0 }}</text>
-        <text class="stat-label">总提醒</text>
+    <!-- 内容区域 -->
+    <scroll-view class="content-scroll" scroll-y>
+      <view class="content-container">
+        <!-- 用户信息区域 -->
+        <view class="user-section">
+          <view class="user-info" @click="goToUserProfile">
+            <image class="avatar" :src="userState.user?.avatarUrl || '/static/images/avatar.png'"></image>
+            <view class="user-details">
+              <text class="username">{{ userState.user?.nickname || userState.user?.username || '未登录' }}</text>
+              <text class="user-id" v-if="userState.user?.id">ID: {{ userState.user?.id }}</text>
+            </view>
+          </view>
+          <button class="login-btn" v-if="!userState.isAuthenticated" @click="goToLogin">
+            <text class="btn-text">登录/注册</text>
+          </button>
+        </view>
+        
+        <!-- 统计信息 -->
+        <view class="stats-section" v-if="userState.isAuthenticated">
+          <text class="section-title">数据统计</text>
+          <view class="stats-details">
+            <view class="stat-item">
+              <text class="stat-label">总提醒</text>
+              <text class="stat-value">{{ stats.totalReminders || 0 }}</text>
+            </view>
+            <view class="stat-item">
+              <text class="stat-label">待处理</text>
+              <text class="stat-value">{{ stats.pendingReminders || 0 }}</text>
+            </view>
+            <view class="stat-item">
+              <text class="stat-label">已完成</text>
+              <text class="stat-value">{{ stats.completedReminders || 0 }}</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 功能菜单 -->
+        <view class="menu-section">
+          <text class="section-title">功能设置</text>
+          <view class="menu-details">
+            <view class="menu-item" @click="navTo('/pages/profile/edit')">
+              <text class="menu-label">编辑个人资料</text>
+            </view>
+            <view class="menu-item" @click="navTo('/pages/settings/notification')">
+              <text class="menu-label">提醒设置</text>
+            </view>
+            <view class="menu-item" @click="navTo('/pages/settings/about')">
+              <text class="menu-label">关于应用</text>
+            </view>
+          </view>
+        </view>
       </view>
-      <view class="divider"></view>
-      <view class="stat-item">
-        <text class="stat-num">{{ stats.pendingReminders || 0 }}</text>
-        <text class="stat-label">待处理</text>
-      </view>
-      <view class="divider"></view>
-      <view class="stat-item">
-        <text class="stat-num">{{ stats.completedReminders || 0 }}</text>
-        <text class="stat-label">已完成</text>
-      </view>
-    </view>
+    </scroll-view>
     
-    <view class="menu-list">
-      <view class="menu-item" @click="navTo('/pages/profile/edit')">
-        <text class="menu-label">编辑个人资料</text>
-        <text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pages/settings/notification')">
-        <text class="menu-label">提醒设置</text>
-        <text class="menu-arrow">></text>
-      </view>
-      <view class="menu-item" @click="navTo('/pages/settings/about')">
-        <text class="menu-label">关于应用</text>
-        <text class="menu-arrow">></text>
-      </view>
-    </view>
-    
-    <view class="bottom-btn-area" v-if="userState.isAuthenticated">
-      <button class="logout-btn" @click="confirmLogout">退出登录</button>
+    <!-- 底部按钮 -->
+    <view class="bottom-actions" v-if="userState.isAuthenticated">
+      <button class="action-button logout-btn" @click="confirmLogout">
+        <text class="button-text">退出登录</text>
+      </button>
     </view>
 
     <ConfirmDialog
@@ -182,145 +205,265 @@ export default {
 };
 </script>
 
-<style>
-.container {
-  padding: 30rpx;
-  min-height: 100vh;
+<style scoped>
+.page-container {
+  height: 100vh;
+  background-color: #fcfbf8;
+  display: flex;
+  flex-direction: column;
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.user-card {
+/* 顶部导航区域 */
+.header-section {
+  padding: 32rpx;
+  background-color: #fcfbf8;
+  border-bottom: none;
+}
+
+.nav-container {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.title-container {
+  flex: 1;
+}
+
+.page-title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #1c170d;
+  line-height: 1.2;
+}
+
+/* 内容区域 */
+.content-scroll {
+  flex: 1;
+  background-color: #fcfbf8;
+  padding-bottom: 120rpx; /* 为底部按钮留出空间 */
+}
+
+.content-container {
+  padding: 0 32rpx 32rpx;
+  max-width: 960rpx;
+  margin: 0 auto;
+}
+
+/* 用户信息区域 */
+.user-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #ffffff;
-  border-radius: 10rpx;
-  padding: 30rpx;
-  margin-bottom: 30rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  padding: 24rpx 8rpx;
+  margin-bottom: 24rpx;
 }
 
 .user-info {
   display: flex;
   align-items: center;
-  flex: 1; /* 让用户信息区域占据更多空间 */
+  flex: 1;
 }
 
 .avatar {
   width: 120rpx;
   height: 120rpx;
   border-radius: 60rpx;
-  margin-right: 30rpx; /* 增大间距 */
+  margin-right: 24rpx;
   background-color: #f0f0f0;
-  border: 1px solid #eee;
+  border: 2rpx solid #e9e0ce;
 }
 
 .user-details {
   display: flex;
   flex-direction: column;
+  gap: 8rpx;
 }
 
 .username {
   font-size: 36rpx;
-  font-weight: bold;
-  margin-bottom: 10rpx;
-  color: #333;
+  font-weight: 700;
+  color: #1c170d;
+  line-height: 1.3;
 }
 
 .user-id {
-  font-size: 26rpx; /* 稍小一点 */
-  color: #999999;
+  font-size: 26rpx;
+  color: #9d8148;
+  font-weight: 400;
 }
 
 .login-btn {
-  padding: 12rpx 30rpx;
-  background-color: #3cc51f;
-  color: #ffffff;
+  height: 72rpx;
+  padding: 0 24rpx;
+  background-color: #f7bd4a;
+  color: #1c170d;
+  border-radius: 16rpx;
+  border: none;
   font-size: 28rpx;
-  border-radius: 8rpx;
-  margin: 0; /* uni-app中button有默认margin */
-  line-height: normal; /* 保证文字垂直居中 */
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.stat-card {
+.btn-text {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+/* 统计信息区域 */
+.stats-section {
+  padding: 32rpx 8rpx;
+  margin-top: 24rpx;
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c170d;
+  margin-bottom: 16rpx;
+}
+
+.stats-details {
   display: flex;
-  justify-content: space-around;
-  align-items: center;
-  background-color: #ffffff;
-  border-radius: 10rpx;
-  padding: 30rpx;
-  margin-bottom: 30rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  flex-direction: column;
+  gap: 0;
 }
 
 .stat-item {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-}
-
-.stat-num {
-  font-size: 40rpx;
-  font-weight: bold;
-  color: #3cc51f;
-  margin-bottom: 10rpx;
+  padding: 16rpx 0;
 }
 
 .stat-label {
-  font-size: 28rpx;
-  color: #666666;
+  font-size: 30rpx;
+  color: #1c170d;
+  font-weight: 500;
 }
 
-.divider {
-  width: 1px;
-  height: 80rpx;
-  background-color: #eeeeee;
+.stat-value {
+  font-size: 30rpx;
+  color: #f7bd4a;
+  font-weight: 600;
 }
 
-.menu-list {
-  background-color: #ffffff;
-  border-radius: 10rpx;
-  padding: 10rpx 0;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
-  margin-bottom: 60rpx;
+/* 功能菜单区域 */
+.menu-section {
+  padding: 32rpx 8rpx;
+  margin-top: 24rpx;
+}
+
+.menu-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .menu-item {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 30rpx;
-  border-bottom: 1px solid #f5f5f5;
+  padding: 16rpx 0;
+  cursor: pointer;
 }
 
-.menu-item:last-child {
-  border-bottom: none;
-}
-
-.menu-icon {
-  margin-right: 20rpx;
-  font-size: 40rpx;
+.menu-item:active {
+  background-color: #f4efe7;
+  margin: 0 -8rpx;
+  padding: 16rpx 8rpx;
+  border-radius: 8rpx;
 }
 
 .menu-label {
+  font-size: 30rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+/* 底部按钮区域 */
+.bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #fcfbf8;
+  padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 24rpx;
+}
+
+.action-button {
   flex: 1;
-  font-size: 32rpx;
-}
-
-.menu-arrow {
-  color: #cccccc;
-  font-size: 32rpx;
-}
-
-.bottom-btn-area {
-  /* margin-top: 60rpx; 由menu-list的margin-bottom控制 */
+  height: 88rpx;
+  border-radius: 16rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
 }
 
 .logout-btn {
-  width: 100%;
-  height: 88rpx; /* 适配标准按钮高度 */
-  line-height: 88rpx;
   background-color: #f56c6c;
   color: #ffffff;
+}
+
+.button-text {
   font-size: 32rpx;
-  border-radius: 8rpx;
+  font-weight: 600;
+}
+
+/* 响应式调整 */
+@media (max-width: 750rpx) {
+  .content-container {
+    padding: 0 24rpx 24rpx;
+  }
+  
+  .user-section {
+    padding: 16rpx 8rpx;
+  }
+  
+  .stats-section, .menu-section {
+    padding: 24rpx 8rpx;
+  }
+  
+  .stat-item, .menu-item {
+    padding: 12rpx 0;
+  }
+  
+  .stat-label, .stat-value, .menu-label {
+    font-size: 28rpx;
+  }
+  
+  .section-title {
+    font-size: 30rpx;
+  }
+  
+  .username {
+    font-size: 32rpx;
+  }
+  
+  .user-id {
+    font-size: 24rpx;
+  }
+  
+  .bottom-actions {
+    padding: 20rpx 24rpx;
+    padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+    gap: 20rpx;
+  }
+  
+  .action-button {
+    height: 80rpx;
+  }
+  
+  .button-text {
+    font-size: 30rpx;
+  }
 }
 </style> 

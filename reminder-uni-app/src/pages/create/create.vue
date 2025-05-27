@@ -40,10 +40,14 @@
       </view>
       
       <!-- 时间设置 -->
-      <view class="setting-item" @click="showTimeSelector">
-        <text class="setting-label">时间设置</text>
-        <text class="setting-value">{{ getFormattedDateTime() }}</text>
-      </view>
+      <datetime-picker 
+        ref="dateTimePickerRef"
+        label="时间设置"
+        :initial-date="reminderDate"
+        :initial-time="reminderTime"
+        :auto-set-default="!isEdit"
+        @change="onDateTimeChange"
+      />
     </scroll-view>
     
     <!-- 底部保存按钮 -->
@@ -60,51 +64,19 @@
       <view class="bottom-spacer"></view>
     </view>
     
-    <!-- 自定义日期时间选择（当用户选择自定义时显示） -->
-    <view class="custom-datetime" v-if="showCustomPickers">
-      <view class="custom-modal">
-        <view class="custom-header">
-          <text class="custom-title">选择自定义日期和时间</text>
-          <view class="custom-close" @click="hideCustomPickers">
-            <text class="close-icon">✕</text>
-          </view>
-        </view>
-        
-        <view class="picker-container">
-          <view class="picker-item">
-            <text class="picker-label">日期</text>
-            <picker mode="date" :value="reminderDate" @change="onDateChange">
-              <view class="picker-display">
-                <text class="picker-text">{{ reminderDate || '选择日期' }}</text>
-              </view>
-            </picker>
-          </view>
-          
-          <view class="picker-item">
-            <text class="picker-label">时间</text>
-            <picker mode="time" :value="reminderTime" @change="onTimeChange">
-              <view class="picker-display">
-                <text class="picker-text">{{ reminderTime || '选择时间' }}</text>
-              </view>
-            </picker>
-          </view>
-        </view>
-        
-        <view class="custom-actions">
-          <button class="custom-btn confirm-btn" @click="confirmCustomDateTime">
-            <text class="btn-text">确认</text>
-          </button>
-        </view>
-      </view>
-    </view>
+
   </view>
 </template>
 
 <script>
 import { ref, computed, reactive, onMounted, getCurrentInstance } from 'vue';
 import { createEvent, updateEvent, getSimpleReminderById } from '../../services/api';
+import DateTimePicker from '../../components/datetime-picker/datetime-picker.vue';
 
 export default {
+  components: {
+    DateTimePicker
+  },
   onLoad(options) {
     console.log('onLoad 接收到的参数:', options);
     this.pageOptions = options || {};
@@ -125,7 +97,7 @@ export default {
     const reminderDate = ref('');
     const reminderTime = ref('');
     const isSubmitting = ref(false);
-    const showCustomPickers = ref(false);
+    const dateTimePickerRef = ref(null);
     
     // 提醒方式相关
     const reminderTypeOptions = ['邮件', '短信', '微信'];
@@ -222,19 +194,18 @@ export default {
         now.setSeconds(0);
         reminderTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
         
-        // 3. 更新eventTime
-        updateEventTime();
+        // 3. 通过组件引用设置日期时间
+        if (dateTimePickerRef.value) {
+          dateTimePickerRef.value.setDateTime(reminderDate.value, reminderTime.value);
+        }
       }
     });
     
-    const onDateChange = (e) => {
-      reminderDate.value = e.detail.value;
-      updateEventTime();
-    };
-    
-    const onTimeChange = (e) => {
-      reminderTime.value = e.detail.value;
-      updateEventTime();
+    // 日期时间组件变化处理
+    const onDateTimeChange = (dateTimeData) => {
+      reminderDate.value = dateTimeData.date;
+      reminderTime.value = dateTimeData.time;
+      reminderForm.eventTime = dateTimeData.eventTime;
     };
     
     // 提醒方式相关方法
@@ -261,13 +232,7 @@ export default {
       }
     };
     
-    const updateEventTime = () => {
-      if (reminderDate.value && reminderTime.value) {
-        reminderForm.eventTime = `${reminderDate.value} ${reminderTime.value}:00`; // 补全秒
-      } else {
-        reminderForm.eventTime = '';
-      }
-    };
+
     
     const saveReminder = async () => {
       if (!reminderForm.title) {
@@ -339,92 +304,11 @@ export default {
       });
     };
     
-    // 新增方法：显示时间选择器
-    const showTimeSelector = () => {
-      // 直接显示自定义日期时间选择器
-      showCustomDateTime();
-    };
+
     
 
     
-    // 显示自定义日期时间选择
-    const showCustomDateTime = () => {
-      showCustomPickers.value = true;
-    };
-    
-    // 隐藏自定义选择器
-    const hideCustomPickers = () => {
-      showCustomPickers.value = false;
-    };
-    
-    // 确认自定义日期时间
-    const confirmCustomDateTime = () => {
-      if (reminderDate.value && reminderTime.value) {
-        updateEventTime();
-        showCustomPickers.value = false;
-        uni.showToast({
-          title: '自定义时间设置成功',
-          icon: 'success'
-        });
-      } else {
-        uni.showToast({
-          title: '请选择日期和时间',
-          icon: 'none'
-        });
-      }
-    };
-    
-    // 新增方法：格式化显示日期时间
-    const getFormattedDateTime = () => {
-      if (!reminderDate.value || !reminderTime.value) {
-        return '选择时间';
-      }
-      
-      // 使用iOS兼容的日期格式创建Date对象
-      const dateTimeStr = `${reminderDate.value}T${reminderTime.value}:00`;
-      const date = new Date(dateTimeStr);
-      
-      // 检查日期是否有效
-      if (isNaN(date.getTime())) {
-        console.error('无效的日期格式:', dateTimeStr);
-        return '选择时间';
-      }
-      
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      // 判断是否是今天、明天
-      const isToday = date.toDateString() === now.toDateString();
-      const isTomorrow = date.toDateString() === tomorrow.toDateString();
-      
-      let dateStr = '';
-      if (isToday) {
-        dateStr = '今天';
-      } else if (isTomorrow) {
-        dateStr = '明天';
-      } else {
-        // 格式化为中文日期格式
-        const months = ['1月', '2月', '3月', '4月', '5月', '6月', 
-                       '7月', '8月', '9月', '10月', '11月', '12月'];
-        dateStr = `${months[date.getMonth()]}${date.getDate()}日`;
-      }
-      
-      // 格式化时间为中文格式
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
-      let timeStr = '';
-      
-      if (hours < 12) {
-        const displayHour = hours === 0 ? 12 : hours;
-        timeStr = `上午${displayHour}:${String(minutes).padStart(2, '0')}`;
-      } else {
-        const displayHour = hours === 12 ? 12 : hours - 12;
-        timeStr = `下午${displayHour}:${String(minutes).padStart(2, '0')}`;
-      }
-      
-      return `${dateStr} ${timeStr}`;
-    };
+
     
     // 更新getReminderTypeText方法以支持中文
     const getReminderTypeTextUpdated = (type) => {
@@ -444,20 +328,14 @@ export default {
       isSubmitting,
       reminderTypeOptions,
       reminderTypeIndex,
-      onDateChange,
-      onTimeChange,
+      dateTimePickerRef,
+      onDateTimeChange,
       onReminderTypeChange,
       getReminderTypeIcon,
       getReminderTypeText: getReminderTypeTextUpdated,
       saveReminder,
       cancel,
-      showReminderTypeSelector,
-      showTimeSelector,
-      getFormattedDateTime,
-      showCustomPickers,
-      showCustomDateTime,
-      hideCustomPickers,
-      confirmCustomDateTime
+      showReminderTypeSelector
     };
   }
 };
@@ -691,108 +569,12 @@ export default {
   }
 }
 
-/* 自定义日期时间选择器 */
-.custom-datetime {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.custom-modal {
-  background-color: #fcfbf8;
-  border-radius: 24rpx;
-  margin: 32rpx;
-  max-width: 600rpx;
-  width: 100%;
-  overflow: hidden;
-}
-
-.custom-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 32rpx;
-  border-bottom: 1rpx solid #f4efe7;
-}
-
-.custom-title {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #1c170d;
-}
-
-.custom-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 64rpx;
-  height: 64rpx;
-  cursor: pointer;
-}
-
-.picker-container {
-  padding: 32rpx;
-}
-
-.picker-item {
-  margin-bottom: 32rpx;
-}
-
-.picker-item:last-child {
-  margin-bottom: 0;
-}
-
-.picker-label {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #1c170d;
-  margin-bottom: 16rpx;
-}
-
+/* 选择器显示样式 */
 .picker-display {
-  padding: 24rpx 32rpx;
-  background-color: #f4efe7;
-  border-radius: 16rpx;
-  border: none;
-}
-
-.picker-text {
-  font-size: 28rpx;
-  color: #1c170d;
-}
-
-.custom-actions {
-  padding: 32rpx;
-  border-top: 1rpx solid #f4efe7;
-}
-
-.custom-btn {
   width: 100%;
-  height: 88rpx;
-  background-color: #f7bd4a;
-  border-radius: 44rpx;
-  border: none;
+  height: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.custom-btn:active {
-  background-color: #e6a73d;
-}
-
-.btn-text {
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #1c170d;
+  justify-content: flex-end;
 }
 </style> 

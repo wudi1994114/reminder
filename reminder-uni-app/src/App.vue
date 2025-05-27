@@ -49,6 +49,7 @@ export default {
 
 <style>
 /*每个页面公共css */
+@import './styles/modal.scss';
 page {
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 
                Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 

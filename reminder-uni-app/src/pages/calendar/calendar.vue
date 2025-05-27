@@ -1,83 +1,85 @@
 <template>
   <view class="page-container">
-    
-    <!-- 日历区域 -->
-    <view class="calendar-wrapper">
-      <view class="calendar-container">
-        <!-- 月份导航 -->
-        <view class="month-nav">
-          <button class="nav-btn" @click="previousMonth">
-            <text class="nav-arrow">‹</text>
-          </button>
-          <text class="month-title">{{ getMonthTitle() }}</text>
-          <button class="nav-btn" @click="nextMonth">
-            <text class="nav-arrow">›</text>
-          </button>
-        </view>
-        
-        <!-- 星期标题 -->
-        <view class="weekdays">
-          <text class="weekday-label" v-for="day in weekdayLabels" :key="day">{{ day }}</text>
-        </view>
-        
-        <!-- 日期网格 -->
-        <view class="dates-grid">
-          <button 
-            v-for="date in calendarDates" 
-            :key="date.key"
-            class="date-btn"
-            :class="{
-              'date-selected': date.isSelected,
-              'date-has-reminder': date.hasReminder,
-              'date-other-month': date.isOtherMonth
-            }"
-            @click="selectDate(date)"
-          >
-            <view class="date-content">{{ date.day }}</view>
-          </button>
-        </view>
-      </view>
-    </view>
-    
-    <!-- 选中日期的提醒列表 -->
-    <view class="reminders-section" v-if="selectedDate">
-      <text class="section-title">{{ getSelectedDateTitle() }}</text>
-      
-      <view v-if="loadingRemindersForDate" class="loading-state">
-        <text class="loading-text">加载提醒...</text>
-      </view>
-      <view v-else-if="selectedDateReminders.length === 0" class="empty-state">
-        <text class="empty-text">当日无提醒安排</text>
-      </view>
-      <view v-else class="reminders-list">
-        <view 
-          v-for="(reminder, index) in selectedDateReminders" 
-          :key="reminder.id || index" 
-          class="reminder-item"
-          :class="{ 'reminder-past': reminder.isPast }"
-          @click="viewReminderDetail(reminder.id)"
-        >
-          <view class="reminder-info">
-            <text class="reminder-title" :class="{ 'title-past': reminder.isPast }">{{ reminder.title }}</text>
-            <view class="reminder-meta">
-              <text class="reminder-time" :class="{ 'time-past': reminder.isPast }">{{ formatDisplayTime(reminder.eventTime) }}</text>
-              <text v-if="reminder.isPast" class="past-indicator">已过期</text>
-            </view>
-            <text v-if="reminder.description" class="reminder-description" :class="{ 'desc-past': reminder.isPast }">{{ reminder.description }}</text>
+    <!-- 内容区域 -->
+    <view class="content-wrapper">
+      <!-- 日历区域 -->
+      <view class="calendar-wrapper">
+        <view class="calendar-container">
+          <!-- 月份导航 -->
+          <view class="month-nav">
+            <button class="nav-btn" @click="previousMonth">
+              <text class="nav-arrow">‹</text>
+            </button>
+            <text class="month-title">{{ getMonthTitle() }}</text>
+            <button class="nav-btn" @click="nextMonth">
+              <text class="nav-arrow">›</text>
+            </button>
           </view>
-          <view class="reminder-checkbox">
-            <checkbox 
-              :checked="reminder.status === 'COMPLETED'"
-              @change="toggleReminderStatus(reminder)"
-              class="custom-checkbox"
-            />
+          
+          <!-- 星期标题 -->
+          <view class="weekdays">
+            <text class="weekday-label" v-for="day in weekdayLabels" :key="day">{{ day }}</text>
+          </view>
+          
+          <!-- 日期网格 -->
+          <view class="dates-grid">
+            <button 
+              v-for="date in calendarDates" 
+              :key="date.key"
+              class="date-btn"
+              :class="{
+                'date-selected': date.isSelected,
+                'date-has-reminder': date.hasReminder,
+                'date-other-month': date.isOtherMonth
+              }"
+              @click="selectDate(date)"
+            >
+              <view class="date-content">{{ date.day }}</view>
+            </button>
+          </view>
+        </view>
+      </view>
+      
+      <!-- 选中日期的提醒列表 -->
+      <view class="reminders-section" v-if="selectedDate">
+        <text class="section-title">{{ getSelectedDateTitle() }}</text>
+        
+        <view v-if="loadingRemindersForDate" class="loading-state">
+          <text class="loading-text">加载提醒...</text>
+        </view>
+        <view v-else-if="selectedDateReminders.length === 0" class="empty-state">
+          <text class="empty-text">当日无提醒安排</text>
+        </view>
+        <view v-else class="reminders-list">
+          <view 
+            v-for="(reminder, index) in selectedDateReminders" 
+            :key="reminder.id || index" 
+            class="reminder-item"
+            :class="{ 'reminder-past': reminder.isPast }"
+            @click="viewReminderDetail(reminder.id)"
+          >
+            <view class="reminder-info">
+              <text class="reminder-title" :class="{ 'title-past': reminder.isPast }">{{ reminder.title }}</text>
+              <view class="reminder-meta">
+                <text class="reminder-time" :class="{ 'time-past': reminder.isPast }">{{ formatDisplayTime(reminder.eventTime) }}</text>
+                <text v-if="reminder.isPast" class="past-indicator">已过期</text>
+              </view>
+              <text v-if="reminder.description" class="reminder-description" :class="{ 'desc-past': reminder.isPast }">{{ reminder.description }}</text>
+            </view>
+            <view class="reminder-checkbox">
+              <checkbox 
+                :checked="reminder.status === 'COMPLETED'"
+                @change="toggleReminderStatus(reminder)"
+                class="custom-checkbox"
+              />
+            </view>
           </view>
         </view>
       </view>
     </view>
     
     <!-- 底部添加按钮 -->
-    <view class="bottom-section">
+    <view class="bottom-actions">
       <button class="add-btn" @click="createReminderOnSelectedDate" :disabled="!selectedDate">
         <text class="add-icon">+</text>
         <text class="add-text">添加提醒</text>
@@ -517,6 +519,13 @@ export default {
   display: flex;
   flex-direction: column;
   font-family: 'Manrope', 'Noto Sans', sans-serif;
+  position: relative;
+}
+
+/* 内容区域 */
+.content-wrapper {
+  flex: 1;
+  padding-bottom: 110rpx; /* 为底部按钮留出空间 */
 }
 
 /* 顶部导航栏 */
@@ -559,8 +568,8 @@ export default {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 48rpx;
-  padding: 32rpx;
+  gap: 24rpx;
+  padding: 16rpx 32rpx;
 }
 
 .calendar-container {
@@ -629,7 +638,7 @@ export default {
 /* 提醒列表区域 */
 .reminders-section {
   background-color: #fcfbf8;
-  padding: 32rpx;
+  padding: 16rpx 32rpx;
 }
 
 /* 日期网格 */
@@ -700,7 +709,7 @@ export default {
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.015em;
-  padding: 32rpx 0 16rpx;
+  padding: 16rpx 0 8rpx;
 }
 
 /* 加载状态 */
@@ -741,12 +750,10 @@ export default {
 .reminder-item {
   display: flex;
   align-items: center;
-  gap: 32rpx;
+  gap: 24rpx;
   background-color: #fcfbf8;
-  padding: 32rpx;
-  min-height: 144rpx;
-  padding-top: 16rpx;
-  padding-bottom: 16rpx;
+  padding: 16rpx 0;
+  min-height: 120rpx;
   justify-content: space-between;
   cursor: pointer;
 }
@@ -807,10 +814,14 @@ export default {
 }
 
 /* 底部按钮区域 */
-.bottom-section {
-  display: flex;
-  padding: 32rpx;
-  padding-top: 24rpx;
+.bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: #fcfbf8;
+  padding: 8rpx 32rpx 8rpx 32rpx;
+  z-index: 100;
 }
 
 .add-btn {
@@ -821,15 +832,14 @@ export default {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border-radius: 48rpx;
-  height: 96rpx;
-  padding: 0 40rpx;
+  border-radius: 40rpx;
+  height: 80rpx;
+  padding: 0 32rpx;
   flex: 1;
   background-color: #f7bd4a;
   color: #1c170d;
-  gap: 16rpx;
-  padding-left: 40rpx;
-  font-size: 32rpx;
+  gap: 12rpx;
+  font-size: 30rpx;
   font-weight: 700;
   line-height: 1.4;
   letter-spacing: 0.015em;
@@ -848,7 +858,7 @@ export default {
 
 .add-icon {
   color: #1c170d;
-  font-size: 48rpx;
+  font-size: 40rpx;
   font-weight: 400;
 }
 
@@ -860,13 +870,17 @@ export default {
 
 /* 响应式适配 */
 @media (max-width: 750rpx) {
+  .content-wrapper {
+    padding-bottom: 90rpx; /* 小屏幕适配 */
+  }
+  
   .nav-header {
     padding: 24rpx 24rpx 12rpx;
   }
   
   .calendar-wrapper {
-    padding: 24rpx;
-    gap: 32rpx;
+    padding: 12rpx 24rpx;
+    gap: 16rpx;
   }
   
   .calendar-container {
@@ -894,17 +908,17 @@ export default {
   }
   
   .reminders-section {
-    padding: 24rpx;
+    padding: 12rpx 24rpx;
   }
   
   .section-title {
     font-size: 32rpx;
-    padding: 24rpx 0 12rpx;
+    padding: 12rpx 0 8rpx;
   }
   
   .reminder-item {
-    padding: 24rpx;
-    min-height: 120rpx;
+    padding: 12rpx 0;
+    min-height: 100rpx;
   }
   
   .reminder-title {
@@ -915,17 +929,18 @@ export default {
     font-size: 26rpx;
   }
   
-  .bottom-section {
-    padding: 24rpx;
+  .bottom-actions {
+    padding: 6rpx 24rpx 6rpx 24rpx;
   }
   
   .add-btn {
-    height: 80rpx;
-    font-size: 28rpx;
+    height: 70rpx;
+    font-size: 26rpx;
+    border-radius: 35rpx;
   }
   
   .add-icon {
-    font-size: 40rpx;
+    font-size: 32rpx;
   }
 }
 
