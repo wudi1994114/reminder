@@ -19,6 +19,12 @@
 			}
 		},
 		{
+			"path": "pages/test-cron/test-cron",
+			"style": {
+				"navigationBarTitleText": "Cron测试"
+			}
+		},
+		{
 			"path": "pages/detail/detail",
 			"style": {
 				"navigationBarTitleText": "提醒详情"

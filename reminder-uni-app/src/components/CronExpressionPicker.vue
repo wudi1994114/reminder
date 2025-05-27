@@ -41,23 +41,47 @@
         </view>
       </view>
       
-      <!-- 时间选择区域 -->
-      <view class="time-section">
-        <view class="time-header">
-          <text class="time-title">触发时间</text>
-        </view>
-        <view class="time-picker-container">
-          <picker mode="time" :value="selectedTime" @change="onTimeChange">
-            <view class="time-display">
-              <text class="time-text">{{ selectedTime || '09:00' }}</text>
-              <text class="time-arrow">▼</text>
-            </view>
-          </picker>
-        </view>
-      </view>
-      
       <!-- 选择内容区域 -->
       <view class="content-section">
+        <!-- 时间选择区域 -->
+        <view class="time-section">
+          <view class="setting-item" @click="showTimePicker">
+            <text class="setting-label">触发时间</text>
+            <text class="setting-value">{{ getFormattedTime() }}</text>
+          </view>
+        </view>
+        
+        <!-- 时间选择器弹窗 -->
+        <view v-if="showTimePickerModal" class="time-picker-overlay" @click="hideTimePicker">
+          <view class="time-picker-modal" @click.stop>
+            <view class="time-picker-header">
+              <text class="time-picker-cancel" @click="hideTimePicker">取消</text>
+              <text class="time-picker-title">选择时间</text>
+              <text class="time-picker-confirm" @click="confirmTimePicker">确定</text>
+            </view>
+            
+            <picker-view 
+              class="time-picker-view" 
+              :value="timePickerValue" 
+              @change="onTimePickerChange"
+            >
+              <!-- 小时 -->
+              <picker-view-column>
+                <view v-for="(hour, index) in timeHours" :key="index" class="time-picker-item">
+                  {{ String(hour).padStart(2, '0') }}时
+                </view>
+              </picker-view-column>
+              
+              <!-- 分钟 -->
+              <picker-view-column>
+                <view v-for="(minute, index) in timeMinutes" :key="index" class="time-picker-item">
+                  {{ String(minute).padStart(2, '0') }}分
+                </view>
+              </picker-view-column>
+            </picker-view>
+          </view>
+        </view>
+        
         <!-- 年选择 - 显示月份、周、日 -->
         <view v-if="currentType === 'year'" class="selection-area">
           <!-- 月份选择 -->
@@ -80,17 +104,26 @@
           </view>
           
           <!-- 周选择 -->
-          <view class="level-section">
+          <view class="level-section" :class="{ disabled: selectedDays.length > 0 }">
             <view class="level-header" @click="toggleWeekCollapse">
-              <text class="section-title">选择周</text>
-              <text class="collapse-icon" :class="{ collapsed: isWeekCollapsed }">▼</text>
+              <view class="header-left">
+                <text class="section-title">按星期重复</text>
+                <text v-if="selectedDays.length > 0" class="disabled-hint">（已选择日期）</text>
+              </view>
+              <view class="header-actions">
+                <text v-if="selectedWeekdays.length > 0" class="clear-btn" @click.stop="clearWeekdays">清空</text>
+                <text class="collapse-icon" :class="{ collapsed: isWeekCollapsed }">▼</text>
+              </view>
             </view>
             <view v-if="!isWeekCollapsed" class="options-grid">
               <view 
                 v-for="weekday in weekdayOptions" 
                 :key="weekday.value"
                 class="option-btn"
-                :class="{ selected: selectedWeekdays.includes(weekday.value) }"
+                :class="{ 
+                  selected: selectedWeekdays.includes(weekday.value),
+                  disabled: selectedDays.length > 0
+                }"
                 @click="toggleWeekday(weekday.value)"
               >
                 <text class="option-text">{{ weekday.label }}</text>
@@ -99,17 +132,26 @@
           </view>
           
           <!-- 日选择 -->
-          <view class="level-section">
+          <view class="level-section" :class="{ disabled: selectedWeekdays.length > 0 }">
             <view class="level-header" @click="toggleDayCollapse">
-              <text class="section-title">选择日</text>
-              <text class="collapse-icon" :class="{ collapsed: isDayCollapsed }">▼</text>
+              <view class="header-left">
+                <text class="section-title">按日期重复</text>
+                <text v-if="selectedWeekdays.length > 0" class="disabled-hint">（已选择星期）</text>
+              </view>
+              <view class="header-actions">
+                <text v-if="selectedDays.length > 0" class="clear-btn" @click.stop="clearDays">清空</text>
+                <text class="collapse-icon" :class="{ collapsed: isDayCollapsed }">▼</text>
+              </view>
             </view>
             <view v-if="!isDayCollapsed" class="options-grid day-grid">
               <view 
                 v-for="day in dayOptions" 
                 :key="day"
                 class="option-btn"
-                :class="{ selected: selectedDays.includes(day) }"
+                :class="{ 
+                  selected: selectedDays.includes(day),
+                  disabled: selectedWeekdays.length > 0
+                }"
                 @click="toggleDay(day)"
               >
                 <text class="option-text">{{ day }}</text>
@@ -118,34 +160,14 @@
           </view>
         </view>
         
-        <!-- 月选择 - 显示周和天 -->
+        <!-- 月选择 - 只显示日期 -->
         <view v-if="currentType === 'month'" class="selection-area">
-          <!-- 周选择 -->
-          <view class="level-section">
-            <view class="level-header" @click="toggleWeekCollapse">
-              <text class="section-title">选择周</text>
-              <text class="collapse-icon" :class="{ collapsed: isWeekCollapsed }">▼</text>
-            </view>
-            <view v-if="!isWeekCollapsed" class="options-grid">
-              <view 
-                v-for="weekday in weekdayOptions" 
-                :key="weekday.value"
-                class="option-btn"
-                :class="{ selected: selectedWeekdays.includes(weekday.value) }"
-                @click="toggleWeekday(weekday.value)"
-              >
-                <text class="option-text">{{ weekday.label }}</text>
-              </view>
-            </view>
-          </view>
-          
           <!-- 日选择 -->
           <view class="level-section">
-            <view class="level-header" @click="toggleDayCollapse">
-              <text class="section-title">选择日</text>
-              <text class="collapse-icon" :class="{ collapsed: isDayCollapsed }">▼</text>
+            <view class="level-header">
+              <text class="section-title">选择日期</text>
             </view>
-            <view v-if="!isDayCollapsed" class="options-grid day-grid">
+            <view class="options-grid day-grid">
               <view 
                 v-for="day in dayOptions" 
                 :key="day"
@@ -208,6 +230,12 @@ export default {
     const selectedWeekdays = ref([]);
     const selectedTime = ref('09:00');  // 默认时间
     
+    // 时间选择器相关
+    const showTimePickerModal = ref(false);
+    const timePickerValue = ref([9, 0]); // [小时索引, 分钟索引]
+    const timeHours = ref(Array.from({ length: 24 }, (_, i) => i));
+    const timeMinutes = ref(Array.from({ length: 60 }, (_, i) => i));
+    
     // 折叠状态 - 设置默认折叠状态
     const isMonthCollapsed = ref(true);  // 年模式下月份默认折叠
     const isWeekCollapsed = ref(true);   // 年和月模式下周默认折叠
@@ -228,21 +256,87 @@ export default {
       
       try {
         const parts = props.initialValue.trim().split(/\s+/);
+        console.log('解析初始Cron表达式:', props.initialValue, '分割结果:', parts);
+        
         if (parts.length >= 3) {
-          let hour, minute;
+          let second, minute, hour, day, month, weekday, year;
           
           if (parts.length === 5) {
             // 5位格式: 分 时 日 月 周
-            minute = parts[0];
-            hour = parts[1];
-          } else if (parts.length >= 6) {
-            // 6位或7位格式: 秒 分 时 日 月 周 [年]
-            minute = parts[1];
-            hour = parts[2];
+            [minute, hour, day, month, weekday] = parts;
+            second = '0';
+            year = '*';
+          } else if (parts.length === 6) {
+            // 6位格式: 秒 分 时 日 月 周
+            [second, minute, hour, day, month, weekday] = parts;
+            year = '*';
+          } else if (parts.length === 7) {
+            // 7位格式: 秒 分 时 日 月 周 年
+            [second, minute, hour, day, month, weekday, year] = parts;
           }
           
+          console.log('解析结果:', { second, minute, hour, day, month, weekday, year });
+          
+          // 设置时间
           if (hour && minute) {
             selectedTime.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          }
+          
+          // 根据Cron表达式判断类型并设置选择状态
+          if (month !== '*' && month !== '?' && month.trim() !== '') {
+            // 年重复 - 优先检查年重复
+            currentType.value = 'year';
+            selectedMonths.value = month.split(',').map(m => parseInt(m.trim())).filter(m => !isNaN(m));
+            
+            // 检查是使用星期还是日期
+            if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
+              // 年重复 + 星期模式
+              selectedWeekdays.value = weekday.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+              selectedDays.value = []; // 清空日期选择
+              console.log('识别为年重复（星期模式），选择的月份:', selectedMonths.value, '选择的星期:', selectedWeekdays.value);
+            } else if (day !== '?' && day !== '*' && day.trim() !== '') {
+              // 年重复 + 日期模式
+              selectedDays.value = day.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+              selectedWeekdays.value = []; // 清空星期选择
+              console.log('识别为年重复（日期模式），选择的月份:', selectedMonths.value, '选择的日期:', selectedDays.value);
+            } else {
+              // 年重复，默认使用日期模式
+              selectedDays.value = [1];
+              selectedWeekdays.value = [];
+              console.log('识别为年重复（默认日期模式），选择的月份:', selectedMonths.value);
+            }
+          } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
+            // 周重复
+            currentType.value = 'week';
+            selectedWeekdays.value = weekday.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+            console.log('识别为周重复，选择的星期:', selectedWeekdays.value);
+          } else if (day !== '?' && day !== '*' && day.trim() !== '') {
+            // 月重复
+            currentType.value = 'month';
+            selectedDays.value = day.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+            console.log('识别为月重复，选择的日期:', selectedDays.value);
+          } else {
+            // 默认为月重复
+            currentType.value = 'month';
+            if (selectedDays.value.length === 0) {
+              selectedDays.value = [1]; // 默认每月1号
+            }
+            console.log('默认设置为月重复');
+          }
+          
+          // 根据类型设置折叠状态
+          if (currentType.value === 'year') {
+            isMonthCollapsed.value = false; // 年模式展开月份选择
+            isWeekCollapsed.value = true;
+            isDayCollapsed.value = true;
+          } else if (currentType.value === 'month') {
+            isMonthCollapsed.value = true;
+            isWeekCollapsed.value = true;
+            isDayCollapsed.value = false; // 月模式展开日期选择
+          } else if (currentType.value === 'week') {
+            isMonthCollapsed.value = true;
+            isWeekCollapsed.value = false; // 周模式展开星期选择
+            isDayCollapsed.value = true;
           }
         }
       } catch (error) {
@@ -287,25 +381,29 @@ export default {
       
       // 切换类型时清空其他选择
       if (type !== 'year') selectedMonths.value = [];
-      if (type !== 'month') selectedDays.value = [];
-      if (type !== 'week') selectedWeekdays.value = [];
+      if (type !== 'month' && type !== 'year') selectedDays.value = [];
+      if (type !== 'week' && type !== 'year') selectedWeekdays.value = [];
       
       // 根据类型设置折叠状态
       if (type === 'year') {
-        // 年模式：所有内容默认折叠
-        isMonthCollapsed.value = true;
+        // 年模式：月份展开，其他折叠
+        isMonthCollapsed.value = false;
         isWeekCollapsed.value = true;
         isDayCollapsed.value = true;
       } else if (type === 'month') {
-        // 月模式：周默认折叠，日可展开
-        isMonthCollapsed.value = false; // 月模式下不显示月份选择
-        isWeekCollapsed.value = true;   // 周默认折叠
-        isDayCollapsed.value = false;   // 日可以展开
-      } else if (type === 'week') {
-        // 周模式：只显示周选择，其他不相关
-        isMonthCollapsed.value = false;
-        isWeekCollapsed.value = false;  // 周展开
+        // 月模式：只显示日期，不需要折叠状态
+        isMonthCollapsed.value = true;
+        isWeekCollapsed.value = true;
         isDayCollapsed.value = false;
+        // 确保月模式下没有星期选择
+        selectedWeekdays.value = [];
+      } else if (type === 'week') {
+        // 周模式：只显示星期选择
+        isMonthCollapsed.value = true;
+        isWeekCollapsed.value = false;
+        isDayCollapsed.value = true;
+        // 确保周模式下没有日期选择
+        selectedDays.value = [];
       }
     };
     
@@ -321,21 +419,49 @@ export default {
     
     // 切换日期选择
     const toggleDay = (day) => {
+      // 在年模式中，如果已经选择了星期，阻止选择日期
+      if (currentType.value === 'year' && selectedWeekdays.value.length > 0) {
+        uni.showToast({
+          title: '请先清空星期选择',
+          icon: 'none',
+          duration: 2000
+        });
+        return;
+      }
+      
       const index = selectedDays.value.indexOf(day);
       if (index > -1) {
         selectedDays.value.splice(index, 1);
       } else {
         selectedDays.value.push(day);
+        // 在年模式中，如果选择了日期，清空星期选择（因为它们在Cron中是互斥的）
+        if (currentType.value === 'year') {
+          selectedWeekdays.value = [];
+        }
       }
     };
     
     // 切换星期选择
     const toggleWeekday = (weekday) => {
+      // 在年模式中，如果已经选择了日期，阻止选择星期
+      if (currentType.value === 'year' && selectedDays.value.length > 0) {
+        uni.showToast({
+          title: '请先清空日期选择',
+          icon: 'none',
+          duration: 2000
+        });
+        return;
+      }
+      
       const index = selectedWeekdays.value.indexOf(weekday);
       if (index > -1) {
         selectedWeekdays.value.splice(index, 1);
       } else {
         selectedWeekdays.value.push(weekday);
+        // 在年模式中，如果选择了星期，清空日期选择（因为它们在Cron中是互斥的）
+        if (currentType.value === 'year') {
+          selectedDays.value = [];
+        }
       }
     };
     
@@ -392,9 +518,18 @@ export default {
       console.log('选择的星期:', selectedWeekdays.value);
       
       if (currentType.value === 'year') {
-        // 年度重复：每年指定月份的1号
+        // 年度重复：根据选择的内容生成不同的表达式
         const months = selectedMonths.value.length > 0 ? selectedMonths.value.join(',') : '1'; // 默认1月
-        return `0 ${minute} ${hour} 1 ${months} ? *`;
+        
+        if (selectedWeekdays.value.length > 0) {
+          // 如果选择了星期，则使用星期模式（日期用?）
+          const weekdays = selectedWeekdays.value.join(',');
+          return `0 ${minute} ${hour} ? ${months} ${weekdays} *`;
+        } else {
+          // 如果没有选择星期，则使用日期模式（星期用?）
+          const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
+          return `0 ${minute} ${hour} ${days} ${months} ? *`;
+        }
       } else if (currentType.value === 'month') {
         // 月度重复：每月指定日期
         const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
@@ -406,6 +541,57 @@ export default {
       }
       
       return `0 ${minute} ${hour} * * ? *`; // 默认每天
+    };
+
+    // 清空星期选择
+    const clearWeekdays = () => {
+      selectedWeekdays.value = [];
+      selectedDays.value = [];
+    };
+
+    // 清空日期选择
+    const clearDays = () => {
+      selectedDays.value = [];
+    };
+
+    // 时间选择器方法
+    const showTimePicker = () => {
+      // 解析当前时间到picker值
+      const [hour, minute] = selectedTime.value.split(':');
+      timePickerValue.value = [parseInt(hour), parseInt(minute)];
+      showTimePickerModal.value = true;
+    };
+
+    const hideTimePicker = () => {
+      showTimePickerModal.value = false;
+    };
+
+    const onTimePickerChange = (e) => {
+      timePickerValue.value = e.detail.value;
+    };
+
+    const confirmTimePicker = () => {
+      const [hourIndex, minuteIndex] = timePickerValue.value;
+      const hour = timeHours.value[hourIndex];
+      const minute = timeMinutes.value[minuteIndex];
+      selectedTime.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      showTimePickerModal.value = false;
+    };
+
+    const getFormattedTime = () => {
+      if (!selectedTime.value) return '选择时间';
+      
+      const [hour, minute] = selectedTime.value.split(':');
+      const hourNum = parseInt(hour);
+      const minuteNum = parseInt(minute);
+      
+      if (hourNum < 12) {
+        const displayHour = hourNum === 0 ? 12 : hourNum;
+        return `上午${displayHour}:${String(minuteNum).padStart(2, '0')}`;
+      } else {
+        const displayHour = hourNum === 12 ? 12 : hourNum - 12;
+        return `下午${displayHour}:${String(minuteNum).padStart(2, '0')}`;
+      }
     };
 
     return {
@@ -430,7 +616,18 @@ export default {
       toggleDayCollapse,
       handleOverlayClick,
       handleCancel,
-      handleConfirm
+      handleConfirm,
+      clearWeekdays,
+      clearDays,
+      showTimePickerModal,
+      timePickerValue,
+      timeHours,
+      timeMinutes,
+      showTimePicker,
+      hideTimePicker,
+      onTimePickerChange,
+      confirmTimePicker,
+      getFormattedTime
     };
   }
 };
@@ -542,51 +739,37 @@ export default {
 
 /* 时间选择区域 */
 .time-section {
-  padding: 32rpx;
-  border-bottom: 1rpx solid #e9e0ce;
-  background-color: #fcfbf8;
-}
-
-.time-header {
+  padding: 0 0 32rpx 0;
   margin-bottom: 24rpx;
+  background-color: #fcfbf8;
+  border-bottom: 1rpx solid #e9e0ce;
 }
 
-.time-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #1c170d;
-}
-
-.time-picker-container {
-  width: 100%;
-}
-
-.time-display {
+.setting-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 24rpx 32rpx;
   background-color: #f4efe7;
   border-radius: 20rpx;
-  border: 2rpx solid transparent;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.time-display:active {
+.setting-item:active {
   background-color: #f0ede4;
-  border-color: #f7bd4a;
 }
 
-.time-text {
+.setting-label {
   font-size: 32rpx;
   font-weight: 600;
   color: #1c170d;
 }
 
-.time-arrow {
-  font-size: 24rpx;
-  color: #9d8148;
+.setting-value {
+  font-size: 32rpx;
   font-weight: 600;
+  color: #1c170d;
 }
 
 .switch-container {
@@ -684,6 +867,34 @@ export default {
   font-size: 32rpx;
   font-weight: 600;
   color: #1c170d;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  flex: 1;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.clear-btn {
+  font-size: 24rpx;
+  color: #f7bd4a;
+  font-weight: 500;
+  padding: 8rpx 16rpx;
+  background-color: rgba(247, 189, 74, 0.1);
+  border-radius: 12rpx;
+  transition: all 0.2s ease;
+}
+
+.clear-btn:active {
+  background-color: rgba(247, 189, 74, 0.2);
+  transform: scale(0.95);
 }
 
 .collapse-icon {
@@ -828,5 +1039,98 @@ export default {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* 禁用状态样式 */
+.level-section.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.level-section.disabled .section-title {
+  color: #9d8148;
+}
+
+.disabled-hint {
+  font-size: 24rpx;
+  color: #9d8148;
+  font-style: italic;
+  margin-left: 16rpx;
+}
+
+.option-btn.disabled {
+  background-color: #f5f5f5;
+  border-color: #e0e0e0;
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.option-btn.disabled .option-text {
+  color: #999999;
+}
+
+.option-btn.disabled:hover {
+  background-color: #f5f5f5;
+  transform: none;
+}
+
+/* 时间选择器弹窗样式 */
+.time-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  z-index: 10000;
+}
+
+.time-picker-modal {
+  width: 100%;
+  background-color: #ffffff;
+  border-radius: 24rpx 24rpx 0 0;
+  overflow: hidden;
+}
+
+.time-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.time-picker-cancel {
+  font-size: 32rpx;
+  color: #999999;
+}
+
+.time-picker-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
+.time-picker-confirm {
+  font-size: 32rpx;
+  color: #f7bd4a;
+  font-weight: 600;
+}
+
+.time-picker-view {
+  height: 480rpx;
+  padding: 0 32rpx;
+}
+
+.time-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80rpx;
+  font-size: 32rpx;
+  color: #1c170d;
 }
 </style> 

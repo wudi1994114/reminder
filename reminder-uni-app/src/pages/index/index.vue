@@ -12,6 +12,9 @@
         <button class="action-btn secondary-btn" @click="navigateToComplexCreate">
           <text class="btn-text">复杂提醒</text>
         </button>
+        <button class="action-btn test-btn" @click="navigateToTest">
+          <text class="btn-text">测试</text>
+        </button>
       </view>
     </view>
     
@@ -88,14 +91,6 @@ export default {
         reminderState.loading = true;
         
         const result = await getUpcomingReminders();
-        console.log('=== Index页面提醒数据调试 ===');
-        console.log('getUpcomingReminders结果:', result);
-        console.log('结果类型:', typeof result);
-        console.log('是否为数组:', Array.isArray(result));
-        if (Array.isArray(result) && result.length > 0) {
-          console.log('第一个提醒项:', result[0]);
-          console.log('第一个提醒项的ID:', result[0].id);
-        }
         
         if (result) {
           reminderState.upcomingReminders = result;
@@ -129,6 +124,12 @@ export default {
     const navigateToComplexCreate = () => {
       uni.navigateTo({
         url: '/pages/create-complex/create-complex'
+      });
+    };
+    
+    const navigateToTest = () => {
+      uni.navigateTo({
+        url: '/pages/test-cron/test-cron'
       });
     };
     
@@ -175,6 +176,7 @@ export default {
       loading,
       navigateToCreate,
       navigateToComplexCreate,
+      navigateToTest,
       goToDetail,
       formatTime,
       loadReminders,
@@ -245,6 +247,12 @@ export default {
 }
 
 .secondary-btn {
+  background-color: #ffffff;
+  color: #1c170d;
+  border: 2rpx solid #e9e0ce;
+}
+
+.test-btn {
   background-color: #ffffff;
   color: #1c170d;
   border: 2rpx solid #e9e0ce;

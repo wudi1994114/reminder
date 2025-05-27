@@ -117,11 +117,18 @@
         <!-- 高级模式内容 -->
         <view v-if="activeTab === 'advanced'">
           <!-- 时间设置按钮 -->
-          <view class="setting-item" @click="showTimeSettings">
+          <view class="setting-item time-setting-item" @click="showTimeSettings">
             <text class="setting-label">时间设置</text>
-            <text class="setting-value">{{ cronDescription }}</text>
+            <view 
+              class="setting-value-container" 
+              :class="{ 'overflow': isTextOverflow }"
+              :style="{ '--scroll-distance': scrollDistance }"
+              ref="timeValueContainer"
+            >
+              <text class="setting-value scrollable-text" ref="timeValueText">{{ cronDescription }}</text>
+            </view>
           </view>
-
+          
           <!-- 触发时间预览 -->
           <trigger-preview
             title="触发时间预览"
@@ -221,6 +228,8 @@ export default {
       activeTab: 'simple', // 'simple' 或 'advanced'
       showCronExpression: false, // 控制Cron表达式展开
       showCronPicker: false, // 控制Cron选择器显示
+      isTextOverflow: false, // 控制跑马灯效果
+      scrollDistance: '-50%', // 滚动距离
       
       // 提醒数据
       reminderData: {
@@ -351,6 +360,14 @@ export default {
           this.reminderData.cronExpression = cronParts.join(' ');
         }
       }
+    },
+    
+    // 监听cronDescription变化，触发文本溢出检测
+    cronDescription(newDescription) {
+      console.log('cronDescription变化:', newDescription);
+      this.$nextTick(() => {
+        this.checkTextOverflow();
+      });
     }
   },
   
@@ -363,6 +380,20 @@ export default {
     this.initializeData();
     this.generateMonthDays();
     this.updatePreview();
+    
+    // 添加调试日志
+    console.log('页面加载完成，初始cronExpression:', this.reminderData.cronExpression);
+    console.log('初始cronDescription:', this.cronDescription);
+  },
+  
+  mounted() {
+    // 页面挂载后检测文本溢出
+    this.checkTextOverflow();
+  },
+  
+  updated() {
+    // 页面更新后检测文本溢出
+    this.checkTextOverflow();
   },
   
   methods: {
@@ -605,13 +636,29 @@ export default {
         const timeStr = this.formatTime(hour, minute);
         console.log('格式化时间结果:', timeStr);
         
-        // 解析重复模式
-        if (weekday !== '?' && weekday !== '*') {
+        // 解析重复模式 - 修复逻辑，正确处理"?"符号，优先检查年重复
+        if (month !== '*' && month !== '?' && month.trim() !== '') {
+          // 按年重复 - 优先检查年重复
+          const months = this.parseMonths(month);
+          
+          if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
+            // 年重复 + 星期模式
+            const weekdays = this.parseWeekdays(weekday);
+            description = `每年${months}的${weekdays}${timeStr}`;
+          } else if (day !== '?' && day !== '*' && day.trim() !== '') {
+            // 年重复 + 日期模式
+            description = `每年${months}${day}日${timeStr}`;
+          } else {
+            // 年重复但日期和星期都为通配符
+            description = `每年${months}${timeStr}`;
+          }
+          console.log('识别为年重复:', description);
+        } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
           // 按周重复
           const weekdays = this.parseWeekdays(weekday);
           description = `每${weekdays}${timeStr}`;
           console.log('识别为周重复:', description);
-        } else if (day !== '?' && day !== '*') {
+        } else if (day !== '?' && day !== '*' && day.trim() !== '') {
           // 按月重复
           if (day.includes(',')) {
             const days = day.split(',').join('日、');
@@ -620,11 +667,6 @@ export default {
             description = `每月${day}日${timeStr}`;
           }
           console.log('识别为月重复:', description);
-        } else if (month !== '*') {
-          // 按年重复
-          const months = this.parseMonths(month);
-          description = `每年${months}${timeStr}`;
-          console.log('识别为年重复:', description);
         } else {
           // 每天重复
           description = `每天${timeStr}`;
@@ -666,7 +708,7 @@ export default {
       };
       
       if (weekday.includes(',')) {
-        return weekday.split(',').map(w => weekMap[w.trim()] || w).join('、');
+        return weekday.split(',').map(w => weekMap[w.trim()] || w).join(',');
       } else {
         return weekMap[weekday] || weekday;
       }
@@ -681,7 +723,7 @@ export default {
       };
       
       if (month.includes(',')) {
-        return month.split(',').map(m => monthMap[m.trim()] || m).join('、');
+        return month.split(',').map(m => monthMap[m.trim()] || m).join(',');
       } else {
         return monthMap[month] || month;
       }
@@ -919,10 +961,6 @@ export default {
       this.updatePreview();
     },
     
-
-    
-
-    
     // 每月第几天改变
     onMonthDayChange(e) {
       this.monthDayIndex = e.detail.value;
@@ -1045,13 +1083,8 @@ export default {
             break;
         }
       } else {
-        // 高级模式，解析Cron表达式
-        try {
-          // 这里可以使用cronstrue库来解析
-          this.humanReadableDescription = `Cron表达式: ${this.reminderData.cronExpression}`;
-        } catch (error) {
-          this.humanReadableDescription = '无效的Cron表达式';
-        }
+        // 高级模式，使用cronDescription
+        this.humanReadableDescription = this.cronDescription;
       }
     },
     
@@ -1070,29 +1103,47 @@ export default {
         const generatedTimes = [];
         
         console.log('开始生成预览时间，当前时间:', this.formatDateTime(now));
-        console.log('简单模式数据:', this.simpleData);
+        console.log('当前模式:', this.activeTab);
+        console.log('Cron表达式:', this.reminderData.cronExpression);
         
-        // 根据重复类型生成时间
-        for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
-          const targetDate = this.getNextTriggerTime(currentDate);
-          
-          console.log(`第${i+1}次查找，从时间:`, this.formatDateTime(currentDate), '找到:', targetDate ? this.formatDateTime(targetDate) : 'null');
-          
-          if (!targetDate) break;
-          
-          if (endDate && targetDate > endDate) break;
-          
-          generatedTimes.push(this.formatDateTime(targetDate));
-          
-          // 移动到下一个周期的起始点
-          if (this.simpleData.recurrenceType === 'DAILY') {
-            // 每天重复：移动到下一天的0点
-            currentDate = new Date(targetDate.getTime());
-            currentDate.setDate(currentDate.getDate() + 1);
-            currentDate.setHours(0, 0, 0, 0);
-          } else {
-            // 其他重复类型：移动到目标时间后1分钟
-            currentDate = new Date(targetDate.getTime() + 60 * 1000);
+        // 根据模式选择不同的生成方式
+        if (this.activeTab === 'advanced') {
+          // 高级模式：直接从Cron表达式生成
+          const cronData = this.parseCronExpressionForPreview(this.reminderData.cronExpression);
+          if (cronData) {
+            for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
+              const targetDate = this.getNextTriggerTimeFromCron(currentDate, cronData);
+              if (!targetDate) break;
+              
+              if (endDate && targetDate > endDate) break;
+              
+              generatedTimes.push(this.formatDateTime(targetDate));
+              
+              // 移动到目标时间后1分钟
+              currentDate = new Date(targetDate.getTime() + 60 * 1000);
+            }
+          }
+        } else {
+          // 简单模式：使用simpleData生成
+          console.log('简单模式数据:', this.simpleData);
+          for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
+            const targetDate = this.getNextTriggerTime(currentDate);
+            if (!targetDate) break;
+            
+            if (endDate && targetDate > endDate) break;
+            
+            generatedTimes.push(this.formatDateTime(targetDate));
+            
+            // 移动到下一个周期的起始点
+            if (this.simpleData.recurrenceType === 'DAILY') {
+              // 每天重复：移动到下一天的0点
+              currentDate = new Date(targetDate.getTime());
+              currentDate.setDate(currentDate.getDate() + 1);
+              currentDate.setHours(0, 0, 0, 0);
+            } else {
+              // 其他重复类型：移动到目标时间后1分钟
+              currentDate = new Date(targetDate.getTime() + 60 * 1000);
+            }
           }
         }
         
@@ -1281,14 +1332,21 @@ export default {
       console.log('接收到的cron表达式:', cronExpression);
       console.log('更新前的cronExpression:', this.reminderData.cronExpression);
       
-      // 直接赋值应该能触发响应式更新
-      this.reminderData.cronExpression = cronExpression;
+      // 使用Vue.set确保响应式更新
+      this.$set(this.reminderData, 'cronExpression', cronExpression);
       
       console.log('更新后的cronExpression:', this.reminderData.cronExpression);
+      
+      // 强制更新视图
+      this.$forceUpdate();
       
       // 延迟计算以确保数据已更新
       this.$nextTick(() => {
         console.log('nextTick中计算的cronDescription:', this.cronDescription);
+        // 再次强制更新确保显示正确
+        this.$forceUpdate();
+        // 检测文本溢出
+        this.checkTextOverflow();
       });
       
       this.showCronPicker = false;
@@ -1427,6 +1485,196 @@ export default {
       }
       
       return `${dateStr} ${timeStr}`;
+    },
+    
+    // 检测文本是否溢出
+    checkTextOverflow() {
+      console.log('开始检测文本溢出，cronDescription:', this.cronDescription);
+      this.$nextTick(() => {
+        try {
+          // 获取容器宽度
+          uni.createSelectorQuery().in(this).select('.setting-value-container').boundingClientRect((containerRect) => {
+            if (containerRect) {
+              console.log('容器宽度:', containerRect.width);
+              
+              // 使用字符长度估算文本宽度（中文字符按1.2倍计算）
+              const text = this.cronDescription;
+              let estimatedWidth = 0;
+              for (let i = 0; i < text.length; i++) {
+                const char = text.charAt(i);
+                // 中文字符宽度约16px，英文字符约8px（基于28rpx字体）
+                if (/[\u4e00-\u9fa5]/.test(char)) {
+                  estimatedWidth += 16; // 中文字符
+                } else {
+                  estimatedWidth += 8; // 英文字符和数字
+                }
+              }
+              
+              console.log('估算文本宽度:', estimatedWidth, 'px，容器宽度:', containerRect.width, 'px');
+              
+              // 如果估算宽度超过容器宽度，启用跑马灯
+              if (estimatedWidth > containerRect.width - 20) { // 20px的误差范围
+                // 计算滚动距离
+                const overflowWidth = estimatedWidth - containerRect.width + 40; // 额外40px缓冲
+                this.scrollDistance = `-${overflowWidth}px`;
+                this.isTextOverflow = true;
+                console.log('文本溢出，启用跑马灯，滚动距离:', this.scrollDistance);
+              } else {
+                this.isTextOverflow = false;
+                console.log('文本未溢出，禁用跑马灯');
+              }
+            } else {
+              console.log('无法获取容器尺寸信息');
+              // 如果无法获取容器信息，基于文本长度简单判断
+              if (this.cronDescription.length > 15) {
+                this.isTextOverflow = true;
+                this.scrollDistance = '-150px';
+                console.log('基于文本长度判断溢出，启用跑马灯');
+              }
+            }
+          }).exec();
+        } catch (error) {
+          console.error('检测文本溢出失败:', error);
+          // 出错时，基于文本长度简单判断
+          if (this.cronDescription.length > 15) {
+            this.isTextOverflow = true;
+            this.scrollDistance = '-150px';
+            console.log('检测出错，基于文本长度判断溢出');
+          }
+        }
+      });
+    },
+    
+    // 解析Cron表达式用于预览生成
+    parseCronExpressionForPreview(cronExpression) {
+      if (!cronExpression || cronExpression.trim() === '') {
+        return null;
+      }
+      
+      try {
+        const parts = cronExpression.trim().split(/\s+/);
+        
+        if (parts.length < 5) {
+          return null;
+        }
+        
+        let second, minute, hour, day, month, weekday, year;
+        
+        if (parts.length === 5) {
+          // 5位格式: 分 时 日 月 周
+          [minute, hour, day, month, weekday] = parts;
+          second = '0';
+          year = '*';
+        } else if (parts.length === 6) {
+          // 6位格式: 秒 分 时 日 月 周
+          [second, minute, hour, day, month, weekday] = parts;
+          year = '*';
+        } else {
+          // 7位格式: 秒 分 时 日 月 周 年
+          [second, minute, hour, day, month, weekday, year] = parts;
+        }
+        
+        return {
+          second: second,
+          minute: minute,
+          hour: hour,
+          day: day,
+          month: month,
+          weekday: weekday,
+          year: year
+        };
+      } catch (error) {
+        console.error('解析Cron表达式失败:', error);
+        return null;
+      }
+    },
+    
+    // 根据Cron表达式获取下次触发时间
+    getNextTriggerTimeFromCron(fromDate, cronData) {
+      if (!cronData) return null;
+      
+      const { minute, hour, day, month, weekday } = cronData;
+      
+      // 解析时间
+      const targetMinute = minute === '*' ? fromDate.getMinutes() : parseInt(minute);
+      const targetHour = hour === '*' ? fromDate.getHours() : parseInt(hour);
+      
+      // 创建候选时间
+      let targetDate = new Date(fromDate);
+      targetDate.setHours(targetHour, targetMinute, 0, 0);
+      
+      // 如果时间已过，移动到下一天
+      if (targetDate <= fromDate) {
+        targetDate.setDate(targetDate.getDate() + 1);
+        targetDate.setHours(targetHour, targetMinute, 0, 0);
+      }
+      
+      // 检查日期和星期约束
+      const maxAttempts = 366; // 最多尝试一年
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        const currentDay = targetDate.getDate();
+        const currentMonth = targetDate.getMonth() + 1;
+        const currentWeekday = targetDate.getDay();
+        
+        let dayMatch = true;
+        let monthMatch = true;
+        let weekdayMatch = true;
+        
+        // 检查日期约束
+        if (day !== '*' && day !== '?') {
+          if (day.includes(',')) {
+            dayMatch = day.split(',').map(d => parseInt(d.trim())).includes(currentDay);
+          } else {
+            dayMatch = currentDay === parseInt(day);
+          }
+        }
+        
+        // 检查月份约束
+        if (month !== '*' && month !== '?') {
+          if (month.includes(',')) {
+            monthMatch = month.split(',').map(m => parseInt(m.trim())).includes(currentMonth);
+          } else {
+            monthMatch = currentMonth === parseInt(month);
+          }
+        }
+        
+        // 检查星期约束
+        if (weekday !== '*' && weekday !== '?') {
+          let targetWeekdays = [];
+          if (weekday.includes(',')) {
+            targetWeekdays = weekday.split(',').map(w => {
+              const wd = w.trim();
+              return isNaN(wd) ? this.parseWeekdayString(wd) : parseInt(wd);
+            });
+          } else {
+            const wd = weekday.trim();
+            targetWeekdays = [isNaN(wd) ? this.parseWeekdayString(wd) : parseInt(wd)];
+          }
+          weekdayMatch = targetWeekdays.includes(currentWeekday);
+        }
+        
+        // 如果所有约束都满足，返回这个时间
+        if (dayMatch && monthMatch && weekdayMatch) {
+          return targetDate;
+        }
+        
+        // 移动到下一天
+        targetDate.setDate(targetDate.getDate() + 1);
+        targetDate.setHours(targetHour, targetMinute, 0, 0);
+        attempts++;
+      }
+      
+      return null; // 找不到合适的时间
+    },
+    
+    // 解析星期字符串
+    parseWeekdayString(weekdayStr) {
+      const weekdayMap = {
+        'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6
+      };
+      return weekdayMap[weekdayStr.toUpperCase()] || 0;
     }
   }
 }
@@ -1832,14 +2080,28 @@ export default {
 
 .setting-label {
   font-size: 32rpx;
+  font-weight: 400;
   color: #1c170d;
-  font-weight: 600;
   line-height: 1.4;
-  flex: 1;
+  flex-shrink: 0;
+  min-width: 160rpx;
+  max-width: 40%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .setting-value {
-  flex-shrink: 0;
+  font-size: 32rpx;
+  font-weight: 400;
+  color: #1c170d;
+  line-height: 1.4;
+  flex: 1;
+  max-width: 60%;
+  text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .value-text {
@@ -1916,8 +2178,6 @@ export default {
   color: #9d8148;
   font-weight: 400;
 }
-
-
 
 /* Cron表达式显示 */
 .cron-display-wrapper {
@@ -2064,7 +2324,9 @@ export default {
   font-weight: 400;
   color: #1c170d;
   line-height: 1.4;
-  flex: 1;
+  flex-shrink: 0;
+  min-width: 160rpx;
+  max-width: 40%;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -2186,5 +2448,83 @@ export default {
   font-size: 28rpx;
   font-weight: 700;
   color: #1c170d;
+}
+
+/* 时间设置项特殊样式 */
+.setting-item.time-setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  background-color: #fcfbf8;
+  padding: 32rpx;
+  min-height: 112rpx;
+  cursor: pointer;
+}
+
+.setting-item.time-setting-item:active {
+  background-color: #f4efe7;
+}
+
+.setting-value-container {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  position: relative;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.scrollable-text {
+  font-size: 28rpx;
+  color: #1c170d;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+  text-align: right;
+}
+
+/* 当文本超出容器时启用跑马灯效果 */
+.setting-value-container.overflow {
+  /* border: 2rpx solid red; */ /* 调试用：显示overflow状态 */
+}
+
+.setting-value-container.overflow .scrollable-text {
+  animation: marquee 6s linear infinite;
+  animation-delay: 0.5s;
+  /* 移除text-overflow以显示完整文本 */
+  text-overflow: unset;
+  overflow: visible;
+}
+
+.setting-value-container:hover.overflow .scrollable-text,
+.setting-item.time-setting-item:active .setting-value-container.overflow .scrollable-text {
+  animation-duration: 3s;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(0);
+  }
+  75% {
+    transform: translateX(var(--scroll-distance, -150px));
+  }
+  100% {
+    transform: translateX(var(--scroll-distance, -150px));
+  }
+}
+
+/* 当文本不超出时，正常显示 */
+.setting-value-container:not(.overflow) .scrollable-text {
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 </style>
