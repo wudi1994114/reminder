@@ -20,6 +20,61 @@ export default defineConfig(({ mode }) => {
       vue(),
       typeof uni === 'function' ? uni() : uni
     ],
+    // 优化构建配置，支持按需导入和Tree Shaking
+    build: {
+      // 启用Tree Shaking
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          // 移除console.log
+          drop_console: mode === 'production',
+          // 移除debugger
+          drop_debugger: mode === 'production',
+          // 移除未使用的代码
+          pure_funcs: mode === 'production' ? ['console.log'] : []
+        }
+      },
+      // 分包策略，优化按需加载
+      rollupOptions: {
+        output: {
+          // 手动分包
+          manualChunks: {
+            // Vue核心
+            'vue-vendor': ['vue'],
+            // FullCalendar相关
+            'calendar-vendor': [
+              '@fullcalendar/vue3',
+              '@fullcalendar/daygrid',
+              '@fullcalendar/timegrid',
+              '@fullcalendar/interaction'
+            ],
+            // HTTP请求库
+            'http-vendor': ['axios'],
+            // 工具库
+            'utils-vendor': ['cron-parser', 'cronstrue', 'lunar-typescript']
+          }
+        }
+      },
+      // 设置chunk大小警告阈值
+      chunkSizeWarningLimit: 1000
+    },
+    // 优化依赖预构建
+    optimizeDeps: {
+      // 明确包含需要预构建的依赖
+      include: [
+        'vue',
+        'axios',
+        '@fullcalendar/vue3',
+        '@fullcalendar/daygrid',
+        '@fullcalendar/timegrid',
+        '@fullcalendar/interaction',
+        'cron-parser',
+        'cronstrue',
+        'lunar-typescript'
+      ],
+      // 排除不需要预构建的依赖
+      exclude: []
+    },
     server: {
       host: '0.0.0.0', // 允许通过 IP 地址访问
       port: 5173,      // 前端开发服务器端口

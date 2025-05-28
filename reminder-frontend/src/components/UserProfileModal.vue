@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch } from '../utils/imports.js';
 
 // Props
 const props = defineProps({

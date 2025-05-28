@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch, computed } from 'vue';
+// 按需导入Vue组合式API
+import { ref, watch, computed } from '../utils/imports.js';
 import { createEvent, updateEvent, deleteEvent } from '../services/api';
 import { showNotification } from '../services/store';
 import ConfirmDialog from './ConfirmDialog.vue';

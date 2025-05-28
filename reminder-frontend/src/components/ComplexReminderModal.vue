@@ -243,7 +243,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+// 按需导入Vue组合式API
+import { ref, computed, watch, onMounted } from '../utils/imports.js';
 
 // Props
 const props = defineProps({

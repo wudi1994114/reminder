@@ -1,4 +1,5 @@
-import { ref, reactive } from 'vue';
+// 按需导入Vue组合式API
+import { ref, reactive } from '../utils/imports.js';
 
 // Token 格式验证和处理
 const validateAndFormatToken = (token) => {
@@ -27,6 +28,7 @@ export const userState = reactive({
 export const reminderState = reactive({
     simpleReminders: [],
     complexReminders: [],
+    upcomingReminders: [],
     loading: false,
     error: null,
 });
