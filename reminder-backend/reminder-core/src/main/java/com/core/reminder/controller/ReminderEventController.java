@@ -192,11 +192,22 @@ public class ReminderEventController {
      * POST /api/reminders/complex
      */
     @PostMapping("/complex")
-    public ResponseEntity<ComplexReminderDTO> createComplexReminder(@RequestBody ComplexReminderDTO reminderDTO) {
+    public ResponseEntity<ComplexReminderDTO> createComplexReminder(
+            @RequestBody ComplexReminderDTO reminderDTO,
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
         // TODO: 添加输入对象的验证（例如，CRON语法）
         try {
             // 转换DTO为实体
             ComplexReminder complexReminder = reminderMapper.toEntity(reminderDTO);
+            complexReminder.setToUserId(userProfileDto.getId());
+
+            // 设置用户信息
+            Long userId = userProfileDto.getId();
+            complexReminder.setFromUserId(userId);
+            // 如果DTO中没有指定toUserId，则默认为当前用户
+            if (complexReminder.getToUserId() == null) {
+                complexReminder.setToUserId(userId);
+            }
 
             // 使用事务方法创建复杂提醒并生成简单任务(默认三个月)
             ComplexReminder created = reminderService.createComplexReminderWithSimpleReminders(complexReminder, 3);
@@ -228,8 +239,10 @@ public class ReminderEventController {
      * GET /api/reminders/complex
      */
     @GetMapping("/complex")
-    public ResponseEntity<List<ComplexReminderDTO>> getAllComplexReminders() {
-        List<ComplexReminder> reminders = reminderService.getAllComplexReminders();
+    public ResponseEntity<List<ComplexReminderDTO>> getAllComplexReminders(
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
+        Long userId = userProfileDto.getId();
+        List<ComplexReminder> reminders = reminderService.getComplexRemindersByFromUser(userId);
         List<ComplexReminderDTO> reminderDTOs = reminderMapper.toComplexReminderDTOList(reminders);
         return ResponseEntity.ok(reminderDTOs);
     }
@@ -239,13 +252,31 @@ public class ReminderEventController {
      * DELETE /api/reminders/complex/{id}
      */
     @DeleteMapping("/complex/{id}")
-    public ResponseEntity<Void> deleteComplexReminder(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteComplexReminder(
+            @PathVariable Long id,
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
         try {
+            // 验证提醒是否存在
+            Optional<ComplexReminder> existingReminderOpt = reminderService.getComplexReminderById(id);
+            if (!existingReminderOpt.isPresent()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到复杂提醒事项模板");
+            }
+            
+            // 验证用户权限：只有创建者可以删除
+            ComplexReminder existingReminder = existingReminderOpt.get();
+            Long userId = userProfileDto.getId();
+            if (!existingReminder.getFromUserId().equals(userId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限删除此提醒");
+            }
+
             // 使用集成方法删除复杂提醒及其关联的所有简单任务
             int deletedCount = reminderService.deleteComplexReminderWithRelatedSimpleReminders(id);
             log.info("已删除复杂提醒ID: {} 及其关联的 {} 个简单任务", id, deletedCount);
 
             return ResponseEntity.noContent().build(); // HTTP 204
+        } catch (ResponseStatusException e) {
+            // 重新抛出已经格式化的异常
+            throw e;
         } catch (Exception e) {
             log.error("删除复杂提醒事项失败", e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "删除复杂提醒事项失败", e);
@@ -257,8 +288,10 @@ public class ReminderEventController {
      * PUT /api/reminders/complex/{id}
      */
     @PutMapping("/complex/{id}")
-    public ResponseEntity<ComplexReminderDTO> updateComplexReminder(@PathVariable Long id,
-            @RequestBody ComplexReminderDTO reminderDTO) {
+    public ResponseEntity<ComplexReminderDTO> updateComplexReminder(
+            @PathVariable Long id,
+            @RequestBody ComplexReminderDTO reminderDTO,
+            @RequestAttribute("currentUser") UserProfileDto userProfileDto) {
         try {
             // 确保设置正确的ID
             reminderDTO.setId(id);
@@ -271,6 +304,12 @@ public class ReminderEventController {
 
             // 获取现有实体
             ComplexReminder existingReminder = existingReminderOpt.get();
+            
+            // 验证用户权限：只有创建者可以修改
+            Long userId = userProfileDto.getId();
+            if (!existingReminder.getFromUserId().equals(userId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限修改此提醒");
+            }
 
             // 用DTO中的值更新实体
             reminderMapper.updateEntityFromDTO(reminderDTO, existingReminder);

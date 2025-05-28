@@ -1,6 +1,7 @@
 import { handleApiError } from '../utils/helpers';
 
 // API基础URL
+// const API_URL = 'http://123.57.175.66/task/api';
 const API_URL = 'http://127.0.0.1:8080/api';
 
 // 封装uni.request为Promise风格

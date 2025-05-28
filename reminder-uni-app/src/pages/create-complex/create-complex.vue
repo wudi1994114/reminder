@@ -4,7 +4,7 @@
     <view class="nav-bar">
       <view class="nav-left" @click="goBack">
         <view class="nav-icon">
-          <text class="icon-arrow">←</text>
+          <text class="icon-arrow">✕</text>
         </view>
       </view>
       <view class="nav-title">{{ isEdit ? '编辑高级提醒' : '创建高级提醒' }}</view>
@@ -12,7 +12,16 @@
     </view>
     
     <!-- 主要内容区域 -->
-    <scroll-view class="content-scroll" scroll-y>
+    <scroll-view 
+      class="content-scroll" 
+      scroll-y 
+      :scroll-with-animation="true"
+      :enable-back-to-top="true"
+      :scroll-top="scrollTop"
+      :enhanced="true"
+      :bounces="true"
+      :show-scrollbar="false"
+    >
       <view class="form-container">
         <!-- 基本信息 -->
         <view class="input-section">
@@ -142,6 +151,9 @@
             @refresh="updatePreview"
           />
         </view>
+        
+        <!-- 额外的底部间距，确保页面可以向上滚动 -->
+        <view class="extra-bottom-space"></view>
       </view>
     </scroll-view>
     
@@ -211,16 +223,18 @@
 </template>
 
 <script>
-import CronExpressionPicker from '../../components/CronExpressionPicker.vue';
-import DateTimePicker from '../../components/datetime-picker/datetime-picker.vue';
-import TriggerPreview from '../../components/trigger-preview/trigger-preview.vue';
+// 移除静态组件导入，改为按需加载
+import { 
+  createComplexReminder, 
+  updateComplexReminder, 
+  getComplexReminderById 
+} from '../../services/api';
+import { reminderState } from '../../services/store';
+import pageBaseMixin from '@/mixins/page-base.js';
 
 export default {
-  components: {
-    CronExpressionPicker,
-    DateTimePicker,
-    TriggerPreview
-  },
+  // 使用页面基类混入，提供组件按需加载功能
+  mixins: [pageBaseMixin],
   data() {
     return {
       isEdit: false,
@@ -230,6 +244,7 @@ export default {
       showCronPicker: false, // 控制Cron选择器显示
       isTextOverflow: false, // 控制跑马灯效果
       scrollDistance: '-50%', // 滚动距离
+      scrollTop: 0, // 滚动位置
       
       // 提醒数据
       reminderData: {
@@ -371,8 +386,30 @@ export default {
     }
   },
   
-  onLoad(options) {
+  // 页面加载完成后的回调（由混入的onLoad调用）
+  async onPageLoad(options) {
     console.log('复杂提醒页面加载参数:', options);
+    
+    // 等待组件加载完成
+    await this.waitForComponents();
+    
+    // 检查登录状态
+    const token = uni.getStorageSync('accessToken');
+    if (!token) {
+      uni.showModal({
+        title: '提示',
+        content: '请先登录',
+        showCancel: false,
+        confirmText: '去登录',
+        success: () => {
+          uni.reLaunch({
+            url: '/pages/login/login'
+          });
+        }
+      });
+      return;
+    }
+    
     if (options.id) {
       this.isEdit = true;
       this.loadReminderData(options.id);
@@ -384,11 +421,26 @@ export default {
     // 添加调试日志
     console.log('页面加载完成，初始cronExpression:', this.reminderData.cronExpression);
     console.log('初始cronDescription:', this.cronDescription);
+    
+    // 确保页面可以滚动
+    this.$nextTick(() => {
+      setTimeout(() => {
+        this.scrollTop = 1; // 设置一个很小的滚动位置
+      }, 200);
+    });
   },
   
   mounted() {
     // 页面挂载后检测文本溢出
     this.checkTextOverflow();
+    
+    // 确保页面可以滚动，设置一个小的初始滚动位置
+    this.$nextTick(() => {
+      // 延迟一点时间确保DOM完全渲染
+      setTimeout(() => {
+        this.scrollTop = 1; // 设置一个很小的滚动位置，确保可以向上滚动
+      }, 100);
+    });
   },
   
   updated() {
@@ -400,7 +452,8 @@ export default {
     // 初始化数据
     initializeData() {
       const today = new Date();
-      this.reminderData.validFrom = today.toISOString().split('T')[0];
+      // 移除强制设置validFrom的默认值，让它保持为空字符串（对应后端的null）
+      // this.reminderData.validFrom = today.toISOString().split('T')[0];
       
       // 初始化简单模式的日期时间
       this.reminderDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -445,6 +498,11 @@ export default {
       }
       
       this.updatePreview();
+      
+      // 确保切换后页面可以滚动
+      this.$nextTick(() => {
+        this.ensureScrollable();
+      });
     },
     
     // 提醒方式改变
@@ -732,7 +790,6 @@ export default {
     // 加载提醒数据（编辑模式）
     async loadReminderData(id) {
       try {
-        const { getComplexReminderById } = require('../../services/api');
         const data = await getComplexReminderById(id);
         
         // 更新表单数据
@@ -781,12 +838,14 @@ export default {
       this.isSubmitting = true;
       
       try {
-        const { createComplexReminder, updateComplexReminder } = require('../../services/api');
-        
-        // 准备保存数据
+        // 准备保存数据，清理空字符串为null
         const saveData = {
           ...this.reminderData,
-          timeMode: this.activeTab
+          timeMode: this.activeTab,
+          // 将空字符串转换为null，确保后端正确处理
+          validFrom: this.reminderData.validFrom || null,
+          validUntil: this.reminderData.validUntil || null,
+          maxExecutions: this.reminderData.maxExecutions || null
         };
         
         console.log('保存复杂提醒:', saveData);
@@ -794,30 +853,56 @@ export default {
         let result;
         if (this.isEdit && this.reminderData.id) {
           result = await updateComplexReminder(this.reminderData.id, saveData);
+          console.log('修改成功:', result);
+          
+          // 更新全局状态中的复杂提醒列表
+          const index = reminderState.complexReminders.findIndex(item => item.id === this.reminderData.id);
+          if (index !== -1) {
+            reminderState.complexReminders[index] = result;
+          }
+          
+          // 编辑成功后直接关闭页面
+          uni.navigateBack();
         } else {
           result = await createComplexReminder(saveData);
+          console.log('创建成功:', result);
+          
+          // 将新创建的复杂提醒添加到全局状态列表中
+          if (result) {
+            reminderState.complexReminders.push(result);
+          }
+          
+          // 创建成功后直接关闭页面
+          uni.navigateBack();
         }
-        
-        console.log('保存成功:', result);
-        
-        // 显示成功提示
-        uni.showToast({
-          title: this.isEdit ? '修改成功' : '创建成功',
-          icon: 'success',
-          duration: 2000
-        });
-        
-        setTimeout(() => {
-          this.goBack();
-        }, 1500);
         
       } catch (error) {
         console.error('保存失败:', error);
         
+        // 更详细的错误处理
+        let errorMessage = '未知错误，请重试';
+        
+        if (error && error.statusCode) {
+          // HTTP错误
+          if (error.statusCode === 401) {
+            errorMessage = '请先登录';
+          } else if (error.statusCode === 403) {
+            errorMessage = '权限不足';
+          } else if (error.statusCode === 400) {
+            errorMessage = error.data?.message || '请求参数错误';
+          } else if (error.statusCode === 500) {
+            errorMessage = error.data?.message || '服务器内部错误';
+          } else {
+            errorMessage = `请求失败 (${error.statusCode})`;
+          }
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        }
+        
         // 显示错误弹窗
         uni.showModal({
           title: '保存失败',
-          content: error.message || '未知错误，请重试',
+          content: errorMessage,
           showCancel: false,
           confirmText: '知道了'
         });
@@ -1675,6 +1760,17 @@ export default {
         'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6
       };
       return weekdayMap[weekdayStr.toUpperCase()] || 0;
+    },
+    
+    // 确保页面可以滚动
+    ensureScrollable() {
+      // 设置一个很小的滚动位置，然后立即重置，这样可以激活滚动
+      this.scrollTop = 1;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.scrollTop = 0;
+        }, 50);
+      });
     }
   }
 }
@@ -1715,9 +1811,10 @@ export default {
 }
 
 .icon-arrow {
-  font-size: 48rpx;
+  font-size: 40rpx;
   color: #1c170d;
   font-weight: 400;
+  line-height: 1;
 }
 
 .nav-title {
@@ -1738,12 +1835,17 @@ export default {
   flex: 1;
   padding: 0;
   padding-bottom: 160rpx; /* 为固定底部按钮留出空间 */
+  /* 确保内容可以滚动 */
+  min-height: 100%;
+  overflow-y: auto;
 }
 
 .form-container {
   padding: 32rpx;
   max-width: 960rpx;
   margin: 0 auto;
+  /* 确保容器有足够的最小高度 */
+  min-height: calc(100vh - 160rpx);
 }
 
 /* 表单区块 */
@@ -2526,5 +2628,11 @@ export default {
 .setting-value-container:not(.overflow) .scrollable-text {
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+/* 额外的底部间距，确保页面可以向上滚动 */
+.extra-bottom-space {
+  height: 200rpx; /* 额外的底部空间 */
+  width: 100%;
 }
 </style>

@@ -77,6 +77,37 @@ public class AuthController {
         }
     }
 
+    /**
+     * 获取当前用户的个人信息
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<?> getCurrentUserProfile(@RequestAttribute("currentUser") UserProfileDto currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("用户未认证");
+        }
+        return ResponseEntity.ok(currentUser);
+    }
+
+    /**
+     * 更新当前用户的个人信息
+     */
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateCurrentUserProfile(@RequestAttribute("currentUser") UserProfileDto currentUser,
+                                                     @Valid @RequestBody com.core.reminder.dto.UpdateUserProfileRequest request) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("用户未认证");
+        }
+        
+        try {
+            // 调用AuthService的更新方法
+            UserProfileDto updatedProfile = authService.updateUserProfile(currentUser.getId(), request);
+            return ResponseEntity.ok(updatedProfile);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("更新用户信息失败：" + e.getMessage());
+        }
+    }
+
     // Optional: Add endpoint for registration later
     // @PostMapping("/register")
     // public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) { ... }

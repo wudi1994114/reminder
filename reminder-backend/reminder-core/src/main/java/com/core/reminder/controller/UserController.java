@@ -54,7 +54,8 @@ public class UserController {
                 currentUser.getUsername(),
                 currentUser.getEmail(),
                 currentUser.getNickname(),
-                currentUser.getAvatarUrl()
+                currentUser.getAvatarUrl(),
+                currentUser.getPhoneNumber()
         );
 
         return ResponseEntity.ok(userProfileDto);
@@ -102,7 +103,8 @@ public class UserController {
                     updatedUser.getUsername(),
                     updatedUser.getEmail(),
                     updatedUser.getNickname(),
-                    updatedUser.getAvatarUrl()
+                    updatedUser.getAvatarUrl(),
+                    updatedUser.getPhoneNumber()
             );
             
             return ResponseEntity.ok(updatedUserDto);
