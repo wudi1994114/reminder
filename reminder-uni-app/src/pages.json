@@ -1,4 +1,17 @@
 {
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^login-form": "@/components/LoginForm.vue",
+			"^confirm-dialog": "@/components/ConfirmDialog.vue",
+			"^confirm-modal": "@/components/ConfirmModal.vue",
+			"^cron-expression-picker": "@/components/CronExpressionPicker.vue",
+			"^datetime-picker": "@/components/datetime-picker/datetime-picker.vue",
+			"^trigger-preview": "@/components/trigger-preview/trigger-preview.vue",
+			"^unified-time-picker": "@/components/unified-time-picker/unified-time-picker.vue",
+			"^v-calendar": "@/components/v-calendar/v-calendar.vue"
+		}
+	},
 	"pages": [
 		{
 			"path": "pages/index/index",
@@ -16,12 +29,6 @@
 			"path": "pages/create-complex/create-complex",
 			"style": {
 				"navigationBarTitleText": "创建复杂提醒"
-			}
-		},
-		{
-			"path": "pages/test-cron/test-cron",
-			"style": {
-				"navigationBarTitleText": "Cron测试"
 			}
 		},
 		{

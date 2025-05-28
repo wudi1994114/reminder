@@ -212,7 +212,7 @@
     </view>
     
     <!-- Cron表达式选择器 -->
-    <CronExpressionPicker 
+    <cron-expression-picker
       :show="showCronPicker"
       :initialValue="reminderData.cronExpression"
       @confirm="onCronConfirm"
@@ -230,16 +230,13 @@ import {
   getComplexReminderById 
 } from '../../services/api';
 import { reminderState } from '../../services/store';
-import pageBaseMixin from '@/mixins/page-base.js';
 
 export default {
-  // 使用页面基类混入，提供组件按需加载功能
-  mixins: [pageBaseMixin],
   data() {
     return {
       isEdit: false,
       isSubmitting: false,
-      activeTab: 'simple', // 'simple' 或 'advanced'
+      activeTab: 'simple', // 'simple' 或 'advanced' - 默认简单模式，编辑时会在onLoad中修改为高级模式
       showCronExpression: false, // 控制Cron表达式展开
       showCronPicker: false, // 控制Cron选择器显示
       isTextOverflow: false, // 控制跑马灯效果
@@ -273,7 +270,7 @@ export default {
       simpleTime: '',
       
       // 重复选项
-      repeatOptions: ['不重复', '每天', '每周', '每月'],
+      repeatOptions: ['每天', '每周', '每月'],
       repeatIndex: 0,
       
       // 时间选择器选项
@@ -344,16 +341,14 @@ export default {
     // 根据重复类型动态确定时间选择器显示的列
     timePickerColumns() {
       switch (this.repeatIndex) {
-        case 0: // 不重复 - 显示月日时分
-          return ['month', 'day', 'hour', 'minute'];
-        case 1: // 每天 - 只显示时分
+        case 0: // 每天 - 只显示时分
           return ['hour', 'minute'];
-        case 2: // 每周 - 显示周几和时分
+        case 1: // 每周 - 显示周几和时分
           return ['weekday', 'hour', 'minute'];
-        case 3: // 每月 - 显示日时分
+        case 2: // 每月 - 显示日时分
           return ['day', 'hour', 'minute'];
         default:
-          return ['month', 'day', 'hour', 'minute'];
+          return ['hour', 'minute'];
       }
     }
   },
@@ -386,12 +381,9 @@ export default {
     }
   },
   
-  // 页面加载完成后的回调（由混入的onLoad调用）
-  async onPageLoad(options) {
+  // 页面加载完成后的回调
+  async onLoad(options) {
     console.log('复杂提醒页面加载参数:', options);
-    
-    // 等待组件加载完成
-    await this.waitForComponents();
     
     // 检查登录状态
     const token = uni.getStorageSync('accessToken');
@@ -412,6 +404,7 @@ export default {
     
     if (options.id) {
       this.isEdit = true;
+      this.activeTab = 'advanced'; // 编辑模式默认显示高级模式
       this.loadReminderData(options.id);
     }
     this.initializeData();
@@ -470,7 +463,8 @@ export default {
       // 同步简单模式数据
       this.simpleData.hour = now.getHours();
       this.simpleData.minute = 0;
-      // 使用默认的重复选项（repeatIndex = 0 对应 "不重复"）
+      this.simpleData.recurrenceType = 'DAILY'; // 默认设置为每天重复
+      // 使用默认的重复选项（repeatIndex = 0 对应 "每天"）
       this.updateCronFromRepeat();
       
       // 更新eventTime
@@ -588,19 +582,19 @@ export default {
       this.simpleData.hour = hour;
       this.simpleData.minute = minute;
       
-      // 根据当前重复类型更新Cron表达式
+      // 根据当前重复类型更新Cron表达式 - 统一使用5位格式
       switch (Number(this.repeatIndex)) {
-        case 1: // 每天
-          this.reminderData.cronExpression = `0 ${minute} ${hour} * * ?`;
+        case 0: // 每天
+          this.reminderData.cronExpression = `${minute} ${hour} * * *`;
           break;
-        case 2: // 每周
-          this.reminderData.cronExpression = `0 ${minute} ${hour} ? * MON`;
+        case 1: // 每周
+          this.reminderData.cronExpression = `${minute} ${hour} * * ${this.simpleData.weekday || 1}`;
           break;
-        case 3: // 每月
-          this.reminderData.cronExpression = `0 ${minute} ${hour} 1 * ?`;
+        case 2: // 每月
+          this.reminderData.cronExpression = `${minute} ${hour} ${this.simpleData.dayOfMonth || 1} * *`;
           break;
         default:
-          // 不重复或自定义不处理
+          // 自定义不处理
           break;
       }
     },
@@ -621,20 +615,19 @@ export default {
       const minute = this.simpleData.minute;
       
       switch (Number(this.repeatIndex)) {
-        case 0: // 不重复
-          this.reminderData.cronExpression = '';
-          this.simpleData.recurrenceType = 'NONE';
-          break;
-        case 1: // 每天
+        case 0: // 每天
           this.reminderData.cronExpression = `${minute} ${hour} * * *`;
           this.simpleData.recurrenceType = 'DAILY';
           break;
-        case 2: // 每周
-          this.reminderData.cronExpression = `${minute} ${hour} * * 1`;
+        case 1: // 每周
+          this.reminderData.cronExpression = `${minute} ${hour} * * ${this.simpleData.weekday || 1}`;
           this.simpleData.recurrenceType = 'WEEKLY';
-          this.simpleData.weekday = 1; // 默认周一
+          // 如果没有设置星期，默认为周一
+          if (!this.simpleData.weekday) {
+            this.simpleData.weekday = 1;
+          }
           break;
-        case 3: // 每月
+        case 2: // 每月
           const dayOfMonth = this.simpleData.dayOfMonth || 1; // 使用已选择的日期，默认1号
           this.reminderData.cronExpression = `${minute} ${hour} ${dayOfMonth} * *`;
           this.simpleData.recurrenceType = 'MONTHLY';
@@ -658,7 +651,7 @@ export default {
       }
       
       try {
-        // 解析cron表达式 (格式: 秒 分 时 日 月 周 年)
+        // 解析cron表达式 (统一使用5位格式: 分 时 日 月 周)
         const parts = cronExpression.trim().split(/\s+/);
         console.log('Cron表达式分割结果:', parts);
         
@@ -667,26 +660,23 @@ export default {
           return '无效的Cron表达式';
         }
         
-        let second, minute, hour, day, month, weekday, year;
+        let minute, hour, day, month, weekday;
         
         if (parts.length === 5) {
           // 5位格式: 分 时 日 月 周
           [minute, hour, day, month, weekday] = parts;
-          second = '0';
-          year = '*';
           console.log('解析为5位格式');
         } else if (parts.length === 6) {
-          // 6位格式: 秒 分 时 日 月 周
-          [second, minute, hour, day, month, weekday] = parts;
-          year = '*';
-          console.log('解析为6位格式');
+          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
+          [, minute, hour, day, month, weekday] = parts;
+          console.log('解析为6位格式，忽略秒');
         } else {
-          // 7位格式: 秒 分 时 日 月 周 年
-          [second, minute, hour, day, month, weekday, year] = parts;
-          console.log('解析为7位格式');
+          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
+          [, minute, hour, day, month, weekday] = parts;
+          console.log('解析为7位格式，忽略秒和年');
         }
         
-        console.log('解析结果:', { second, minute, hour, day, month, weekday, year });
+        console.log('解析结果:', { minute, hour, day, month, weekday });
         
         let description = '';
         
@@ -694,7 +684,7 @@ export default {
         const timeStr = this.formatTime(hour, minute);
         console.log('格式化时间结果:', timeStr);
         
-        // 解析重复模式 - 修复逻辑，正确处理"?"符号，优先检查年重复
+        // 解析重复模式 - 修复逻辑顺序
         if (month !== '*' && month !== '?' && month.trim() !== '') {
           // 按年重复 - 优先检查年重复
           const months = this.parseMonths(month);
@@ -743,10 +733,13 @@ export default {
     formatTime(hour, minute) {
       const h = hour === '*' ? '0' : hour;
       const m = minute === '*' ? '0' : minute;
-      const hourNum = parseInt(h);
-      const minuteNum = parseInt(m);
+      const hourNum = parseInt(h) || 0;  // 使用 || 0 处理NaN
+      const minuteNum = parseInt(m) || 0; // 使用 || 0 处理NaN
       
-      if (hourNum < 12) {
+      // 处理凌晨0点的情况
+      if (hourNum === 0) {
+        return `上午12:${String(minuteNum).padStart(2, '0')}`;
+      } else if (hourNum < 12) {
         return `上午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
       } else if (hourNum === 12) {
         return `中午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
@@ -922,6 +915,7 @@ export default {
         return false;
       }
       
+      // 验证Cron表达式不能为空
       if (!this.reminderData.cronExpression.trim()) {
         uni.showToast({
           title: 'Cron表达式不能为空',
@@ -1137,9 +1131,6 @@ export default {
         const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
         
         switch (recurrenceType) {
-          case 'NONE':
-            this.humanReadableDescription = `单次提醒 ${timeStr}`;
-            break;
           case 'DAILY':
             this.humanReadableDescription = `每天 ${timeStr}`;
             break;
@@ -1164,7 +1155,7 @@ export default {
             }
             break;
           default:
-            this.humanReadableDescription = `单次提醒 ${timeStr}`;
+            this.humanReadableDescription = `每天 ${timeStr}`;
             break;
         }
       } else {
@@ -1249,17 +1240,6 @@ export default {
       targetDate.setHours(hour || 0, minute || 0, 0, 0);
       
       switch (recurrenceType) {
-        case 'NONE':
-          // 单次提醒，如果时间已过，则使用设定的日期时间
-          if (this.simpleDate && this.simpleTime) {
-            const specificDate = new Date(`${this.simpleDate}T${this.simpleTime}:00`);
-            if (specificDate > fromDate) {
-              return specificDate;
-            }
-          }
-          // 如果没有设定具体日期或时间已过，返回null
-          return null;
-          
         case 'DAILY':
           // 如果目标时间小于等于当前时间，移动到下一天
           if (targetDate <= fromDate) {
@@ -1363,9 +1343,20 @@ export default {
     parseCronToSimple(cronExpression) {
       try {
         const parts = cronExpression.split(' ');
-        if (parts.length !== 5) return;
+        let minute, hour, day, month, weekday;
         
-        const [minute, hour, day, month, weekday] = parts;
+        if (parts.length === 5) {
+          // 5位格式: 分 时 日 月 周
+          [minute, hour, day, month, weekday] = parts;
+        } else if (parts.length === 6) {
+          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
+          [, minute, hour, day, month, weekday] = parts;
+        } else if (parts.length === 7) {
+          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
+          [, minute, hour, day, month, weekday] = parts;
+        } else {
+          return; // 格式不正确
+        }
         
         this.simpleData.minute = parseInt(minute) || 0;
         this.simpleData.hour = parseInt(hour) || 0;
@@ -1381,16 +1372,16 @@ export default {
         if (day === '*' && month === '*' && weekday === '*') {
           // 每天
           this.simpleData.recurrenceType = 'DAILY';
-          this.repeatIndex = 1; // 对应repeatOptions中的"每天"
+          this.repeatIndex = 0; // 对应repeatOptions中的"每天"
         } else if (day === '*' && month === '*' && weekday !== '*') {
           // 每周
           this.simpleData.recurrenceType = 'WEEKLY';
-          this.repeatIndex = 2; // 对应repeatOptions中的"每周"
+          this.repeatIndex = 1; // 对应repeatOptions中的"每周"
           this.simpleData.weekday = parseInt(weekday) || 1;
         } else if (day !== '*' && month === '*' && weekday === '*') {
           // 每月
           this.simpleData.recurrenceType = 'MONTHLY';
-          this.repeatIndex = 3; // 对应repeatOptions中的"每月"
+          this.repeatIndex = 2; // 对应repeatOptions中的"每月"
           this.simpleData.dayOfMonth = parseInt(day) || 1;
         }
         console.log('解析Cron表达式成功:', this.simpleData);
@@ -1643,30 +1634,25 @@ export default {
           return null;
         }
         
-        let second, minute, hour, day, month, weekday, year;
+        let minute, hour, day, month, weekday;
         
         if (parts.length === 5) {
           // 5位格式: 分 时 日 月 周
           [minute, hour, day, month, weekday] = parts;
-          second = '0';
-          year = '*';
         } else if (parts.length === 6) {
-          // 6位格式: 秒 分 时 日 月 周
-          [second, minute, hour, day, month, weekday] = parts;
-          year = '*';
+          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
+          [, minute, hour, day, month, weekday] = parts;
         } else {
-          // 7位格式: 秒 分 时 日 月 周 年
-          [second, minute, hour, day, month, weekday, year] = parts;
+          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
+          [, minute, hour, day, month, weekday] = parts;
         }
         
         return {
-          second: second,
           minute: minute,
           hour: hour,
           day: day,
           month: month,
-          weekday: weekday,
-          year: year
+          weekday: weekday
         };
       } catch (error) {
         console.error('解析Cron表达式失败:', error);

@@ -52,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from '../utils/imports.js';
+import { ref, onMounted, watch, computed } from 'vue';
 import { getUpcomingReminders } from '../services/api';
 import { showNotification } from '../services/store';
 

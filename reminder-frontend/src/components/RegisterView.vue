@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from '../utils/imports.js';
+import { ref } from 'vue';
 import { isValidEmail, isStrongPassword } from '../utils/helpers';
 import { DEFAULT_AVATARS } from '../constants/avatars';
 

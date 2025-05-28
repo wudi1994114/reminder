@@ -1,8 +1,8 @@
 import { handleApiError } from '../utils/helpers';
 
-// API基础URL
-// const API_URL = 'http://123.57.175.66/task/api';
-const API_URL = 'http://127.0.0.1:8080/api';
+// 根据环境选择API地址
+// let API_URL = 'http://127.0.0.1:8080/api';
+let API_URL = 'http://123.57.175.66/task/api';
 
 // 封装uni.request为Promise风格
 const request = (options) => {
@@ -17,6 +17,8 @@ const request = (options) => {
                 ...options.header
             },
             success: (res) => {
+                console.log('API请求成功:', options.url, res.statusCode);
+                
                 // HTTP 请求状态码检查
                 if (res.statusCode >= 200 && res.statusCode < 300) {
                     resolve(res.data);
@@ -26,14 +28,27 @@ const request = (options) => {
                     
                     // 处理401/403认证错误
                     if (res.statusCode === 401 || res.statusCode === 403) {
+                        console.log('认证失败，清除token');
                         uni.removeStorageSync('accessToken');
+                        
                         // 对于日历数据，如果遇到授权错误，返回空数组而不是拒绝 Promise
                         if (options.url.includes('/reminders/simple')) {
                             console.warn('获取提醒数据需要登录，返回空数组');
                             resolve([]);
                             return;
                         }
-                        // 可以在这里重定向到登录页面
+                        
+                        // 显示登录提示
+                        uni.showModal({
+                            title: '登录已过期',
+                            content: '请重新登录',
+                            showCancel: false,
+                            success: () => {
+                                uni.reLaunch({
+                                    url: '/pages/login/login'
+                                });
+                            }
+                        });
                     }
                     
                     reject(res); // 直接 reject 整个响应对象
@@ -42,6 +57,18 @@ const request = (options) => {
             fail: (err) => {
                 console.error('请求失败:', err);
                 
+                // 网络错误处理
+                let errorMessage = '网络连接失败';
+                if (err.errMsg) {
+                    if (err.errMsg.includes('ERR_CONNECTION_REFUSED')) {
+                        errorMessage = '服务器连接被拒绝，请检查网络或联系管理员';
+                    } else if (err.errMsg.includes('timeout')) {
+                        errorMessage = '请求超时，请检查网络连接';
+                    } else if (err.errMsg.includes('fail')) {
+                        errorMessage = '网络请求失败，请稍后重试';
+                    }
+                }
+                
                 // 对于日历数据，如果遇到网络错误，也返回空数组
                 if (options.url.includes('/reminders/simple')) {
                     console.warn('获取提醒数据失败，返回空数组');
@@ -49,7 +76,17 @@ const request = (options) => {
                     return;
                 }
                 
-                reject(err);
+                // 显示错误提示
+                uni.showToast({
+                    title: errorMessage,
+                    icon: 'none',
+                    duration: 3000
+                });
+                
+                reject({
+                    ...err,
+                    message: errorMessage
+                });
             }
         };
         
@@ -58,6 +95,7 @@ const request = (options) => {
             requestOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
         
+        console.log('发起API请求:', requestOptions.url);
         uni.request(requestOptions);
     });
 };

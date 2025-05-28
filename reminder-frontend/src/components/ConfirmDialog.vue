@@ -12,7 +12,7 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from '../utils/imports.js';
+import { defineProps, defineEmits } from 'vue';
 
 const props = defineProps({
   show: {

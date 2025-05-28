@@ -95,8 +95,8 @@ export default defineConfig({
           }
           
           return 'chunks/[name]-[hash].js';
-        }
-      },
+    }
+  },
       
       // 压缩配置
       terserOptions: {
@@ -109,12 +109,12 @@ export default defineConfig({
       }
     },
     
-    // CSS 配置
-    css: {
-      preprocessorOptions: {
-        scss: {
-          additionalData: `@import "@/styles/variables.scss";`
-        }
+  // CSS 配置
+  css: {
+    preprocessorOptions: {
+      scss: {
+        additionalData: `@import "@/styles/variables.scss";`
+      }
       }
     },
     

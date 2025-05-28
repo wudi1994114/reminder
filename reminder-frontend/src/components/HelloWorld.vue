@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from '../utils/imports.js'
+import { ref } from 'vue'
 
 defineProps({
   msg: String,

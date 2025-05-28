@@ -5,7 +5,7 @@
     </view>
     
     <view class="content">
-      <LoginForm 
+      <login-form 
         @register="goToRegister"
         @forgot-password="showForgotPasswordTip"
       />
@@ -15,13 +15,8 @@
 
 <script>
 import { ref } from 'vue';
-import LoginForm from '../../components/LoginForm.vue';
 
 export default {
-  components: {
-    LoginForm
-  },
-  
   setup() {
     const goToRegister = () => {
       uni.navigateTo({

@@ -1,16 +1,9 @@
 <script setup>
-// 按需导入Vue组合式API
-import { 
-  ref, 
-  onMounted, 
-  nextTick, 
-  computed, 
-  onUnmounted 
-} from '../utils/imports.js';
-
-// 使用按需注入加载FullCalendar
-import { useFullCalendarPlugins } from '../utils/imports.js';
-
+import { ref, onMounted, nextTick, computed, onUnmounted } from 'vue';
+import FullCalendar from '@fullcalendar/vue3';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { reminderState, uiState, showNotification } from '../services/store';
 import { getAllSimpleReminders, getAllComplexReminders, updateEvent, getHolidaysByYearRange } from '../services/api';
 import { simpleReminderToEvent, complexReminderToEvent } from '../utils/helpers';
@@ -50,34 +43,6 @@ let calendarApi = null;
 
 // 节假日数据
 const holidays = ref({});
-
-// FullCalendar 组件和插件
-const FullCalendar = ref(null);
-const dayGridPlugin = ref(null);
-const timeGridPlugin = ref(null);
-const interactionPlugin = ref(null);
-const calendarComponentsLoaded = ref(false);
-
-// 加载FullCalendar组件和插件
-const loadCalendarComponents = async () => {
-  if (calendarComponentsLoaded.value) return;
-  
-  try {
-    console.log('🔄 开始按需加载FullCalendar组件...');
-    const components = await useFullCalendarPlugins();
-    
-    FullCalendar.value = components.FullCalendar;
-    dayGridPlugin.value = components.dayGridPlugin;
-    timeGridPlugin.value = components.timeGridPlugin;
-    interactionPlugin.value = components.interactionPlugin;
-    
-    calendarComponentsLoaded.value = true;
-    console.log('✅ FullCalendar组件加载完成');
-  } catch (error) {
-    console.error('❌ FullCalendar组件加载失败:', error);
-    showNotification('日历组件加载失败', 'error');
-  }
-};
 
 // 加载节假日数据
 const loadHolidays = async (year) => {
@@ -400,7 +365,7 @@ const renderHolidayInfo = (arg) => {
 // 日历配置
 const calendarOptions = computed(() => ({
   ...props.options,
-  plugins: [dayGridPlugin.value, timeGridPlugin.value, interactionPlugin.value],
+  plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
   timeZone: 'local',
   headerToolbar: {
@@ -652,10 +617,7 @@ const loadReminders = async () => {
 };
 
 // 在组件挂载后获取 API 并触发 calendar-ready 事件
-onMounted(async () => {
-  // 首先加载FullCalendar组件
-  await loadCalendarComponents();
-  
+onMounted(() => {
   nextTick(() => {
     if (calendarRef.value) {
       calendarApi = calendarRef.value.getApi();
@@ -793,18 +755,7 @@ const currentMonth = computed(() => {
       <div class="loading-spinner"></div>
     </div>
     
-    <!-- FullCalendar组件加载状态 -->
-    <div v-if="!calendarComponentsLoaded" class="component-loading">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">正在加载日历组件...</div>
-      </div>
-    </div>
-    
-    <!-- 只有在组件加载完成后才渲染FullCalendar -->
-    <component
-      v-if="calendarComponentsLoaded && FullCalendar"
-      :is="FullCalendar"
+    <FullCalendar
       ref="calendarRef"
       :options="calendarOptions"
       class="calendar-view"
@@ -1014,38 +965,11 @@ const currentMonth = computed(() => {
   z-index: 1000;
 }
 
-/* 组件加载状态 */
-.component-loading {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #fdfdfd;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 999;
-}
-
-.loading-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.loading-text {
-  color: var(--theme-primary-color);
-  font-size: 14px;
-  font-weight: 500;
-}
-
 .loading-spinner {
   width: 40px;
   height: 40px;
   border: 4px solid #f3f3f3;
-  border-top: 4px solid var(--theme-primary-color);
+  border-top: 4px solid #3498db;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }

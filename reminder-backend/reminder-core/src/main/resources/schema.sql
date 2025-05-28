@@ -45,6 +45,50 @@ COMMENT ON COLUMN app_user.birth_date IS '用户的出生日期';
 COMMENT ON COLUMN app_user.created_at IS '用户记录的创建时间戳';
 COMMENT ON COLUMN app_user.updated_at IS '用户记录的最后更新时间戳';
 
+-- 创建微信用户表 (wechat_user)
+DROP TABLE IF EXISTS wechat_user CASCADE;
+CREATE TABLE wechat_user (
+    id BIGSERIAL PRIMARY KEY,                           -- 微信用户唯一标识符，自增
+    app_user_id BIGINT NOT NULL,                        -- 关联的系统用户ID
+    openid VARCHAR(100) UNIQUE NOT NULL,                -- 微信小程序的openid，唯一标识用户
+    unionid VARCHAR(100),                               -- 微信unionid，用于关联同一微信开放平台下的应用
+    nickname VARCHAR(100),                              -- 微信用户昵称
+    avatar_url TEXT,                                    -- 微信用户头像URL
+    gender INTEGER,                                     -- 微信用户性别：0-未知，1-男，2-女
+    country VARCHAR(50),                                -- 微信用户所在国家
+    province VARCHAR(50),                               -- 微信用户所在省份
+    city VARCHAR(50),                                   -- 微信用户所在城市
+    language VARCHAR(20),                               -- 微信用户语言
+    session_key VARCHAR(100),                           -- 会话密钥
+    last_login_time TIMESTAMP WITH TIME ZONE,           -- 最后登录时间
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL  -- 记录最后更新时间
+);
+
+-- 为微信用户表常用查询字段创建索引
+CREATE INDEX idx_wechat_user_openid ON wechat_user (openid);
+CREATE INDEX idx_wechat_user_app_user_id ON wechat_user (app_user_id);
+CREATE INDEX idx_wechat_user_unionid ON wechat_user (unionid);
+CREATE INDEX idx_wechat_user_last_login ON wechat_user (last_login_time);
+
+-- 微信用户表注释
+COMMENT ON TABLE wechat_user IS '存储微信小程序用户信息';
+COMMENT ON COLUMN wechat_user.id IS '微信用户的唯一标识符 (主键)';
+COMMENT ON COLUMN wechat_user.app_user_id IS '关联的系统用户ID';
+COMMENT ON COLUMN wechat_user.openid IS '微信小程序的openid，唯一标识用户';
+COMMENT ON COLUMN wechat_user.unionid IS '微信unionid，用于关联同一微信开放平台下的应用';
+COMMENT ON COLUMN wechat_user.nickname IS '微信用户昵称';
+COMMENT ON COLUMN wechat_user.avatar_url IS '微信用户头像URL';
+COMMENT ON COLUMN wechat_user.gender IS '微信用户性别：0-未知，1-男，2-女';
+COMMENT ON COLUMN wechat_user.country IS '微信用户所在国家';
+COMMENT ON COLUMN wechat_user.province IS '微信用户所在省份';
+COMMENT ON COLUMN wechat_user.city IS '微信用户所在城市';
+COMMENT ON COLUMN wechat_user.language IS '微信用户语言';
+COMMENT ON COLUMN wechat_user.session_key IS '会话密钥';
+COMMENT ON COLUMN wechat_user.last_login_time IS '最后登录时间';
+COMMENT ON COLUMN wechat_user.created_at IS '微信用户记录的创建时间戳';
+COMMENT ON COLUMN wechat_user.updated_at IS '微信用户记录的最后更新时间戳';
+
 -- 创建复杂提醒模板表 (complex_reminder)
 DROP TABLE IF EXISTS complex_reminder CASCADE;
 -- 注意：移除了 related_simple_reminder_id 和用户外键

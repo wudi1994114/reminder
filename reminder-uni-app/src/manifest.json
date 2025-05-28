@@ -48,7 +48,12 @@
             "minified": true
         },
         "usingComponents": true,
-        "permission": {}
+        "permission": {},
+        "requiredBackgroundModes": ["audio"],
+        "networkTimeout": {
+            "request": 10000,
+            "downloadFile": 10000
+        }
     },
     "mp-alipay" : {
         "usingComponents" : true

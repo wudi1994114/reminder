@@ -94,10 +94,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from '../utils/imports.js';
+import { ref, computed, onMounted } from 'vue';
 import { reminderState } from '../services/store';
-// 使用按需导入的工具函数
-import { cronToString, parseCronExpression } from '../utils/imports.js';
+import cronstrue from 'cronstrue/dist/cronstrue-i18n';
+// 直接导入整个模块
+import cronParser from 'cron-parser';
 import ConfirmDialog from './ConfirmDialog.vue';
 
 // 定义props
@@ -147,8 +148,8 @@ function isExpired(reminder) {
 // 获取提醒的可读描述
 function getHumanReadableDescription(reminder) {
   try {
-    // 使用按需导入的cronToString函数解析cron表达式
-    return cronToString(reminder.cronExpression, { locale: 'zh_CN' });
+    // 使用cronstrue库解析cron表达式
+    return cronstrue.toString(reminder.cronExpression, { locale: 'zh_CN' });
   } catch (error) {
     console.error('解析cron表达式出错:', error);
     return reminder.cronExpression || '未知触发条件';

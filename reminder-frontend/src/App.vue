@@ -1,20 +1,8 @@
 <script setup>
-// 按需导入Vue组合式API和FullCalendar
-import { 
-  ref, 
-  onMounted, 
-  onUnmounted, 
-  watch, 
-  nextTick, 
-  computed 
-} from './utils/imports.js'
-import { 
-  dayGridPlugin,
-  timeGridPlugin,
-  interactionPlugin
-} from './utils/imports.js'
-
-// 组件按需导入
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import interactionPlugin from '@fullcalendar/interaction'
 import LoginView from './components/LoginView.vue';
 import AppHeader from './components/AppHeader.vue';
 import CalendarDisplay from './components/CalendarDisplay.vue';
@@ -25,8 +13,6 @@ import ComplexReminderModal from './components/ComplexReminderModal.vue';
 import ComplexReminderListModal from './components/ComplexReminderListModal.vue';
 import RegisterView from './components/RegisterView.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
-
-// API服务按需导入
 import { 
   login,
   register,
@@ -41,12 +27,10 @@ import {
   updateComplexReminder,
   deleteComplexReminder as deleteComplexReminderApi
 } from './services/api.js';
-
-// 状态管理按需导入
 import { userState, reminderState, uiState, showNotification } from './services/store'
 
 // 移除所有显式的 CSS 导入，依赖 Vite 和插件自动处理
-// import '@fullcalendar/common/main.css'
+// import '@fullcalendar/common/main.css' 
 
 // --- 新增：登录状态管理 ---
 const isLoggedIn = ref(false);

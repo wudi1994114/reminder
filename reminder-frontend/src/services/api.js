@@ -1,5 +1,4 @@
-// 按需导入axios
-import { axios } from '../utils/imports.js';
+import axios from 'axios';
 
 // 之前的实现可能被覆盖，强制使用相对路径
 // 注意：这里不再支持环境变量配置，直接使用相对路径

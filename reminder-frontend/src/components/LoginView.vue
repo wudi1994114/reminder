@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from '../utils/imports.js';
+import { ref } from 'vue';
 
 // Define emits to communicate with the parent component
 const emit = defineEmits(['login-attempt', 'show-register']);

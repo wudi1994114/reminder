@@ -44,37 +44,37 @@
         
         <!-- 简单任务列表 -->
         <view v-else-if="activeTab === 'simple'">
-          <!-- 空状态 -->
+        <!-- 空状态 -->
           <view v-if="simpleReminders && simpleReminders.length === 0" class="empty-state">
-            <view class="empty-content">
-              <text class="empty-icon">📝</text>
+          <view class="empty-content">
+            <text class="empty-icon">📝</text>
               <text class="empty-title">暂无简单提醒</text>
               <text class="empty-desc">点击下方"新建简单任务"开始添加你的提醒</text>
-            </view>
           </view>
-          
+        </view>
+        
           <!-- 简单提醒列表 -->
-          <view v-else class="reminder-list">
-            <view 
+        <view v-else class="reminder-list">
+          <view 
               v-for="(item, index) in simpleReminders" 
-              :key="index" 
-              class="reminder-card" 
-              @click="goToDetail(item.id)"
-            >
-              <view class="card-content">
-                <view class="reminder-main">
-                  <text class="reminder-title">{{ item.title }}</text>
-                  <text class="reminder-time">{{ formatTime(item.eventTime) }}</text>
+            :key="index" 
+            class="reminder-card" 
+            @click="goToDetail(item.id)"
+          >
+            <view class="card-content">
+              <view class="reminder-main">
+                <text class="reminder-title">{{ item.title }}</text>
+                <text class="reminder-time">{{ formatTimeHelper(item.eventTime) }}</text>
                   <text v-if="item.description" class="reminder-desc">{{ item.description }}</text>
-                </view>
-                <view class="reminder-status" :class="getStatusClass(item.status)">
-                  <view class="status-dot"></view>
-                  <text class="status-text">{{ getStatusText(item.status) }}</text>
-                </view>
+              </view>
+              <view class="reminder-status" :class="getStatusClass(item.status)">
+                <view class="status-dot"></view>
+                <text class="status-text">{{ getStatusText(item.status) }}</text>
               </view>
             </view>
           </view>
         </view>
+      </view>
         
         <!-- 复杂任务列表 -->
         <view v-else-if="activeTab === 'complex'">
@@ -98,7 +98,11 @@
               <view class="card-content">
                 <view class="reminder-main">
                   <text class="reminder-title">{{ item.title }}</text>
-                  <text class="reminder-cron">{{ formatCronDescription(item.cronExpression) }}</text>
+                  <view class="reminder-cron-container">
+                    <text class="reminder-cron" :class="{ 'marquee': isLongText(formatCronDescription(item.cronExpression)) }">
+                      {{ formatCronDescription(item.cronExpression) }}
+                    </text>
+                  </view>
                   <text v-if="item.description" class="reminder-desc">{{ item.description }}</text>
                   <view class="reminder-meta">
                     <text class="meta-item">{{ getReminderTypeText(item.reminderType) }}</text>
@@ -354,43 +358,142 @@ export default {
       });
     };
     
-    const formatTime = (timeString) => {
-      return formatDate(timeString);
-    };
-    
-    // 格式化Cron表达式描述
+    // 格式化Cron表达式描述 - 使用复杂页面的翻译逻辑
     const formatCronDescription = (cronExpression) => {
-      if (!cronExpression) return '无重复规则';
+      console.log('解析Cron表达式:', cronExpression);
+      
+      if (!cronExpression || cronExpression.trim() === '') {
+        console.log('Cron表达式为空');
+        return '请设置重复规则';
+      }
       
       try {
-        // 简单的Cron表达式解析
+        // 解析cron表达式 (统一使用5位格式: 分 时 日 月 周)
         const parts = cronExpression.trim().split(/\s+/);
-        if (parts.length < 5) return cronExpression;
+        console.log('Cron表达式分割结果:', parts);
+        
+        if (parts.length < 5) {
+          console.log('Cron表达式位数不足');
+          return '无效的Cron表达式';
+        }
         
         let minute, hour, day, month, weekday;
         
         if (parts.length === 5) {
+          // 5位格式: 分 时 日 月 周
           [minute, hour, day, month, weekday] = parts;
+          console.log('解析为5位格式');
         } else if (parts.length === 6) {
+          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
           [, minute, hour, day, month, weekday] = parts;
+          console.log('解析为6位格式，忽略秒');
         } else {
-          return cronExpression;
+          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
+          [, minute, hour, day, month, weekday] = parts;
+          console.log('解析为7位格式，忽略秒和年');
         }
         
-        const timeStr = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+        console.log('解析结果:', { minute, hour, day, month, weekday });
         
-        if (day === '*' && month === '*' && weekday === '*') {
-          return `每天 ${timeStr}`;
-        } else if (day === '*' && month === '*' && weekday !== '*') {
-          const weekMap = { '0': '周日', '1': '周一', '2': '周二', '3': '周三', '4': '周四', '5': '周五', '6': '周六' };
-          return `每${weekMap[weekday] || '周' + weekday} ${timeStr}`;
-        } else if (day !== '*' && month === '*') {
-          return `每月${day}日 ${timeStr}`;
+        let description = '';
+        
+        // 解析时间
+        const timeStr = formatTime(hour, minute);
+        console.log('格式化时间结果:', timeStr);
+        
+        // 解析重复模式 - 修复逻辑顺序
+        if (month !== '*' && month !== '?' && month.trim() !== '') {
+          // 按年重复 - 优先检查年重复
+          const months = parseMonths(month);
+          
+          if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
+            // 年重复 + 星期模式
+            const weekdays = parseWeekdays(weekday);
+            description = `每年${months}的${weekdays}${timeStr}`;
+          } else if (day !== '?' && day !== '*' && day.trim() !== '') {
+            // 年重复 + 日期模式
+            description = `每年${months}${day}日${timeStr}`;
+          } else {
+            // 年重复但日期和星期都为通配符
+            description = `每年${months}${timeStr}`;
+          }
+          console.log('识别为年重复:', description);
+        } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
+          // 按周重复
+          const weekdays = parseWeekdays(weekday);
+          description = `每${weekdays}${timeStr}`;
+          console.log('识别为周重复:', description);
+        } else if (day !== '?' && day !== '*' && day.trim() !== '') {
+          // 按月重复
+          if (day.includes(',')) {
+            const days = day.split(',').join('日、');
+            description = `每月${days}日${timeStr}`;
+          } else {
+            description = `每月${day}日${timeStr}`;
+          }
+          console.log('识别为月重复:', description);
         } else {
-          return cronExpression;
+          // 每天重复
+          description = `每天${timeStr}`;
+          console.log('识别为每天重复:', description);
         }
+        
+        console.log('最终描述:', description);
+        return description;
       } catch (error) {
-        return cronExpression;
+        console.error('解析Cron表达式失败:', error);
+        return '无效的Cron表达式';
+      }
+    };
+    
+    // 格式化时间
+    const formatTime = (hour, minute) => {
+      const h = hour === '*' ? '0' : hour;
+      const m = minute === '*' ? '0' : minute;
+      const hourNum = parseInt(h) || 0;  // 使用 || 0 处理NaN
+      const minuteNum = parseInt(m) || 0; // 使用 || 0 处理NaN
+      
+      // 处理凌晨0点的情况
+      if (hourNum === 0) {
+        return `上午12:${String(minuteNum).padStart(2, '0')}`;
+      } else if (hourNum < 12) {
+        return `上午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
+      } else if (hourNum === 12) {
+        return `中午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
+      } else {
+        return `下午${hourNum - 12}:${String(minuteNum).padStart(2, '0')}`;
+      }
+    };
+    
+    // 解析星期
+    const parseWeekdays = (weekday) => {
+      const weekMap = {
+        '0': '周日', '7': '周日',
+        '1': '周一', '2': '周二', '3': '周三', 
+        '4': '周四', '5': '周五', '6': '周六',
+        'SUN': '周日', 'MON': '周一', 'TUE': '周二', 
+        'WED': '周三', 'THU': '周四', 'FRI': '周五', 'SAT': '周六'
+      };
+      
+      if (weekday.includes(',')) {
+        return weekday.split(',').map(w => weekMap[w.trim()] || w).join(',');
+      } else {
+        return weekMap[weekday] || weekday;
+      }
+    };
+    
+    // 解析月份
+    const parseMonths = (month) => {
+      const monthMap = {
+        '1': '1月', '2': '2月', '3': '3月', '4': '4月',
+        '5': '5月', '6': '6月', '7': '7月', '8': '8月',
+        '9': '9月', '10': '10月', '11': '11月', '12': '12月'
+      };
+      
+      if (month.includes(',')) {
+        return month.split(',').map(m => monthMap[m.trim()] || m).join(',');
+      } else {
+        return monthMap[month] || month;
       }
     };
     
@@ -446,6 +549,15 @@ export default {
       }
     };
     
+    // 判断文本是否过长需要跑马灯效果
+    const isLongText = (text) => {
+      return text && text.length > 12; // 超过12个字符就使用跑马灯
+    };
+    
+    const formatTimeHelper = (timeString) => {
+      return formatDate(timeString);
+    };
+    
     return {
       activeTab,
       simpleReminders,
@@ -458,14 +570,15 @@ export default {
       goToComplexDetail,
       editComplexReminder,
       deleteComplexReminder,
-      formatTime,
+      formatTimeHelper,
       formatCronDescription,
       getReminderTypeText,
       formatDateRange,
       loadCurrentTabData,
       getStatusClass,
       getStatusText,
-      handleCreateNew
+      handleCreateNew,
+      isLongText
     };
   }
 };
@@ -851,11 +964,33 @@ export default {
   border-left: 6rpx solid #f7bd4a;
 }
 
+.reminder-cron-container {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  height: 48rpx;
+  line-height: 48rpx;
+}
+
 .reminder-cron {
   font-size: 26rpx;
   color: #f7bd4a;
   font-weight: 500;
-  margin-top: 4rpx;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.reminder-cron.marquee {
+  animation: marquee 8s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
 }
 
 .reminder-meta {

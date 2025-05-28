@@ -507,7 +507,7 @@ export default {
     
     // 生成cron表达式
     const generateCronExpression = () => {
-      // 基础格式: 秒 分 时 日 月 周 年
+      // 5位格式: 分 时 日 月 周
       // 从选择的时间中提取小时和分钟
       const [hour, minute] = selectedTime.value.split(':');
       
@@ -522,25 +522,25 @@ export default {
         const months = selectedMonths.value.length > 0 ? selectedMonths.value.join(',') : '1'; // 默认1月
         
         if (selectedWeekdays.value.length > 0) {
-          // 如果选择了星期，则使用星期模式（日期用?）
+          // 如果选择了星期，则使用星期模式（日期用*）
           const weekdays = selectedWeekdays.value.join(',');
-          return `0 ${minute} ${hour} ? ${months} ${weekdays} *`;
+          return `${minute} ${hour} * ${months} ${weekdays}`;
         } else {
-          // 如果没有选择星期，则使用日期模式（星期用?）
+          // 如果没有选择星期，则使用日期模式（星期用*）
           const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
-          return `0 ${minute} ${hour} ${days} ${months} ? *`;
+          return `${minute} ${hour} ${days} ${months} *`;
         }
       } else if (currentType.value === 'month') {
         // 月度重复：每月指定日期
         const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
-        return `0 ${minute} ${hour} ${days} * ? *`;
+        return `${minute} ${hour} ${days} * *`;
       } else if (currentType.value === 'week') {
         // 周度重复：每周指定星期
         const weekdays = selectedWeekdays.value.length > 0 ? selectedWeekdays.value.join(',') : '1'; // 默认周一
-        return `0 ${minute} ${hour} ? * ${weekdays} *`;
+        return `${minute} ${hour} * * ${weekdays}`;
       }
       
-      return `0 ${minute} ${hour} * * ? *`; // 默认每天
+      return `${minute} ${hour} * * *`; // 默认每天
     };
 
     // 清空星期选择

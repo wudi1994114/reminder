@@ -71,22 +71,8 @@
 <script>
 import { ref, computed, reactive, onMounted, getCurrentInstance } from 'vue';
 import { createEvent, updateEvent, getSimpleReminderById } from '../../services/api';
-import pageBaseMixin from '@/mixins/page-base.js';
 
 export default {
-  // 使用页面基类混入，提供组件按需加载功能
-  mixins: [pageBaseMixin],
-  
-  // 页面加载完成后的回调（由混入的onLoad调用）
-  async onPageLoad(options) {
-    console.log('onPageLoad 接收到的参数:', options);
-    
-    // 等待组件加载完成
-    await this.waitForComponents();
-    
-    this.pageOptions = options || {};
-  },
-  
   setup() {
     const isEdit = ref(false);
     const pageOptions = ref({}); // 用于存储页面参数
