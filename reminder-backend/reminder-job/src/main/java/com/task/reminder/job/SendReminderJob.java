@@ -14,6 +14,7 @@ import org.quartz.Job;
 import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +70,7 @@ public class SendReminderJob implements Job {
     private RedisUtils redisUtils;
     
     @Autowired
+    @Qualifier("tencentCloudEmailSender")
     private EmailSender emailSender;
     
     @Autowired
@@ -106,7 +108,8 @@ public class SendReminderJob implements Job {
             
             // 创建异步任务列表，用于跟踪所有的提醒发送任务
             List<CompletableFuture<Void>> futures = new ArrayList<>();
-            
+
+            String time = OffsetDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
             // 遍历并异步处理每个提醒
             for (Map.Entry<Object, Object> entry : reminderMap.entrySet()) {
                 String reminderIdStr = entry.getKey().toString();
@@ -151,9 +154,8 @@ public class SendReminderJob implements Job {
                                 if (userProfile != null && userProfile.getEmail() != null && !userProfile.getEmail().isEmpty()) {
                                     try {
                                         String emailSubject = reminder.getTitle();
-                                        String emailBody = "尊敬的" + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，<br/>您的提醒事项：" + reminder.getTitle();
-
-                                        emailSender.sendEmail(userProfile.getEmail(), emailSubject, emailBody);
+                                        String emailBody = this.createHtmlContent(emailSubject, reminder.getDescription(), time);
+                                        emailSender.sendHtmlEmail(userProfile.getEmail(), emailSubject, emailBody);
                                         status = "SUCCESS";
                                         details = "邮件提醒已成功发送至 " + userProfile.getEmail();
                                         log.info("邮件提醒已成功发送至 {} (用户ID: {}) - 提醒ID: {}", userProfile.getEmail(), reminder.getToUserId(), reminder.getId());
@@ -336,5 +338,23 @@ public class SendReminderJob implements Job {
         } catch (Exception e) {
             log.error("保存提醒执行历史(特定情况)失败 - 触发ID: {}, 错误: {}", (triggerId != null ? triggerId : parsedReminderId), e.getMessage(), e);
         }
+    }
+
+
+    private String createHtmlContent(String subject, String content, String time) {
+        String detail = "<!DOCTYPE html>" +
+                "<html>" +
+                "<head><meta charset='UTF-8'><title>%s</title></head>" +
+                "<body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>" +
+                "<div style='max-width: 600px; margin: 0 auto; padding: 20px;'>" +
+                "<h2 style='color: #1890ff;'>%s</h2>" +
+                "<p><strong>时间:</strong> %s </p>" +
+                "<div style='background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;'>" +
+                "<h3 style='color: #1890ff; margin-top: 0;'>%s</h3>" +
+                "</div>" +
+                "</div>" +
+                "</body>" +
+                "</html>";
+        return String.format(detail, subject, subject, time, content);
     }
 } 
