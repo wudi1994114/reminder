@@ -9,6 +9,7 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Message;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -25,8 +26,9 @@ import java.util.Collections;
 import java.util.Properties;
 import java.util.Base64;
 
+@Slf4j
 @Service
-public class GmailSender {
+public class GmailSender implements EmailSender {
 
     private static final String APPLICATION_NAME = "Reminder Application";
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
@@ -52,37 +54,43 @@ public class GmailSender {
 
     @PostConstruct
     public void initService() throws GeneralSecurityException, IOException {
-        final NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-        
-        // 使用注入的凭据
-        GoogleCredentials credentials = UserCredentials.newBuilder()
-                .setClientId(clientId)
-                .setClientSecret(clientSecret)
-                .setRefreshToken(refreshToken)
-                .build();
-
         try {
-            credentials.refreshAccessToken(); 
-            System.out.println("Access token refreshed successfully using GoogleCredentials.");
-        } catch (IOException e) {
-            System.err.println("Failed to refresh access token using GoogleCredentials. Check your gmail.client.id, gmail.client.secret, and gmail.refresh.token in properties.");
-            System.err.println("Ensure the refresh token was obtained with the correct scopes: " + SCOPES.toString());
-            throw e;
+
+
+            final NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+
+            // 使用注入的凭据
+            GoogleCredentials credentials = UserCredentials.newBuilder()
+                    .setClientId(clientId)
+                    .setClientSecret(clientSecret)
+                    .setRefreshToken(refreshToken)
+                    .build();
+
+            try {
+                credentials.refreshAccessToken();
+                System.out.println("Access token refreshed successfully using GoogleCredentials.");
+            } catch (IOException e) {
+                System.err.println("Failed to refresh access token using GoogleCredentials. Check your gmail.client.id, gmail.client.secret, and gmail.refresh.token in properties.");
+                System.err.println("Ensure the refresh token was obtained with the correct scopes: " + SCOPES.toString());
+                throw e;
+            }
+
+            HttpCredentialsAdapter adaptedCredentials = new HttpCredentialsAdapter(credentials);
+
+            this.service = new Gmail.Builder(httpTransport, JSON_FACTORY, adaptedCredentials)
+                    .setApplicationName(APPLICATION_NAME)
+                    .build();
+            System.out.println("Gmail service initialized successfully.");
+        } catch (Exception e) {
+            log.error("初始化Gmail服务时出错: ", e);
         }
-
-        HttpCredentialsAdapter adaptedCredentials = new HttpCredentialsAdapter(credentials);
-
-        this.service = new Gmail.Builder(httpTransport, JSON_FACTORY, adaptedCredentials)
-                .setApplicationName(APPLICATION_NAME)
-                .build();
-        System.out.println("Gmail service initialized successfully.");
     }
 
     /**
      * 创建一个MIME邮件。
      *
-     * @param to      收件人邮箱地址。
-     * @param subject 邮件主题。
+     * @param to       收件人邮箱地址。
+     * @param subject  邮件主题。
      * @param bodyText 邮件正文。
      * @return MimeMessage对象。
      * @throws MessagingException 如果创建邮件失败。
@@ -105,7 +113,7 @@ public class GmailSender {
      * @param emailContent MimeMessage对象。
      * @return Gmail API的Message对象。
      * @throws MessagingException 如果转换失败。
-     * @throws IOException 如果转换失败。
+     * @throws IOException        如果转换失败。
      */
     private Message createMessageWithEmail(MimeMessage emailContent) throws MessagingException, IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -120,32 +128,51 @@ public class GmailSender {
     /**
      * 发送邮件。
      *
-     * @param to 收件人邮箱地址。
-     * @param subject 邮件主题。
+     * @param to       收件人邮箱地址。
+     * @param subject  邮件主题。
      * @param bodyText 邮件正文。
-     * @return 发送的Message对象，如果发送失败则为null。
+     * @return 发送结果，成功返回true，失败返回false。
      */
-    public Message sendEmail(String to, String subject, String bodyText) {
+    @Override
+    public boolean sendEmail(String to, String subject, String bodyText) {
+        // 构造HTML格式的邮件正文，将subject加粗并放在第一行
+        String htmlBody = "<b>" + subject + "</b><br/>" + bodyText;
+        return sendHtmlEmail(to, subject, htmlBody);
+    }
+
+    /**
+     * 发送HTML格式邮件
+     *
+     * @param to       收件人邮箱地址
+     * @param subject  邮件主题
+     * @param htmlBody HTML格式的邮件正文
+     * @return 发送结果，成功返回true，失败返回false
+     */
+    @Override
+    public boolean sendHtmlEmail(String to, String subject, String htmlBody) {
         if (this.service == null) {
             System.err.println("Gmail service not initialized. Cannot send email.");
-            return null;
+            return false;
         }
         try {
-            // 构造HTML格式的邮件正文，将subject加粗并放在第一行
-            String htmlBody = "<b>" + subject + "</b><br/>" + bodyText;
             MimeMessage mimeMessage = createEmail(to, subject, htmlBody);
             Message gmailMessage = createMessageWithEmail(mimeMessage);
-            
+
             // 使用Gmail服务发送消息
             // USER_ID 为 "me" 指示使用已验证用户的身份发送邮件
             Message sentMessage = service.users().messages().send(USER_ID, gmailMessage).execute();
             System.out.println("邮件已发送。 Message ID: " + sentMessage.getId());
-            return sentMessage;
+            return true;
         } catch (MessagingException | IOException e) {
             System.err.println("发送邮件时出错: " + e.getMessage());
             e.printStackTrace();
-            return null;
+            return false;
         }
+    }
+
+    @Override
+    public String getSenderType() {
+        return "Gmail";
     }
 
     public static void main(String[] args) {

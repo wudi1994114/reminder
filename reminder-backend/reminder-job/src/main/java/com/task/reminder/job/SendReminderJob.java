@@ -5,6 +5,7 @@ import com.common.reminder.dto.UserProfileDto;
 import com.common.reminder.model.ReminderExecutionHistory;
 import com.common.reminder.model.SimpleReminder;
 import com.task.reminder.repository.ReminderExecutionHistoryRepository;
+import com.task.reminder.sender.EmailSender;
 import com.task.reminder.sender.GmailSender;
 import com.task.reminder.service.UserCacheService;
 import com.common.reminder.utils.JacksonUtils;
@@ -68,7 +69,7 @@ public class SendReminderJob implements Job {
     private RedisUtils redisUtils;
     
     @Autowired
-    private GmailSender gmailSender;
+    private EmailSender emailSender;
     
     @Autowired
     private UserCacheService userCacheService;
@@ -138,7 +139,7 @@ public class SendReminderJob implements Job {
                             log.info("正在处理提醒 - ID:{}, 标题:{}, 目标用户ID:{}", 
                                 reminder.getId(), reminder.getTitle(), reminder.getToUserId());
 
-                            if (gmailSender != null && userCacheService != null && reminder.getToUserId() != null) {
+                            if (emailSender != null && userCacheService != null && reminder.getToUserId() != null) {
                                 try {
                                     userProfile = userCacheService.getUserProfileById(reminder.getToUserId()); 
                                 } catch (Exception e) {
@@ -150,9 +151,9 @@ public class SendReminderJob implements Job {
                                 if (userProfile != null && userProfile.getEmail() != null && !userProfile.getEmail().isEmpty()) {
                                     try {
                                         String emailSubject = reminder.getTitle();
-                                        String emailBody = "尊敬的" + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，<br/>您的提醒事项：" + reminder.getTitle(); 
-                                        
-                                        gmailSender.sendEmail(userProfile.getEmail(), emailSubject, emailBody);
+                                        String emailBody = "尊敬的" + (userProfile.getNickname() != null ? userProfile.getNickname() : "用户") + "，<br/>您的提醒事项：" + reminder.getTitle();
+
+                                        emailSender.sendEmail(userProfile.getEmail(), emailSubject, emailBody);
                                         status = "SUCCESS";
                                         details = "邮件提醒已成功发送至 " + userProfile.getEmail();
                                         log.info("邮件提醒已成功发送至 {} (用户ID: {}) - 提醒ID: {}", userProfile.getEmail(), reminder.getToUserId(), reminder.getId());
@@ -173,7 +174,7 @@ public class SendReminderJob implements Job {
                                 }
                             } else {
                                 String missingComponent = "";
-                                if (gmailSender == null) missingComponent += "GmailSender未注入; ";
+                                if (emailSender == null) missingComponent += "GmailSender未注入; ";
                                 if (userCacheService == null) missingComponent += "UserCacheService未注入; ";
                                 if (reminder.getToUserId() == null) missingComponent += "接收用户ID为空; ";
                                 details = "无法发送邮件提醒，前置条件不足: " + missingComponent.trim();
