@@ -125,7 +125,7 @@ public class TencentCloudEmailSender implements EmailSender {
 
     @Override
     public String getSenderType() {
-        return "TencentCloud";
+        return "tencent";
     }
 
     /**
