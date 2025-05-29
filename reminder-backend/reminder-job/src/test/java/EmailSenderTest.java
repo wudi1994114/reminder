@@ -8,6 +8,9 @@ import com.task.reminder.sender.EmailSenderFactory;
 import com.task.reminder.sender.TencentCloudEmailSender;
 
 import javax.annotation.Resource;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 
 /**
@@ -69,7 +72,7 @@ public class EmailSenderTest {
         
         try {
             // 使用配置文件中的设置发送测试邮件
-            String testEmail = "wudi609679329@gmail.com"; // 发送给你自己的Gmail
+            String testEmail = "609679329@qq.com"; // 发送给你自己的Gmail
             String subject = "腾讯云邮件测试 - " + java.time.LocalDateTime.now();
             String content = "这是通过Spring Boot测试发送的腾讯云邮件\n\n" +
                     "发送时间: " + java.time.LocalDateTime.now() + "\n" +
@@ -95,7 +98,7 @@ public class EmailSenderTest {
     /**
      * 测试HTML邮件发送
      */
-    // @Test
+    @Test
     public void testSendHtmlEmail() {
         System.out.println("=== 测试HTML邮件发送 ===");
         
@@ -104,9 +107,9 @@ public class EmailSenderTest {
             return;
         }
         
-        String testEmail = "wudi609679329@gmail.com";
-        String subject = "腾讯云HTML邮件测试 - " + java.time.LocalDateTime.now();
-        String htmlContent = createTestHtmlContent();
+        String testEmail = "609679329@qq.com";
+        String subject = "备忘鸡测试";
+        String htmlContent = createTestHtmlContent(subject, "备忘鸡测试内容", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
         
         boolean success = tencentCloudEmailSender.sendHtmlEmail(testEmail, subject, htmlContent);
         
@@ -117,22 +120,20 @@ public class EmailSenderTest {
         }
     }
     
-    private String createTestHtmlContent() {
-        return "<!DOCTYPE html>" +
+    private String createTestHtmlContent(String subject, String content, String time) {
+         String detail = "<!DOCTYPE html>" +
                 "<html>" +
-                "<head><meta charset='UTF-8'><title>测试邮件</title></head>" +
+                "<head><meta charset='UTF-8'><title>%s</title></head>" +
                 "<body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>" +
                 "<div style='max-width: 600px; margin: 0 auto; padding: 20px;'>" +
-                "<h2 style='color: #1890ff;'>🚀 腾讯云邮件服务测试</h2>" +
-                "<p><strong>发送时间:</strong> " + java.time.LocalDateTime.now() + "</p>" +
-                "<p><strong>发送器:</strong> TencentCloudEmailSender</p>" +
-                "<p><strong>配置来源:</strong> application-local.yaml</p>" +
+                "<h2 style='color: #1890ff;'>%s</h2>" +
+                "<p><strong>时间:</strong> %s </p>" +
                 "<div style='background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;'>" +
-                "<h3 style='color: #1890ff; margin-top: 0;'>✅ 测试成功</h3>" +
-                "<p>如果您看到这封邮件，说明腾讯云邮件配置正确！</p>" +
+                "<h3 style='color: #1890ff; margin-top: 0;'>%s</h3>" +
                 "</div>" +
                 "</div>" +
                 "</body>" +
                 "</html>";
+        return String.format(detail, subject, subject, time, content);
     }
 } 

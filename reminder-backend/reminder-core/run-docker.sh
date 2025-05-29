@@ -64,7 +64,8 @@ fi
 # Run the Docker container in detached mode (-d)
 # --name: Assigns a name to the container
 # -p: Publishes container's port to the host
-docker run -d --name "${CONTAINER_NAME}" --network "${NETWORK_NAME}" -p ${HOST_PORT}:${CONTAINER_PORT} "${IMAGE_TO_RUN}"
+# --restart: Automatically restart the container unless explicitly stopped
+docker run -d --name "${CONTAINER_NAME}" --network "${NETWORK_NAME}" --restart=always -p ${HOST_PORT}:${CONTAINER_PORT} "${IMAGE_TO_RUN}"
 
 echo "Container ${CONTAINER_NAME} should be starting on network '${NETWORK_NAME}'."
 echo "You can check logs with: docker logs ${CONTAINER_NAME}"
