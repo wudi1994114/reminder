@@ -90,7 +90,8 @@ public class UserCacheService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getNickname(),
-                user.getAvatarUrl()
+                user.getAvatarUrl(),
+                user.getPhoneNumber()
         );
         redisTemplate.opsForValue().set(cacheKey, userProfileDto, USER_CACHE_TTL, TimeUnit.MINUTES);
         log.debug("用户信息已缓存到Redis (Key: {}), 有效期{}分钟", cacheKey, USER_CACHE_TTL);
@@ -114,7 +115,8 @@ public class UserCacheService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getNickname(),
-                user.getAvatarUrl()
+                user.getAvatarUrl(),
+                user.getPhoneNumber()
         );
         
         redisTemplate.opsForValue().set(usernameCacheKey, userProfileDto, USER_CACHE_TTL, TimeUnit.MINUTES);

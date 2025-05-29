@@ -3,6 +3,8 @@ package com.core.reminder.service;
 import com.core.reminder.dto.LoginRequest;
 import com.core.reminder.dto.LoginResponse;
 import com.core.reminder.dto.ChangePasswordRequest;
+import com.core.reminder.dto.UpdateUserProfileRequest;
+import com.common.reminder.dto.UserProfileDto;
 import com.common.reminder.model.AppUser;
 import com.core.reminder.repository.AppUserRepository;
 import com.core.reminder.security.JwtTokenProvider;
@@ -127,5 +129,61 @@ public class AuthService {
         
         // 密码更改后，清除该用户的缓存，强制下次请求重新加载
         userCacheService.invalidateUserCache(user.getUsername());
+    }
+    
+    // 更新用户个人信息
+    public UserProfileDto updateUserProfile(Long userId, UpdateUserProfileRequest request) {
+        AppUser user = appUserRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在: " + userId));
+        
+        // 更新用户信息
+        boolean needUpdate = false;
+        
+        if (request.getNickname() != null && !request.getNickname().equals(user.getNickname())) {
+            user.setNickname(request.getNickname());
+            needUpdate = true;
+        }
+        
+        if (request.getAvatarUrl() != null && !request.getAvatarUrl().equals(user.getAvatarUrl())) {
+            user.setAvatarUrl(request.getAvatarUrl());
+            needUpdate = true;
+        }
+        
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().equals(user.getPhoneNumber())) {
+            user.setPhoneNumber(request.getPhoneNumber());
+            needUpdate = true;
+        }
+        
+        // 如果有更新，保存到数据库
+        if (needUpdate) {
+            // 更新时间戳
+            user.setUpdatedAt(OffsetDateTime.now());
+            
+            // 保存到数据库
+            AppUser updatedUser = appUserRepository.save(user);
+            
+            // 更新缓存
+            userCacheService.refreshUserCache(updatedUser);
+            
+            // 构建返回DTO
+            return new UserProfileDto(
+                    updatedUser.getId(),
+                    updatedUser.getUsername(),
+                    updatedUser.getEmail(),
+                    updatedUser.getNickname(),
+                    updatedUser.getAvatarUrl(),
+                    updatedUser.getPhoneNumber()
+            );
+        } else {
+            // 没有更新，返回当前用户信息
+            return new UserProfileDto(
+                    user.getId(),
+                    user.getUsername(),
+                    user.getEmail(),
+                    user.getNickname(),
+                    user.getAvatarUrl(),
+                    user.getPhoneNumber()
+            );
+        }
     }
 } 

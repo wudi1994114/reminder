@@ -1,4 +1,4 @@
-package com.core.reminder.model;
+package com.common.reminder.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

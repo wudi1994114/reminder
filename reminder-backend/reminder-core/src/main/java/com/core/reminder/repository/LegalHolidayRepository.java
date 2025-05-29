@@ -14,4 +14,5 @@ public interface LegalHolidayRepository extends JpaRepository<LegalHoliday, Long
     List<LegalHoliday> findByYear(Integer year);
     
     boolean existsByYear(Integer year);
+
 } 

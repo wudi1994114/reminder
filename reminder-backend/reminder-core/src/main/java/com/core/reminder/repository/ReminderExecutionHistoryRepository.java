@@ -1,6 +1,6 @@
 package com.core.reminder.repository;
 
-import com.core.reminder.model.ReminderExecutionHistory;
+import com.common.reminder.model.ReminderExecutionHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

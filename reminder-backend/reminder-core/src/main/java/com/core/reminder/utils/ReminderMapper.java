@@ -57,9 +57,14 @@ public class ReminderMapper {
         entity.setDescription(dto.getDescription());
         entity.setCronExpression(dto.getCronExpression());
         entity.setReminderType(dto.getReminderType());
+        
+        // 处理可选的日期字段：空字符串转换为null
         entity.setValidFrom(dto.getValidFrom());
         entity.setValidUntil(dto.getValidUntil());
+        
+        // 处理可选的数字字段：确保null值正确传递
         entity.setMaxExecutions(dto.getMaxExecutions());
+        
         entity.setLastGeneratedYm(dto.getLastGeneratedYm());
         // 注意：创建时间和更新时间通常由JPA自动管理，但在特殊情况下也可以设置
         // entity.setCreatedAt(dto.getCreatedAt());
@@ -155,9 +160,14 @@ public class ReminderMapper {
         existingEntity.setDescription(dto.getDescription());
         existingEntity.setCronExpression(dto.getCronExpression());
         existingEntity.setReminderType(dto.getReminderType());
+        
+        // 处理可选的日期字段：允许null值
         existingEntity.setValidFrom(dto.getValidFrom());
         existingEntity.setValidUntil(dto.getValidUntil());
+        
+        // 处理可选的数字字段：允许null值
         existingEntity.setMaxExecutions(dto.getMaxExecutions());
+        
         // 不更新lastGeneratedYm，这是系统内部管理的字段
         // 不更新创建时间和更新时间，这些由JPA自动管理
     }

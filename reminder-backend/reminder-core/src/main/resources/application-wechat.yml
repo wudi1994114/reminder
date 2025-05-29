@@ -1,0 +1,23 @@
+# 微信小程序配置示例
+# 请根据实际情况修改配置值
+wechat:
+  miniprogram:
+    # 小程序AppID（必填）
+    appid: your_miniprogram_appid_here
+    # 小程序AppSecret（必填）
+    secret: your_miniprogram_secret_here
+    # 微信API基础URL（一般不需要修改）
+    api-base-url: https://api.weixin.qq.com
+    # 获取session_key的URL路径（一般不需要修改）
+    jscode2session-url: /sns/jscode2session
+    # 连接超时时间（毫秒）
+    connect-timeout: 5000
+    # 读取超时时间（毫秒）
+    read-timeout: 10000
+
+# 日志配置
+logging:
+  level:
+    com.core.reminder.service.WechatApiService: DEBUG
+    com.core.reminder.service.WechatAuthService: DEBUG
+    com.core.reminder.controller.WechatAuthController: DEBUG 

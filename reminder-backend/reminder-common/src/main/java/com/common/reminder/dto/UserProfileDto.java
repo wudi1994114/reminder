@@ -13,6 +13,7 @@ public class UserProfileDto {
     private String email;
     private String nickname;
     private String avatarUrl;
-    // Add other fields you might want to expose, e.g., phoneNumber, birthDate
+    private String phoneNumber;
+    // Add other fields you might want to expose, e.g., birthDate
     // but EXCLUDE password
 } 
