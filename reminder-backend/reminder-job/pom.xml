@@ -96,6 +96,14 @@
             <version>1.20.0</version> <!-- 与 oauth2-http 版本保持一致 -->
         </dependency>
         <!-- End Google Auth Library -->
+        
+        <!-- Spring Boot Test Dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- End Spring Boot Test Dependencies -->
     </dependencies>
 
     <build>

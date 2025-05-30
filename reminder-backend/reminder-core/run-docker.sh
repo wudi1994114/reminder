@@ -17,8 +17,22 @@ fi
 HOST_PORT=8080
 CONTAINER_PORT=8080
 
+# 日志目录配置
+HOST_LOG_DIR="/var/log/reminder/core"
+CONTAINER_LOG_DIR="/var/log/reminder/core"
+
 # --- Script Logic ---
 echo "Attempting to run Docker container ${CONTAINER_NAME} from image ${IMAGE_TO_RUN}..."
+
+# 创建宿主机日志目录
+echo "Creating host log directories..."
+sudo mkdir -p "${HOST_LOG_DIR}/info"
+sudo mkdir -p "${HOST_LOG_DIR}/error"
+
+# 设置日志目录权限
+echo "Setting log directory permissions..."
+sudo chown -R $(whoami):$(whoami) "${HOST_LOG_DIR}"
+sudo chmod -R 755 "${HOST_LOG_DIR}"
 
 # ---- New: Stop and remove ANY existing containers based on the IMAGE_TO_RUN ----
 echo "Performing cleanup of any existing containers using the image ${IMAGE_TO_RUN}..."
@@ -52,6 +66,7 @@ fi
 
 echo "Running new container ${CONTAINER_NAME}..."
 echo "Mapping host port ${HOST_PORT} to container port ${CONTAINER_PORT}"
+echo "Mapping host log directory ${HOST_LOG_DIR} to container directory ${CONTAINER_LOG_DIR}"
 
 # Create network if it doesn't exist
 if ! docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1; then
@@ -64,8 +79,18 @@ fi
 # Run the Docker container in detached mode (-d)
 # --name: Assigns a name to the container
 # -p: Publishes container's port to the host
-docker run -d --name "${CONTAINER_NAME}" --network "${NETWORK_NAME}" -p ${HOST_PORT}:${CONTAINER_PORT} "${IMAGE_TO_RUN}"
+# -v: Mounts host log directory to container log directory
+# --restart: Automatically restart the container unless explicitly stopped
+docker run -d \
+    --name "${CONTAINER_NAME}" \
+    --network "${NETWORK_NAME}" \
+    --restart=always \
+    -p ${HOST_PORT}:${CONTAINER_PORT} \
+    -v "${HOST_LOG_DIR}:${CONTAINER_LOG_DIR}" \
+    "${IMAGE_TO_RUN}"
 
 echo "Container ${CONTAINER_NAME} should be starting on network '${NETWORK_NAME}'."
+echo "Log directory mapping: ${HOST_LOG_DIR} -> ${CONTAINER_LOG_DIR}"
 echo "You can check logs with: docker logs ${CONTAINER_NAME}"
+echo "Application logs are available at: ${HOST_LOG_DIR}"
 echo "To stop the container: docker stop ${CONTAINER_NAME}" 

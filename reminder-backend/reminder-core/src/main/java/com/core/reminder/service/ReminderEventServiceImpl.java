@@ -1,12 +1,18 @@
 package com.core.reminder.service;
 
+import com.common.reminder.constant.ActivityAction;
+import com.common.reminder.constant.ResourceType;
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
+import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
+import com.core.reminder.constant.CacheKeyEnum;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
+import com.core.reminder.utils.CacheUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.time.LocalDate;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class ReminderEventServiceImpl /* implements ReminderService */ {
@@ -26,6 +33,12 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
 
     private final SimpleReminderRepository simpleReminderRepository;
     private final ComplexReminderRepository complexReminderRepository;
+    
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private CacheUtils cacheUtils;
 
     private static final String REMINDER_JOB_GROUP = "reminder-jobs";
     private static final String REMINDER_TRIGGER_GROUP = "reminder-triggers";
@@ -37,16 +50,125 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         this.complexReminderRepository = complexReminderRepository;
     }
 
-    @Transactional
-    public SimpleReminder createSimpleReminder(SimpleReminder simpleReminder) {
-        log.info("Creating simple reminder: {}", simpleReminder.getTitle());
-        return simpleReminderRepository.save(simpleReminder);
+    // === 缓存相关方法 ===
+    
+    /**
+     * 同步添加提醒到缓存
+     */
+    private void addReminderToCache(SimpleReminder reminder) {
+        if (reminder == null || reminder.getToUserId() == null || reminder.getEventTime() == null) {
+            return;
+        }
+        
+        try {
+            cacheUtils.addReminderToCache(reminder.getToUserId(), reminder, reminder.getEventTime());
+            log.debug("已同步添加提醒[{}]到用户[{}]缓存", reminder.getId(), reminder.getToUserId());
+        } catch (Exception e) {
+            log.error("同步添加提醒[{}]到缓存失败", reminder.getId(), e);
+        }
+    }
+    
+    /**
+     * 同步从缓存中删除提醒
+     */
+    private void removeReminderFromCache(SimpleReminder reminder) {
+        if (reminder == null || reminder.getToUserId() == null) {
+            return;
+        }
+        
+        try {
+            cacheUtils.removeReminderFromCache(reminder.getToUserId(), reminder);
+            log.debug("已同步从用户[{}]缓存中删除提醒[{}]", reminder.getToUserId(), reminder.getId());
+        } catch (Exception e) {
+            log.error("同步从缓存删除提醒[{}]失败", reminder.getId(), e);
+        }
+    }
+    
+    /**
+     * 批量同步提醒到缓存
+     */
+    private void addRemindersToCache(Long userId, List<SimpleReminder> reminders) {
+        if (userId == null || reminders == null || reminders.isEmpty()) {
+            return;
+        }
+        
+        try {
+            cacheUtils.addRemindersToCache(userId, reminders);
+            log.debug("已批量同步{}条提醒到用户[{}]缓存", reminders.size(), userId);
+        } catch (Exception e) {
+            log.error("批量同步提醒到用户[{}]缓存失败", userId, e);
+        }
     }
 
+    /**
+     * 清除用户提醒缓存（仅在必要时使用，如用户删除等）
+     */
+    private void invalidateUserRemindersCache(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        
+        try {
+            cacheUtils.clearUserRemindersCache(userId);
+            log.debug("已清除用户[{}] 提醒缓存", userId);
+        } catch (Exception e) {
+            log.error("清除用户[{}] 提醒缓存失败", userId, e);
+        }
+    }
+
+    /**
+     * 清除用户当前月份的提醒缓存（当提醒发生变化时调用）
+     */
+    private void invalidateUserCurrentMonthReminders(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        
+        // 使用ZSet方式，直接清除整个用户的提醒缓存
+        invalidateUserRemindersCache(userId);
+    }
+
+    /**
+     * 清除用户所有提醒相关缓存
+     */
+    private void invalidateAllUserReminderCaches(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        
+        try {
+            // 清除用户的提醒缓存
+            cacheUtils.clearUserRemindersCache(userId);
+            
+            log.info("已清除用户[{}] 所有提醒相关缓存", userId);
+        } catch (Exception e) {
+            log.error("清除用户[{}] 所有提醒缓存失败", userId, e);
+        }
+    }
+
+    // === 业务方法（集成缓存功能） ===
+
+    @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_CREATE, resourceType = ResourceType.REMINDER, 
+                description = "创建简单提醒", async = true, logParams = false, logResult = true)
+    public SimpleReminder createSimpleReminder(SimpleReminder simpleReminder) {
+        log.info("Creating simple reminder: {}", simpleReminder.getTitle());
+        SimpleReminder savedReminder = simpleReminderRepository.save(simpleReminder);
+        
+        // 同步添加到缓存
+        addReminderToCache(savedReminder);
+        
+        return savedReminder;
+    }
+
+    @LogActivity(action = ActivityAction.REMINDER_VIEW, resourceType = ResourceType.REMINDER, 
+                description = "查看简单提醒详情", async = true)
     public Optional<SimpleReminder> getSimpleReminderById(Long id) {
         return simpleReminderRepository.findById(id);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户所有简单提醒", async = true)
     public List<SimpleReminder> getAllSimpleReminders(Long userId) {
         return simpleReminderRepository.findByToUserId(userId);
     }
@@ -60,6 +182,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 指定月份的简单提醒列表
      */
     @Transactional
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "按年月查询简单提醒", async = true, logParams = true)
     public List<SimpleReminder> getSimpleRemindersByYearMonth(int year, int month) {
         log.info("查询 {}-{} 月份的所有简单提醒", year, month);
         
@@ -139,7 +263,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     /**
-     * 按年月和用户查询简单提醒
+     * 按年月和用户查询简单提醒（优先从缓存获取）
      * 在查询前确保复杂任务已生成该月份的简单任务
      * 
      * @param year 年份
@@ -148,6 +272,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 指定用户在指定月份的简单提醒列表
      */
     @Transactional
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "按年月和用户查询简单提醒", async = true, logParams = true)
     public List<SimpleReminder> getSimpleRemindersByYearMonthAndUser(int year, int month, Long userId) {
         log.info("查询用户ID: {} 在 {}-{} 月份的所有简单提醒", userId, year, month);
         
@@ -165,69 +291,186 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 首先确保所有复杂任务都已生成该月份的简单任务
         ensureComplexRemindersGenerated(year, month);
         
-        return simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
+        // 优先从缓存获取
+        try {
+            // 尝试从缓存获取
+            List<SimpleReminder> cachedReminders = cacheUtils.getUserMonthlyReminders(userId, year, month, SimpleReminder.class);
+            
+            if (cachedReminders != null && !cachedReminders.isEmpty()) {
+                log.debug("缓存命中：用户[{}] {}-{} 月提醒数据，共{}条", userId, year, month, cachedReminders.size());
+                return cachedReminders;
+            }
+            
+            // 缓存未命中，从数据库获取
+            log.debug("缓存未命中：从数据库获取用户[{}] {}-{} 月提醒数据", userId, year, month);
+            List<SimpleReminder> reminders = simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
+            
+            // 缓存到Redis
+            if (!reminders.isEmpty()) {
+                cacheUtils.addRemindersToCache(userId, reminders);
+            }
+            
+            return reminders;
+            
+        } catch (Exception e) {
+            log.error("获取用户[{}] {}-{} 月提醒缓存时出错，降级到数据库查询", userId, year, month, e);
+            // 降级到数据库查询
+            return simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
+        }
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户创建的简单提醒", async = true)
     public List<SimpleReminder> getSimpleRemindersByFromUser(Long userId) {
         return simpleReminderRepository.findByFromUserId(userId);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户接收的简单提醒", async = true)
     public List<SimpleReminder> getSimpleRemindersByToUser(Long userId) {
         return simpleReminderRepository.findByToUserId(userId);
     }
 
     /**
-     * 获取最近10个即将到来的提醒
+     * 获取最近10个即将到来的提醒（优先从缓存获取）
      */
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取即将到来的提醒", async = true)
     public List<SimpleReminder> getUpcomingReminders(Long userId) {
-        // 获取当前时间
-        OffsetDateTime now = OffsetDateTime.now();
-        // 查询指定用户即将到来的10个提醒
-        return simpleReminderRepository.findTop10ByToUserIdAndEventTimeAfterOrderByEventTimeAsc(userId, now);
+        try {
+            // 尝试从缓存获取未来30天内的前10个提醒
+            List<SimpleReminder> cachedReminders = cacheUtils.getUserUpcomingReminders(userId, 30, 10, SimpleReminder.class);
+            
+            if (cachedReminders != null && !cachedReminders.isEmpty()) {
+                log.debug("缓存命中：用户[{}] 即将到来的提醒数据，共{}条", userId, cachedReminders.size());
+                return cachedReminders;
+            }
+            
+            // 缓存未命中，从数据库获取
+            log.debug("缓存未命中：从数据库获取用户[{}] 即将到来的提醒数据", userId);
+            OffsetDateTime now = OffsetDateTime.now();
+            List<SimpleReminder> reminders = simpleReminderRepository.findTop10ByToUserIdAndEventTimeAfterOrderByEventTimeAsc(userId, now);
+            
+            // 缓存到Redis
+            if (!reminders.isEmpty()) {
+                cacheUtils.addRemindersToCache(userId, reminders);
+            }
+            
+            return reminders;
+            
+        } catch (Exception e) {
+            log.error("获取用户[{}] 即将到来的提醒缓存时出错，降级到数据库查询", userId, e);
+            // 降级到数据库查询
+            OffsetDateTime now = OffsetDateTime.now();
+            return simpleReminderRepository.findTop10ByToUserIdAndEventTimeAfterOrderByEventTimeAsc(userId, now);
+        }
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_DELETE, resourceType = ResourceType.REMINDER, 
+                description = "删除简单提醒", async = true, logParams = true)
     public void deleteSimpleReminder(Long id) {
         log.info("Deleting simple reminder with ID: {}", id);
+        
+        // 先获取要删除的提醒信息，用于从缓存中删除
+        Optional<SimpleReminder> reminderOpt = simpleReminderRepository.findById(id);
+        
+        // 从数据库删除
         simpleReminderRepository.deleteById(id);
+        
+        // 同步从缓存中删除
+        if (reminderOpt.isPresent()) {
+            removeReminderFromCache(reminderOpt.get());
+        }
     }
 
     /**
      * 更新简单提醒事项并重新调度任务
      */
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_UPDATE, resourceType = ResourceType.REMINDER, 
+                description = "更新简单提醒", async = true, logParams = false, logResult = true)
     public SimpleReminder updateSimpleReminder(SimpleReminder simpleReminder) {
         log.info("Updating simple reminder with ID: {}", simpleReminder.getId());
 
-        return simpleReminderRepository.save(simpleReminder);
+        // 先获取原有的提醒信息，用于从缓存中删除
+        Optional<SimpleReminder> oldReminderOpt = simpleReminderRepository.findById(simpleReminder.getId());
+        
+        // 更新数据库
+        SimpleReminder updatedReminder = simpleReminderRepository.save(simpleReminder);
+        
+        // 同步更新缓存：先删除旧的，再添加新的
+        if (oldReminderOpt.isPresent()) {
+            removeReminderFromCache(oldReminderOpt.get());
+        }
+        addReminderToCache(updatedReminder);
+        
+        return updatedReminder;
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "创建复杂提醒", async = true, logParams = false, logResult = true)
     public ComplexReminder createComplexReminder(ComplexReminder complexReminder) {
         log.info("Creating complex reminder template: {}", complexReminder.getTitle());
-        return complexReminderRepository.save(complexReminder);
+        ComplexReminder savedReminder = complexReminderRepository.save(complexReminder);
+        
+        // 清除相关用户的缓存
+        if (savedReminder.getToUserId() != null) {
+            invalidateUserCurrentMonthReminders(savedReminder.getToUserId());
+        }
+        if (savedReminder.getFromUserId() != null && !savedReminder.getFromUserId().equals(savedReminder.getToUserId())) {
+            invalidateUserCurrentMonthReminders(savedReminder.getFromUserId());
+        }
+        
+        return savedReminder;
     }
 
+    @LogActivity(action = ActivityAction.REMINDER_VIEW, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "查看复杂提醒详情", async = true)
     public Optional<ComplexReminder> getComplexReminderById(Long id) {
         return complexReminderRepository.findById(id);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取所有复杂提醒", async = true)
     public List<ComplexReminder> getAllComplexReminders() {
         return complexReminderRepository.findAll();
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取用户创建的复杂提醒", async = true)
     public List<ComplexReminder> getComplexRemindersByFromUser(Long userId) {
         return complexReminderRepository.findByFromUserId(userId);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取用户接收的复杂提醒", async = true)
     public List<ComplexReminder> getComplexRemindersByToUser(Long userId) {
         return complexReminderRepository.findByToUserId(userId);
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_DELETE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "删除复杂提醒", async = true, logParams = true)
     public void deleteComplexReminder(Long id) {
         log.info("Deleting complex reminder template with ID: {}", id);
+        
+        // 先获取要删除的复杂提醒信息，用于清除缓存
+        Optional<ComplexReminder> reminderOpt = complexReminderRepository.findById(id);
+        
         complexReminderRepository.deleteById(id);
+        
+        // 清除相关用户的缓存
+        if (reminderOpt.isPresent()) {
+            ComplexReminder reminder = reminderOpt.get();
+            if (reminder.getToUserId() != null) {
+                invalidateAllUserReminderCaches(reminder.getToUserId());
+            }
+            if (reminder.getFromUserId() != null && !reminder.getFromUserId().equals(reminder.getToUserId())) {
+                invalidateAllUserReminderCaches(reminder.getFromUserId());
+            }
+        }
     }
 
     /**
@@ -239,6 +482,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 创建后的复杂提醒对象
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "创建复杂提醒并生成简单任务", async = true, logParams = true, logResult = true)
     public ComplexReminder createComplexReminderWithSimpleReminders(ComplexReminder complexReminder, int monthsAhead) {
         log.info("创建复杂提醒并生成{}个月内的简单任务", monthsAhead);
         
@@ -248,6 +493,14 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 生成简单任务
         List<SimpleReminder> generatedReminders = generateSimpleRemindersForMonths(savedReminder, monthsAhead);
         log.info("为复杂提醒ID: {} 成功生成 {} 个简单任务", savedReminder.getId(), generatedReminders.size());
+        
+        // 清除相关用户的缓存（因为生成了新的简单任务）
+        if (savedReminder.getToUserId() != null) {
+            invalidateAllUserReminderCaches(savedReminder.getToUserId());
+        }
+        if (savedReminder.getFromUserId() != null && !savedReminder.getFromUserId().equals(savedReminder.getToUserId())) {
+            invalidateAllUserReminderCaches(savedReminder.getFromUserId());
+        }
         
         return savedReminder;
     }
@@ -261,6 +514,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 更新后的复杂提醒对象
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_UPDATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "更新复杂提醒并重新生成简单任务", async = true, logParams = true, logResult = true)
     public ComplexReminder updateComplexReminderWithSimpleReminders(ComplexReminder complexReminder, int monthsAhead) {
         log.info("更新复杂提醒并生成{}个月内的简单任务", monthsAhead);
         
@@ -274,6 +529,14 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 生成简单任务
         List<SimpleReminder> generatedReminders = generateSimpleRemindersForMonths(updatedReminder, monthsAhead);
         log.info("为更新的复杂提醒ID: {} 成功生成 {} 个简单任务", updatedReminder.getId(), generatedReminders.size());
+        
+        // 清除相关用户的缓存（因为重新生成了简单任务）
+        if (updatedReminder.getToUserId() != null) {
+            invalidateAllUserReminderCaches(updatedReminder.getToUserId());
+        }
+        if (updatedReminder.getFromUserId() != null && !updatedReminder.getFromUserId().equals(updatedReminder.getToUserId())) {
+            invalidateAllUserReminderCaches(updatedReminder.getFromUserId());
+        }
         
         return updatedReminder;
     }
@@ -446,9 +709,28 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 删除的记录数
      */
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_DELETE, resourceType = ResourceType.REMINDER, 
+                description = "删除复杂提醒关联的简单任务", async = true, logParams = true)
     public int deleteSimpleRemindersByComplexReminderId(Long complexReminderId) {
         log.info("删除与复杂提醒ID: {} 相关的所有简单任务", complexReminderId);
-        return simpleReminderRepository.deleteByOriginatingComplexReminderId(complexReminderId);
+        
+        // 先获取复杂提醒信息，用于清除缓存
+        Optional<ComplexReminder> complexReminderOpt = complexReminderRepository.findById(complexReminderId);
+        
+        int deletedCount = simpleReminderRepository.deleteByOriginatingComplexReminderId(complexReminderId);
+        
+        // 清除相关用户的缓存
+        if (complexReminderOpt.isPresent()) {
+            ComplexReminder complexReminder = complexReminderOpt.get();
+            if (complexReminder.getToUserId() != null) {
+                invalidateAllUserReminderCaches(complexReminder.getToUserId());
+            }
+            if (complexReminder.getFromUserId() != null && !complexReminder.getFromUserId().equals(complexReminder.getToUserId())) {
+                invalidateAllUserReminderCaches(complexReminder.getFromUserId());
+            }
+        }
+        
+        return deletedCount;
     }
 
     /**
@@ -459,8 +741,13 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 删除的简单提醒数量
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_DELETE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "删除复杂提醒及其关联的简单任务", async = true, logParams = true, logResult = true)
     public int deleteComplexReminderWithRelatedSimpleReminders(Long complexReminderId) {
         log.info("删除复杂提醒ID: {} 及其关联的所有简单任务", complexReminderId);
+        
+        // 先获取复杂提醒信息，用于清除缓存
+        Optional<ComplexReminder> complexReminderOpt = complexReminderRepository.findById(complexReminderId);
         
         // 先删除关联的简单提醒
         int deletedCount = simpleReminderRepository.deleteByOriginatingComplexReminderId(complexReminderId);
@@ -476,6 +763,17 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             log.warn("无法删除不存在的复杂提醒ID: {}", complexReminderId);
         }
         
+        // 清除相关用户的缓存
+        if (complexReminderOpt.isPresent()) {
+            ComplexReminder complexReminder = complexReminderOpt.get();
+            if (complexReminder.getToUserId() != null) {
+                invalidateAllUserReminderCaches(complexReminder.getToUserId());
+            }
+            if (complexReminder.getFromUserId() != null && !complexReminder.getFromUserId().equals(complexReminder.getToUserId())) {
+                invalidateAllUserReminderCaches(complexReminder.getFromUserId());
+            }
+        }
+        
         return deletedCount;
     }
 
@@ -484,7 +782,9 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * 
      * @return 未来1分钟内的提醒事项列表
      */
-public List<SimpleReminder> getNextMinuteReminders() {
+    @LogActivity(action = ActivityAction.REMINDER_EXECUTE, resourceType = ResourceType.REMINDER, 
+                description = "获取即将触发的提醒", async = true)
+    public List<SimpleReminder> getNextMinuteReminders() {
         log.info("获取未来1分钟内的提醒事项");
         
         // 获取当前时间

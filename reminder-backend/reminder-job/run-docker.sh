@@ -36,7 +36,8 @@ PORT_MAPPING_ARGS=""
 #    echo "Mapping host port ${HOST_JOB_PORT} to container port ${CONTAINER_JOB_PORT}"
 # fi
 
-docker run -d --name "${CONTAINER_NAME}" ${PORT_MAPPING_ARGS} "${IMAGE_TO_RUN}"
+# Run container with automatic restart policy
+docker run -d --name "${CONTAINER_NAME}" --restart=always ${PORT_MAPPING_ARGS} "${IMAGE_TO_RUN}"
 
 echo "Container ${CONTAINER_NAME} should be starting."
 echo "You can check logs with: docker logs ${CONTAINER_NAME}"

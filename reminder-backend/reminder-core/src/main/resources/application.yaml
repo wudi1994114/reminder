@@ -97,3 +97,17 @@ gmail:
   sender:
     email:
       address: YOUR_GMAIL_SENDER_ADDRESS_PLACEHOLDER 
+
+# 提醒应用配置
+reminder:
+  # 节假日缓存配置
+  holiday:
+    cache:
+      # 是否启用预加载缓存
+      enabled: true
+      # 预加载年份范围：当前年份前几年
+      years-before: 1
+      # 预加载年份范围：当前年份后几年
+      years-after: 1
+      # 是否在启动时异步预加载（true=异步，false=同步）
+      async-preload: false

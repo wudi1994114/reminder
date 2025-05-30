@@ -100,3 +100,5 @@ spring:
       # Druid特有配置
       org.quartz.dataSource.quartzDS.maxWaitMillis: 60000
       org.quartz.dataSource.quartzDS.idleConnectionTestPeriod: 60
+email:
+  provider: tencent
