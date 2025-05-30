@@ -1,6 +1,9 @@
 package com.core.reminder.config;
 
 import com.core.reminder.service.LegalHolidayService;
+import com.core.reminder.repository.SimpleReminderRepository;
+import com.core.reminder.utils.CacheUtils;
+import com.common.reminder.model.SimpleReminder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +13,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * 应用初始化配置类
@@ -26,6 +32,12 @@ public class ApplicationInitializer implements ApplicationRunner {
 
     @Autowired
     private HolidayCacheConfig holidayCacheConfig;
+    
+    @Autowired
+    private SimpleReminderRepository simpleReminderRepository;
+    
+    @Autowired
+    private CacheUtils cacheUtils;
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
@@ -45,6 +57,10 @@ public class ApplicationInitializer implements ApplicationRunner {
             } else {
                 logger.info("节假日缓存预加载已禁用");
             }
+            
+            // 同步数据库和Redis ZSet
+            syncDatabaseToRedisAsync();
+            logger.info("数据库与Redis ZSet异步同步已启动");
             
             logger.info("应用初始化操作完成");
         } catch (Exception e) {
@@ -110,6 +126,64 @@ public class ApplicationInitializer implements ApplicationRunner {
                 
             } catch (Exception e) {
                 logger.error("异步预加载节假日缓存失败", e);
+            }
+        });
+    }
+
+    /**
+     * 同步数据库和Redis ZSet
+     */
+    @Async
+    public CompletableFuture<Void> syncDatabaseToRedisAsync() {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                logger.info("开始同步数据库到Redis ZSet...");
+                
+                long startTime = System.currentTimeMillis();
+                
+                // 获取所有未来的提醒（不包括已过期的）
+                OffsetDateTime now = OffsetDateTime.now();
+                List<SimpleReminder> futureReminders = simpleReminderRepository.findByEventTimeAfter(now);
+                
+                if (futureReminders.isEmpty()) {
+                    logger.info("没有需要同步的未来提醒数据");
+                    return;
+                }
+                
+                // 按用户分组并同步到缓存
+                futureReminders.stream()
+                    .collect(Collectors.groupingBy(SimpleReminder::getToUserId))
+                    .forEach((userId, reminders) -> {
+                        if (userId != null && !reminders.isEmpty()) {
+                            try {
+                                // 先清空用户的现有缓存
+                                cacheUtils.clearUserRemindersCache(userId);
+                                
+                                // 批量添加提醒到缓存
+                                cacheUtils.addRemindersToCache(userId, reminders);
+                                
+                                logger.debug("已同步用户[{}]的{}条提醒到缓存", userId, reminders.size());
+                            } catch (Exception e) {
+                                logger.error("同步用户[{}]提醒到缓存失败", userId, e);
+                            }
+                        }
+                    });
+                
+                long endTime = System.currentTimeMillis();
+                long duration = endTime - startTime;
+                
+                // 统计同步结果
+                long totalUsers = futureReminders.stream()
+                    .map(SimpleReminder::getToUserId)
+                    .filter(userId -> userId != null)
+                    .distinct()
+                    .count();
+                
+                logger.info("数据库与Redis ZSet同步完成，共同步{}个用户的{}条提醒，耗时{}ms", 
+                           totalUsers, futureReminders.size(), duration);
+                
+            } catch (Exception e) {
+                logger.error("同步数据库和Redis ZSet失败", e);
             }
         });
     }

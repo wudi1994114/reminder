@@ -22,6 +22,9 @@ public interface SimpleReminderRepository extends JpaRepository<SimpleReminder, 
     // 查询特定时间点之前的提醒 (常用于定时任务扫描)
     List<SimpleReminder> findByEventTimeBefore(OffsetDateTime time);
 
+    // 查询特定时间点之后的提醒 (用于同步缓存)
+    List<SimpleReminder> findByEventTimeAfter(OffsetDateTime time);
+
     // 根据来源的复杂提醒 ID 查询
     List<SimpleReminder> findByOriginatingComplexReminderId(Long complexReminderId);
 

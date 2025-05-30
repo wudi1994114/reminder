@@ -5,8 +5,10 @@ import com.common.reminder.constant.ResourceType;
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
+import com.core.reminder.constant.CacheKeyEnum;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
+import com.core.reminder.utils.CacheUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,12 +37,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
-    // 缓存键前缀
-    private static final String USER_MONTHLY_REMINDERS_KEY_PREFIX = "user:reminders:monthly:";
-    private static final String USER_UPCOMING_REMINDERS_KEY_PREFIX = "user:reminders:upcoming:";
-    
-    // 缓存过期时间：7天
-    private static final long CACHE_TTL_DAYS = 7;
+    @Autowired
+    private CacheUtils cacheUtils;
 
     private static final String REMINDER_JOB_GROUP = "reminder-jobs";
     private static final String REMINDER_TRIGGER_GROUP = "reminder-triggers";
@@ -55,94 +53,66 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     // === 缓存相关方法 ===
     
     /**
-     * 构建月度提醒缓存键
+     * 同步添加提醒到缓存
      */
-    private String buildMonthlyRemindersKey(Long userId, int year, int month) {
-        return USER_MONTHLY_REMINDERS_KEY_PREFIX + userId + ":" + year + ":" + String.format("%02d", month);
-    }
-
-    /**
-     * 构建即将到来的提醒缓存键
-     */
-    private String buildUpcomingRemindersKey(Long userId) {
-        return USER_UPCOMING_REMINDERS_KEY_PREFIX + userId;
-    }
-
-    /**
-     * 缓存用户当月提醒数据
-     */
-    private void cacheUserMonthlyReminders(Long userId, int year, int month, List<SimpleReminder> reminders) {
-        if (userId == null || reminders == null) {
+    private void addReminderToCache(SimpleReminder reminder) {
+        if (reminder == null || reminder.getToUserId() == null || reminder.getEventTime() == null) {
             return;
         }
         
-        String cacheKey = buildMonthlyRemindersKey(userId, year, month);
-        
         try {
-            redisTemplate.opsForValue().set(cacheKey, reminders, CACHE_TTL_DAYS, TimeUnit.DAYS);
-            log.debug("已缓存用户[{}] {}-{} 月提醒数据，共{}条，过期时间{}天", 
-                     userId, year, month, reminders.size(), CACHE_TTL_DAYS);
+            cacheUtils.addReminderToCache(reminder.getToUserId(), reminder, reminder.getEventTime());
+            log.debug("已同步添加提醒[{}]到用户[{}]缓存", reminder.getId(), reminder.getToUserId());
         } catch (Exception e) {
-            log.error("缓存用户[{}] {}-{} 月提醒数据失败", userId, year, month, e);
+            log.error("同步添加提醒[{}]到缓存失败", reminder.getId(), e);
         }
     }
-
+    
     /**
-     * 缓存用户即将到来的提醒数据
+     * 同步从缓存中删除提醒
      */
-    private void cacheUserUpcomingReminders(Long userId, List<SimpleReminder> reminders) {
-        if (userId == null || reminders == null) {
+    private void removeReminderFromCache(SimpleReminder reminder) {
+        if (reminder == null || reminder.getToUserId() == null) {
             return;
         }
         
-        String cacheKey = buildUpcomingRemindersKey(userId);
+        try {
+            cacheUtils.removeReminderFromCache(reminder.getToUserId(), reminder);
+            log.debug("已同步从用户[{}]缓存中删除提醒[{}]", reminder.getToUserId(), reminder.getId());
+        } catch (Exception e) {
+            log.error("同步从缓存删除提醒[{}]失败", reminder.getId(), e);
+        }
+    }
+    
+    /**
+     * 批量同步提醒到缓存
+     */
+    private void addRemindersToCache(Long userId, List<SimpleReminder> reminders) {
+        if (userId == null || reminders == null || reminders.isEmpty()) {
+            return;
+        }
         
         try {
-            // 即将到来的提醒使用较短的缓存时间（1小时）
-            redisTemplate.opsForValue().set(cacheKey, reminders, 1, TimeUnit.HOURS);
-            log.debug("已缓存用户[{}] 即将到来的提醒数据，共{}条，过期时间1小时", userId, reminders.size());
+            cacheUtils.addRemindersToCache(userId, reminders);
+            log.debug("已批量同步{}条提醒到用户[{}]缓存", reminders.size(), userId);
         } catch (Exception e) {
-            log.error("缓存用户[{}] 即将到来的提醒数据失败", userId, e);
+            log.error("批量同步提醒到用户[{}]缓存失败", userId, e);
         }
     }
 
     /**
-     * 清除用户指定月份的提醒缓存
+     * 清除用户提醒缓存（仅在必要时使用，如用户删除等）
      */
-    private void invalidateUserMonthlyReminders(Long userId, int year, int month) {
+    private void invalidateUserRemindersCache(Long userId) {
         if (userId == null) {
             return;
         }
         
-        String cacheKey = buildMonthlyRemindersKey(userId, year, month);
-        
         try {
-            Boolean deleted = redisTemplate.delete(cacheKey);
-            if (Boolean.TRUE.equals(deleted)) {
-                log.debug("已清除用户[{}] {}-{} 月提醒缓存", userId, year, month);
-            }
+            cacheUtils.clearUserRemindersCache(userId);
+            log.debug("已清除用户[{}] 提醒缓存", userId);
         } catch (Exception e) {
-            log.error("清除用户[{}] {}-{} 月提醒缓存失败", userId, year, month, e);
-        }
-    }
-
-    /**
-     * 清除用户即将到来的提醒缓存
-     */
-    private void invalidateUserUpcomingReminders(Long userId) {
-        if (userId == null) {
-            return;
-        }
-        
-        String cacheKey = buildUpcomingRemindersKey(userId);
-        
-        try {
-            Boolean deleted = redisTemplate.delete(cacheKey);
-            if (Boolean.TRUE.equals(deleted)) {
-                log.debug("已清除用户[{}] 即将到来的提醒缓存", userId);
-            }
-        } catch (Exception e) {
-            log.error("清除用户[{}] 即将到来的提醒缓存失败", userId, e);
+            log.error("清除用户[{}] 提醒缓存失败", userId, e);
         }
     }
 
@@ -154,9 +124,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             return;
         }
         
-        LocalDate now = LocalDate.now();
-        invalidateUserMonthlyReminders(userId, now.getYear(), now.getMonthValue());
-        invalidateUserUpcomingReminders(userId);
+        // 使用ZSet方式，直接清除整个用户的提醒缓存
+        invalidateUserRemindersCache(userId);
     }
 
     /**
@@ -168,15 +137,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         }
         
         try {
-            // 清除当前月份和前后几个月的缓存
-            LocalDate now = LocalDate.now();
-            for (int i = -2; i <= 2; i++) {
-                LocalDate targetDate = now.plusMonths(i);
-                invalidateUserMonthlyReminders(userId, targetDate.getYear(), targetDate.getMonthValue());
-            }
-            
-            // 清除即将到来的提醒缓存
-            invalidateUserUpcomingReminders(userId);
+            // 清除用户的提醒缓存
+            cacheUtils.clearUserRemindersCache(userId);
             
             log.info("已清除用户[{}] 所有提醒相关缓存", userId);
         } catch (Exception e) {
@@ -193,13 +155,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         log.info("Creating simple reminder: {}", simpleReminder.getTitle());
         SimpleReminder savedReminder = simpleReminderRepository.save(simpleReminder);
         
-        // 清除相关用户的缓存
-        if (savedReminder.getToUserId() != null) {
-            invalidateUserCurrentMonthReminders(savedReminder.getToUserId());
-        }
-        if (savedReminder.getFromUserId() != null && !savedReminder.getFromUserId().equals(savedReminder.getToUserId())) {
-            invalidateUserCurrentMonthReminders(savedReminder.getFromUserId());
-        }
+        // 同步添加到缓存
+        addReminderToCache(savedReminder);
         
         return savedReminder;
     }
@@ -335,14 +292,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         ensureComplexRemindersGenerated(year, month);
         
         // 优先从缓存获取
-        String cacheKey = buildMonthlyRemindersKey(userId, year, month);
-        
         try {
             // 尝试从缓存获取
-            @SuppressWarnings("unchecked")
-            List<SimpleReminder> cachedReminders = (List<SimpleReminder>) redisTemplate.opsForValue().get(cacheKey);
+            List<SimpleReminder> cachedReminders = cacheUtils.getUserMonthlyReminders(userId, year, month, SimpleReminder.class);
             
-            if (cachedReminders != null) {
+            if (cachedReminders != null && !cachedReminders.isEmpty()) {
                 log.debug("缓存命中：用户[{}] {}-{} 月提醒数据，共{}条", userId, year, month, cachedReminders.size());
                 return cachedReminders;
             }
@@ -352,7 +306,9 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             List<SimpleReminder> reminders = simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
             
             // 缓存到Redis
-            cacheUserMonthlyReminders(userId, year, month, reminders);
+            if (!reminders.isEmpty()) {
+                cacheUtils.addRemindersToCache(userId, reminders);
+            }
             
             return reminders;
             
@@ -381,14 +337,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
                 description = "获取即将到来的提醒", async = true)
     public List<SimpleReminder> getUpcomingReminders(Long userId) {
-        String cacheKey = buildUpcomingRemindersKey(userId);
-        
         try {
-            // 尝试从缓存获取
-            @SuppressWarnings("unchecked")
-            List<SimpleReminder> cachedReminders = (List<SimpleReminder>) redisTemplate.opsForValue().get(cacheKey);
+            // 尝试从缓存获取未来30天内的前10个提醒
+            List<SimpleReminder> cachedReminders = cacheUtils.getUserUpcomingReminders(userId, 30, 10, SimpleReminder.class);
             
-            if (cachedReminders != null) {
+            if (cachedReminders != null && !cachedReminders.isEmpty()) {
                 log.debug("缓存命中：用户[{}] 即将到来的提醒数据，共{}条", userId, cachedReminders.size());
                 return cachedReminders;
             }
@@ -398,8 +351,10 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             OffsetDateTime now = OffsetDateTime.now();
             List<SimpleReminder> reminders = simpleReminderRepository.findTop10ByToUserIdAndEventTimeAfterOrderByEventTimeAsc(userId, now);
             
-            // 缓存到Redis（较短的过期时间，因为即将到来的提醒变化较快）
-            cacheUserUpcomingReminders(userId, reminders);
+            // 缓存到Redis
+            if (!reminders.isEmpty()) {
+                cacheUtils.addRemindersToCache(userId, reminders);
+            }
             
             return reminders;
             
@@ -417,20 +372,15 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     public void deleteSimpleReminder(Long id) {
         log.info("Deleting simple reminder with ID: {}", id);
         
-        // 先获取要删除的提醒信息，用于清除缓存
+        // 先获取要删除的提醒信息，用于从缓存中删除
         Optional<SimpleReminder> reminderOpt = simpleReminderRepository.findById(id);
         
+        // 从数据库删除
         simpleReminderRepository.deleteById(id);
         
-        // 清除相关用户的缓存
+        // 同步从缓存中删除
         if (reminderOpt.isPresent()) {
-            SimpleReminder reminder = reminderOpt.get();
-            if (reminder.getToUserId() != null) {
-                invalidateUserCurrentMonthReminders(reminder.getToUserId());
-            }
-            if (reminder.getFromUserId() != null && !reminder.getFromUserId().equals(reminder.getToUserId())) {
-                invalidateUserCurrentMonthReminders(reminder.getFromUserId());
-            }
+            removeReminderFromCache(reminderOpt.get());
         }
     }
 
@@ -443,15 +393,17 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     public SimpleReminder updateSimpleReminder(SimpleReminder simpleReminder) {
         log.info("Updating simple reminder with ID: {}", simpleReminder.getId());
 
+        // 先获取原有的提醒信息，用于从缓存中删除
+        Optional<SimpleReminder> oldReminderOpt = simpleReminderRepository.findById(simpleReminder.getId());
+        
+        // 更新数据库
         SimpleReminder updatedReminder = simpleReminderRepository.save(simpleReminder);
         
-        // 清除相关用户的缓存
-        if (updatedReminder.getToUserId() != null) {
-            invalidateUserCurrentMonthReminders(updatedReminder.getToUserId());
+        // 同步更新缓存：先删除旧的，再添加新的
+        if (oldReminderOpt.isPresent()) {
+            removeReminderFromCache(oldReminderOpt.get());
         }
-        if (updatedReminder.getFromUserId() != null && !updatedReminder.getFromUserId().equals(updatedReminder.getToUserId())) {
-            invalidateUserCurrentMonthReminders(updatedReminder.getFromUserId());
-        }
+        addReminderToCache(updatedReminder);
         
         return updatedReminder;
     }
