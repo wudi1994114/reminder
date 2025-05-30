@@ -20,6 +20,16 @@ fi
 IMAGE_NAME_LATEST="${IMAGE_NAME_BASE}:latest"
 IMAGE_NAME_TIMESTAMPED="${IMAGE_NAME_BASE}:${TIMESTAMP_TAG}"
 
+# --- Git Pull Process ---
+echo "Pulling latest code from GitHub main branch..."
+cd "$(dirname "$0")"
+# Navigate to project root (assuming we're in reminder-backend/reminder-core)
+cd ../../
+git fetch origin
+git checkout main
+git pull origin main
+echo "Successfully pulled latest code from main branch."
+
 # --- Build Process ---
 cd "$(dirname "$0")"
 
