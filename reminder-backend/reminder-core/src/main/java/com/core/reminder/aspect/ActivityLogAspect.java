@@ -123,16 +123,20 @@ public class ActivityLogAspect {
             String resourceName = extractResourceName(joinPoint, result);
 
             // 记录活动日志
-            if (logActivity.async()) {
-                activityLogService.logActivityAsync(
-                    userId, logActivity.action(), status, logActivity.resourceType(),
-                    resourceId, resourceName, errorMessage, details, request
-                );
-            } else {
-                activityLogService.logActivity(
-                    userId, logActivity.action(), status, logActivity.resourceType(),
-                    resourceId, resourceName, errorMessage, details, request
-                );
+            try {
+                if (logActivity.async()) {
+                    activityLogService.logActivityAsync(
+                        userId, logActivity.action(), status, logActivity.resourceType(),
+                        resourceId, resourceName, errorMessage, details, request
+                    );
+                } else {
+                    activityLogService.logActivity(
+                        userId, logActivity.action(), status, logActivity.resourceType(),
+                        resourceId, resourceName, errorMessage, details, request
+                    );
+                }
+            } catch (Exception logException) {
+                log.error("记录活动日志时发生错误", logException);
             }
         }
 
