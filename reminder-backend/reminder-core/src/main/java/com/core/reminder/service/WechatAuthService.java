@@ -1,7 +1,10 @@
 package com.core.reminder.service;
 
+import com.common.reminder.constant.ActivityAction;
+import com.common.reminder.constant.ResourceType;
 import com.common.reminder.model.AppUser;
 import com.common.reminder.model.WechatUser;
+import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
 import com.core.reminder.dto.WechatApiResponse;
 import com.core.reminder.dto.WechatLoginRequest;
 import com.core.reminder.dto.WechatLoginResponse;
@@ -45,6 +48,8 @@ public class WechatAuthService {
      * @return 登录响应
      */
     @Transactional
+    @LogActivity(action = ActivityAction.WECHAT_LOGIN, resourceType = ResourceType.USER, 
+                description = "微信小程序登录", async = true, logParams = false, logResult = false)
     public WechatLoginResponse wechatLogin(WechatLoginRequest request) {
         try {
             // 1. 调用微信API获取openid和session_key
@@ -105,6 +110,8 @@ public class WechatAuthService {
     /**
      * 创建系统用户
      */
+    @LogActivity(action = ActivityAction.REGISTER, resourceType = ResourceType.USER, 
+                description = "创建微信关联的系统用户", async = true, logParams = false, logResult = true)
     private AppUser createAppUser(WechatLoginRequest request) {
         AppUser appUser = new AppUser();
         
@@ -133,6 +140,8 @@ public class WechatAuthService {
     /**
      * 创建微信用户
      */
+    @LogActivity(action = ActivityAction.SOCIAL_ACCOUNT_BIND, resourceType = ResourceType.SOCIAL_ACCOUNT, 
+                description = "创建微信用户关联", async = true, logParams = false, logResult = true)
     private WechatUser createWechatUser(Long appUserId, WechatApiResponse apiResponse, WechatLoginRequest request) {
         WechatUser wechatUser = new WechatUser();
         wechatUser.setAppUserId(appUserId);
@@ -159,6 +168,8 @@ public class WechatAuthService {
     /**
      * 更新微信用户信息
      */
+    @LogActivity(action = ActivityAction.PROFILE_UPDATE, resourceType = ResourceType.SOCIAL_ACCOUNT, 
+                description = "更新微信用户信息", async = true, logParams = false)
     private void updateWechatUser(WechatUser wechatUser, WechatApiResponse apiResponse, WechatLoginRequest request) {
         // 更新session_key和登录时间
         wechatUser.setSessionKey(apiResponse.getSessionKey());

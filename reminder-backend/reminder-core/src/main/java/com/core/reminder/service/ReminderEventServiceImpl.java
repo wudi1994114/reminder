@@ -1,7 +1,10 @@
 package com.core.reminder.service;
 
+import com.common.reminder.constant.ActivityAction;
+import com.common.reminder.constant.ResourceType;
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
+import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
 import org.slf4j.Logger;
@@ -38,15 +41,21 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_CREATE, resourceType = ResourceType.REMINDER, 
+                description = "创建简单提醒", async = true, logParams = false, logResult = true)
     public SimpleReminder createSimpleReminder(SimpleReminder simpleReminder) {
         log.info("Creating simple reminder: {}", simpleReminder.getTitle());
         return simpleReminderRepository.save(simpleReminder);
     }
 
+    @LogActivity(action = ActivityAction.REMINDER_VIEW, resourceType = ResourceType.REMINDER, 
+                description = "查看简单提醒详情", async = true)
     public Optional<SimpleReminder> getSimpleReminderById(Long id) {
         return simpleReminderRepository.findById(id);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户所有简单提醒", async = true)
     public List<SimpleReminder> getAllSimpleReminders(Long userId) {
         return simpleReminderRepository.findByToUserId(userId);
     }
@@ -60,6 +69,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 指定月份的简单提醒列表
      */
     @Transactional
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "按年月查询简单提醒", async = true, logParams = true)
     public List<SimpleReminder> getSimpleRemindersByYearMonth(int year, int month) {
         log.info("查询 {}-{} 月份的所有简单提醒", year, month);
         
@@ -148,6 +159,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 指定用户在指定月份的简单提醒列表
      */
     @Transactional
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "按年月和用户查询简单提醒", async = true, logParams = true)
     public List<SimpleReminder> getSimpleRemindersByYearMonthAndUser(int year, int month, Long userId) {
         log.info("查询用户ID: {} 在 {}-{} 月份的所有简单提醒", userId, year, month);
         
@@ -168,10 +181,14 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         return simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户创建的简单提醒", async = true)
     public List<SimpleReminder> getSimpleRemindersByFromUser(Long userId) {
         return simpleReminderRepository.findByFromUserId(userId);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取用户接收的简单提醒", async = true)
     public List<SimpleReminder> getSimpleRemindersByToUser(Long userId) {
         return simpleReminderRepository.findByToUserId(userId);
     }
@@ -179,6 +196,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     /**
      * 获取最近10个即将到来的提醒
      */
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.REMINDER, 
+                description = "获取即将到来的提醒", async = true)
     public List<SimpleReminder> getUpcomingReminders(Long userId) {
         // 获取当前时间
         OffsetDateTime now = OffsetDateTime.now();
@@ -187,6 +206,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_DELETE, resourceType = ResourceType.REMINDER, 
+                description = "删除简单提醒", async = true, logParams = true)
     public void deleteSimpleReminder(Long id) {
         log.info("Deleting simple reminder with ID: {}", id);
         simpleReminderRepository.deleteById(id);
@@ -196,6 +217,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * 更新简单提醒事项并重新调度任务
      */
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_UPDATE, resourceType = ResourceType.REMINDER, 
+                description = "更新简单提醒", async = true, logParams = false, logResult = true)
     public SimpleReminder updateSimpleReminder(SimpleReminder simpleReminder) {
         log.info("Updating simple reminder with ID: {}", simpleReminder.getId());
 
@@ -203,28 +226,40 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "创建复杂提醒", async = true, logParams = false, logResult = true)
     public ComplexReminder createComplexReminder(ComplexReminder complexReminder) {
         log.info("Creating complex reminder template: {}", complexReminder.getTitle());
         return complexReminderRepository.save(complexReminder);
     }
 
+    @LogActivity(action = ActivityAction.REMINDER_VIEW, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "查看复杂提醒详情", async = true)
     public Optional<ComplexReminder> getComplexReminderById(Long id) {
         return complexReminderRepository.findById(id);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取所有复杂提醒", async = true)
     public List<ComplexReminder> getAllComplexReminders() {
         return complexReminderRepository.findAll();
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取用户创建的复杂提醒", async = true)
     public List<ComplexReminder> getComplexRemindersByFromUser(Long userId) {
         return complexReminderRepository.findByFromUserId(userId);
     }
 
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "获取用户接收的复杂提醒", async = true)
     public List<ComplexReminder> getComplexRemindersByToUser(Long userId) {
         return complexReminderRepository.findByToUserId(userId);
     }
 
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_DELETE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "删除复杂提醒", async = true, logParams = true)
     public void deleteComplexReminder(Long id) {
         log.info("Deleting complex reminder template with ID: {}", id);
         complexReminderRepository.deleteById(id);
@@ -239,6 +274,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 创建后的复杂提醒对象
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "创建复杂提醒并生成简单任务", async = true, logParams = true, logResult = true)
     public ComplexReminder createComplexReminderWithSimpleReminders(ComplexReminder complexReminder, int monthsAhead) {
         log.info("创建复杂提醒并生成{}个月内的简单任务", monthsAhead);
         
@@ -261,6 +298,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 更新后的复杂提醒对象
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_UPDATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "更新复杂提醒并重新生成简单任务", async = true, logParams = true, logResult = true)
     public ComplexReminder updateComplexReminderWithSimpleReminders(ComplexReminder complexReminder, int monthsAhead) {
         log.info("更新复杂提醒并生成{}个月内的简单任务", monthsAhead);
         
@@ -446,6 +485,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 删除的记录数
      */
     @Transactional
+    @LogActivity(action = ActivityAction.REMINDER_DELETE, resourceType = ResourceType.REMINDER, 
+                description = "删除复杂提醒关联的简单任务", async = true, logParams = true)
     public int deleteSimpleRemindersByComplexReminderId(Long complexReminderId) {
         log.info("删除与复杂提醒ID: {} 相关的所有简单任务", complexReminderId);
         return simpleReminderRepository.deleteByOriginatingComplexReminderId(complexReminderId);
@@ -459,6 +500,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * @return 删除的简单提醒数量
      */
     @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_DELETE, resourceType = ResourceType.COMPLEX_REMINDER, 
+                description = "删除复杂提醒及其关联的简单任务", async = true, logParams = true, logResult = true)
     public int deleteComplexReminderWithRelatedSimpleReminders(Long complexReminderId) {
         log.info("删除复杂提醒ID: {} 及其关联的所有简单任务", complexReminderId);
         
@@ -484,7 +527,9 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
      * 
      * @return 未来1分钟内的提醒事项列表
      */
-public List<SimpleReminder> getNextMinuteReminders() {
+    @LogActivity(action = ActivityAction.REMINDER_EXECUTE, resourceType = ResourceType.REMINDER, 
+                description = "获取即将触发的提醒", async = true)
+    public List<SimpleReminder> getNextMinuteReminders() {
         log.info("获取未来1分钟内的提醒事项");
         
         // 获取当前时间

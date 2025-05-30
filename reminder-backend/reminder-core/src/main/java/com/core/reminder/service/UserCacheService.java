@@ -1,7 +1,10 @@
 package com.core.reminder.service;
 
+import com.common.reminder.constant.ActivityAction;
+import com.common.reminder.constant.ResourceType;
 import com.common.reminder.dto.UserProfileDto;
 import com.common.reminder.model.AppUser;
+import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
 import com.core.reminder.repository.AppUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +33,8 @@ public class UserCacheService {
      * @param username 用户名
      * @return 用户信息DTO
      */
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.USER, 
+                description = "根据用户名获取用户信息", async = true, logParams = true)
     public UserProfileDto getUserProfileByUsername(String username) {
         String cacheKey = USER_USERNAME_CACHE_KEY_PREFIX + username;
         
@@ -57,6 +62,8 @@ public class UserCacheService {
      * @param userId 用户ID
      * @return 用户信息DTO
      */
+    @LogActivity(action = ActivityAction.API_ACCESS, resourceType = ResourceType.USER, 
+                description = "根据用户ID获取用户信息", async = true, logParams = true)
     public UserProfileDto getUserProfileById(Long userId) {
         if (userId == null) {
             return null;
@@ -102,6 +109,8 @@ public class UserCacheService {
      * 更新用户信息时刷新缓存 (同时更新基于username和ID的缓存)
      * @param user 更新后的用户信息
      */
+    @LogActivity(action = ActivityAction.SYSTEM_CONFIG_UPDATE, resourceType = ResourceType.USER, 
+                description = "刷新用户缓存", async = true, logParams = false)
     public void refreshUserCache(AppUser user) {
         if (user == null || user.getUsername() == null || user.getId() == null) {
             return;
@@ -128,6 +137,8 @@ public class UserCacheService {
      * 清除指定用户的缓存 (同时清除基于username和ID的缓存)
      * @param username 用户名 (ID的清除将基于从username获取到的ID)
      */
+    @LogActivity(action = ActivityAction.SYSTEM_CONFIG_UPDATE, resourceType = ResourceType.USER, 
+                description = "清除用户缓存", async = true, logParams = true)
     public void invalidateUserCache(String username) {
         if (username == null) {
             return;
