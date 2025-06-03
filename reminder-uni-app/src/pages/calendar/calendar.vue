@@ -99,6 +99,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { getAllSimpleReminders, getAllComplexReminders } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
+// 导入节气和农历工具
+import { getLunarInfo, getSolarTermForDate } from '../../utils/solarTermHelper';
 // 默认导出一个 Vue 组件对象
 export default {
   // uni-app 页面的生命周期钩子，页面显示时触发
@@ -306,14 +308,53 @@ export default {
       const today = new Date();
       const isToday = d.toDateString() === today.toDateString();
       
+      // 获取基本日期信息
+      const month = d.getMonth() + 1;
+      const date = d.getDate();
+      const weekday = weekdays[d.getDay()];
+      
+      let title = '';
       if (isToday) {
-        return '今天';
+        title = '今天';
       } else {
-        const month = d.getMonth() + 1;
-        const date = d.getDate();
-        const weekday = weekdays[d.getDay()];
-        return `${month}月${date}日 星期${weekday}`;
+        title = `${month}月${date}日 星期${weekday}`;
       }
+      
+      try {
+        // 获取农历信息
+        const lunarInfo = getLunarInfo(d);
+        const lunarText = `${lunarInfo.lunarMonthName}月${lunarInfo.lunarDayName}`;
+        
+        // 获取节气信息
+        const solarTerm = getSolarTermForDate(d);
+        
+        // 构建附加信息
+        let additionalInfo = [];
+        
+        // 添加农历信息
+        additionalInfo.push(lunarText);
+        
+        // 添加节气信息
+        if (solarTerm) {
+          additionalInfo.push(solarTerm.name);
+        }
+        
+        // 添加农历节日信息
+        if (lunarInfo.lunarFestival && lunarInfo.lunarFestival.trim()) {
+          additionalInfo.push(lunarInfo.lunarFestival);
+        }
+        
+        // 组合标题
+        if (additionalInfo.length > 0) {
+          title += ` (${additionalInfo.join(' ')})`;
+        }
+        
+      } catch (error) {
+        console.warn('获取农历或节气信息失败:', error);
+        // 如果获取农历信息失败，仍然显示基本的日期信息
+      }
+      
+      return title;
     };
     
     // 上一个月
@@ -705,11 +746,13 @@ export default {
 
 .section-title {
   color: #1c170d;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
   letter-spacing: -0.015em;
   padding: 16rpx 0 8rpx;
+  word-wrap: break-word;
+  white-space: normal;
 }
 
 /* 加载状态 */
