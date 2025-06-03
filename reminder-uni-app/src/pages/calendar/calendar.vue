@@ -96,24 +96,38 @@
 // watch: 用于侦听响应式数据的变化
 import { ref, computed, onMounted, watch } from 'vue';
 // 从后端服务 API 模块中导入获取简单提醒列表的函数
-import { getAllSimpleReminders, getAllComplexReminders } from '../../services/api';
+import { getAllSimpleReminders } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
 // 导入节气和农历工具
 import { getLunarInfo, getSolarTermForDate } from '../../utils/solarTermHelper';
+// 导入性能监控工具
+import performanceMonitor, { pagePerformanceHelper } from '../../utils/performanceMonitor';
 // 默认导出一个 Vue 组件对象
 export default {
   // uni-app 页面的生命周期钩子，页面显示时触发
   onShow() { 
-    // 页面显示时，通常需要刷新当前月份的提醒数据
-    // 使用 v-calendar 内部维护的当前年份和月份来加载数据
-    // 注意：这里直接调用了 setup 函数中返回的方法，
-    // 在 Vue 3 Options API 或者 Vue 2 中，setup 返回的内容会暴露给 this
-    this.loadRemindersForMonth(this.currentCalendarDisplayTime.year, this.currentCalendarDisplayTime.month);
-    // 如果之前已经有选中的日期，则重新加载该日期的提醒事项
-    if (this.selectedDate) {
-      this.loadRemindersForSelectedDate(this.selectedDate);
+    // 开始监控页面显示性能
+    pagePerformanceHelper.startPageLoad();
+    
+    // 只有在页面重新显示时才刷新数据（避免与 onMounted 重复）
+    const isInitialized = typeof window !== 'undefined' && window._calendarInitialized;
+    if (isInitialized) {
+      // 页面显示时，刷新当前月份的提醒数据
+      this.loadRemindersForMonth(this.currentCalendarDisplayTime.year, this.currentCalendarDisplayTime.month);
+      // 如果之前已经有选中的日期，则重新加载该日期的提醒事项
+      if (this.selectedDate) {
+        this.loadRemindersForSelectedDate(this.selectedDate);
+      }
     }
+    
+    // 使用 nextTick 确保 DOM 更新完成后再结束计时
+    this.$nextTick(() => {
+      performanceMonitor.end('page_load');
+      if (isInitialized) {
+        performanceMonitor.printReport();
+      }
+    });
   },
   // Vue 3 Composition API 的入口点
   setup() {
@@ -144,9 +158,11 @@ export default {
 
     // 计算日历日期数据
     const calendarDates = computed(() => {
+      // 开始监控日历计算性能
+      const startTime = Date.now();
+      
       const { year, month } = currentCalendarDisplayTime.value;
       const firstDay = new Date(year, month - 1, 1);
-      const lastDay = new Date(year, month, 0);
       const startDate = new Date(firstDay);
       startDate.setDate(startDate.getDate() - firstDay.getDay());
       
@@ -155,6 +171,29 @@ export default {
       const selectedDateStr = selectedDate.value ? 
         `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
       
+      // 缓存提醒数据以减少重复查找
+      const reminders = allRemindersInCurrentMonth.value;
+      const reminderDateMap = new Map();
+      
+      // 预处理提醒数据，建立日期映射
+      reminders.forEach(reminder => {
+        if (!reminder.eventTime) return;
+        
+        let reminderDateTime = reminder.eventTime;
+        if (reminderDateTime.includes(' ') && !reminderDateTime.includes('T')) {
+          reminderDateTime = reminderDateTime.replace(' ', 'T');
+        }
+        
+        const reminderDate = new Date(reminderDateTime);
+        if (!isNaN(reminderDate.getTime())) {
+          const dateKey = `${reminderDate.getFullYear()}-${reminderDate.getMonth()}-${reminderDate.getDate()}`;
+          if (!reminderDateMap.has(dateKey)) {
+            reminderDateMap.set(dateKey, true);
+          }
+        }
+      });
+      
+      // 生成日历日期
       for (let i = 0; i < 42; i++) {
         const currentDate = new Date(startDate);
         currentDate.setDate(startDate.getDate() + i);
@@ -163,30 +202,9 @@ export default {
         const isCurrentMonth = currentDate.getMonth() === month - 1;
         const isSelected = dateStr === selectedDateStr;
         
-        // 检查该日期是否有提醒（包括当天和未来的提醒）
-        const hasReminder = allRemindersInCurrentMonth.value.some(reminder => {
-          if (!reminder.eventTime) return false;
-          
-          // 处理不同格式的日期时间字符串
-          let reminderDateTime = reminder.eventTime;
-          if (reminderDateTime.includes(' ') && !reminderDateTime.includes('T')) {
-            reminderDateTime = reminderDateTime.replace(' ', 'T');
-          }
-          
-          const reminderDate = new Date(reminderDateTime);
-          if (isNaN(reminderDate.getTime())) {
-            console.warn('无效的提醒时间格式:', reminder.eventTime);
-            return false;
-          }
-          
-          // 检查是否是同一天
-          const isSameDate = reminderDate.getFullYear() === currentDate.getFullYear() &&
-                 reminderDate.getMonth() === currentDate.getMonth() &&
-                 reminderDate.getDate() === currentDate.getDate();
-          
-          // 显示当天及未来的提醒（不过滤历史提醒，让用户看到所有安排）
-          return isSameDate;
-        });
+        // 使用预处理的映射检查是否有提醒
+        const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
+        const hasReminder = reminderDateMap.has(dateKey);
         
         dates.push({
           key: `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`,
@@ -197,6 +215,10 @@ export default {
           isOtherMonth: !isCurrentMonth
         });
       }
+      
+      // 记录日历计算性能
+      const duration = Date.now() - startTime;
+      performanceMonitor.record('calendar_dates_computation', duration, 'ms');
       
       return dates;
     });
@@ -221,47 +243,25 @@ export default {
     const loadRemindersForMonth = async (year, month) => {
       // month 参数是 1-12 范围
       console.log(`正在加载 ${year}-${month} 的提醒事项`);
+      
+      // 开始监控月份数据加载
+      performanceMonitor.start('load_month_reminders', `加载${year}-${month}月份提醒`);
+      
       try {
-        // 并行获取简单提醒和复杂提醒
-        const [simpleReminders, complexReminders] = await Promise.all([
-          getAllSimpleReminders(year, month),
-          getAllComplexReminders().then(data => {
-            // 过滤出当月的复杂提醒
-            if (!Array.isArray(data)) return [];
-            return data.filter(reminder => {
-              if (!reminder.eventTime && !reminder.cronExpression) return false;
-              
-              // 对于有明确时间的复杂提醒
-              if (reminder.eventTime) {
-                let dateTime = reminder.eventTime;
-                if (dateTime.includes(' ') && !dateTime.includes('T')) {
-                  dateTime = dateTime.replace(' ', 'T');
-                }
-                const reminderDate = new Date(dateTime);
-                if (!isNaN(reminderDate.getTime())) {
-                  return reminderDate.getFullYear() === year && 
-                         (reminderDate.getMonth() + 1) === month;
-                }
-              }
-              
-              // 对于基于Cron表达式的复杂提醒，这里可以扩展处理逻辑
-              // 暂时返回false，后续可以根据需要添加Cron解析
-              return false;
-            });
-          }).catch(error => {
-            console.warn('获取复杂提醒失败:', error);
-            return [];
-          })
-        ]);
+        // 监控简单提醒加载
+        performanceMonitor.start('load_simple_reminders', '获取简单提醒');
+        const simpleReminders = await getAllSimpleReminders(year, month);
+        
+        // 结束数据加载监控
+        performanceMonitor.end('load_simple_reminders');
         
         console.log('获取到的简单提醒数据:', simpleReminders);
-        console.log('获取到的复杂提醒数据:', complexReminders);
         
-        // 合并两种类型的提醒
-        const allReminders = [
-          ...(Array.isArray(simpleReminders) ? simpleReminders : []),
-          ...(Array.isArray(complexReminders) ? complexReminders : [])
-        ];
+        // 监控数据处理性能
+        performanceMonitor.start('process_reminders_data', '处理提醒数据');
+        
+        // 确保数据是数组格式
+        const allReminders = Array.isArray(simpleReminders) ? simpleReminders : [];
         
         // 按时间排序
         allReminders.sort((a, b) => {
@@ -280,14 +280,19 @@ export default {
         // 更新当前月份的所有提醒数据
         allRemindersInCurrentMonth.value = allReminders;
         console.log(`${year}-${month} 月份提醒总数:`, allReminders.length);
-
+        
+        performanceMonitor.end('process_reminders_data');
+        
         // 如果在加载完月份数据后，已经有一个日期被选中，
         // 则需要刷新该选中日期的提醒列表，以确保显示的是最新的数据。
         if (selectedDate.value) {
             loadRemindersForSelectedDate(selectedDate.value);
         }
 
+        performanceMonitor.end('load_month_reminders');
+
       } catch (error) {
+        performanceMonitor.end('load_month_reminders');
         // 如果 API 调用或数据处理过程中发生错误，则打印错误信息
         console.error("获取月份提醒失败:", error);
         // 清空相关数据，避免显示旧的或错误的数据
@@ -321,12 +326,17 @@ export default {
       }
       
       try {
-        // 获取农历信息
+        // 监控农历信息获取性能
+        performanceMonitor.start('get_lunar_info', '获取农历信息');
         const lunarInfo = getLunarInfo(d);
+        performanceMonitor.end('get_lunar_info');
+        
         const lunarText = `${lunarInfo.lunarMonthName}月${lunarInfo.lunarDayName}`;
         
-        // 获取节气信息
+        // 监控节气信息获取性能
+        performanceMonitor.start('get_solar_term', '获取节气信息');
         const solarTerm = getSolarTermForDate(d);
+        performanceMonitor.end('get_solar_term');
         
         // 构建附加信息
         let additionalInfo = [];
@@ -515,12 +525,39 @@ export default {
     };
     
     // 组件挂载后执行的生命周期钩子
-    onMounted(() => {
-      // 组件初次加载时，加载当前默认月份（通常是当前系统月份）的提醒数据
-      loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
-      // 由于默认选中了当前日期，也需要加载当前日期的提醒事项
-      if (selectedDate.value) {
-        loadRemindersForSelectedDate(selectedDate.value);
+    onMounted(async () => {
+      // 开始监控组件初始化性能
+      performanceMonitor.start('component_mount', '组件挂载和初始化');
+      
+      // 标记组件已初始化
+      if (typeof window !== 'undefined') {
+        window._calendarInitialized = true;
+      }
+      
+      try {
+        // 异步加载数据，不阻塞 UI 渲染
+        const loadDataPromise = loadRemindersForMonth(
+          currentCalendarDisplayTime.value.year, 
+          currentCalendarDisplayTime.value.month
+        );
+        
+        // 如果有选中日期，准备加载该日期的提醒（等数据加载完成后）
+        const selectedDatePromise = selectedDate.value ? 
+          loadDataPromise.then(() => loadRemindersForSelectedDate(selectedDate.value)) : 
+          Promise.resolve();
+        
+        // 等待所有数据加载完成
+        await Promise.all([loadDataPromise, selectedDatePromise]);
+        
+        performanceMonitor.end('component_mount');
+        
+        // 输出初始化性能报告
+        console.log('\n🚀 [日历页面] 初始化性能报告:');
+        performanceMonitor.printReport();
+        
+      } catch (error) {
+        performanceMonitor.end('component_mount');
+        console.error('组件初始化失败:', error);
       }
     });
     
@@ -546,7 +583,17 @@ export default {
       loadRemindersForMonth,
       viewReminderDetail,
       createReminderOnSelectedDate,
-      formatDisplayTime
+      formatDisplayTime,
+      
+      // 性能调试方法（开发环境使用）
+      showPerformanceReport: () => {
+        console.log('\n📊 [性能调试] 当前性能统计:');
+        performanceMonitor.printReport();
+      },
+      clearPerformanceLog: () => {
+        performanceMonitor.clear();
+        console.log('✅ [性能调试] 性能日志已清空');
+      }
     };
   }
 };
