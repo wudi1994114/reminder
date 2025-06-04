@@ -94,7 +94,7 @@
 // computed: 用于创建计算属性
 // onMounted: 生命周期钩子，在组件挂载后执行
 // watch: 用于侦听响应式数据的变化
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, shallowRef } from 'vue';
 // 从后端服务 API 模块中导入获取简单提醒列表的函数
 import { getAllSimpleReminders } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
@@ -143,8 +143,8 @@ export default {
     const selectedDateReminders = ref([]);
     // 是否正在加载提醒
     const loadingRemindersForDate = ref(false);
-    // 当前月份的所有提醒
-    const allRemindersInCurrentMonth = ref([]);
+    // 当前月份的所有提醒（使用 shallowRef 减少响应式开销）
+    const allRemindersInCurrentMonth = shallowRef([]);
 
     // 星期标签
     const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
@@ -162,6 +162,19 @@ export default {
       const startTime = Date.now();
       
       const { year, month } = currentCalendarDisplayTime.value;
+      
+      // 添加缓存键
+      const cacheKey = `${year}-${month}-${allRemindersInCurrentMonth.value.length}`;
+      
+      // 静态缓存（在组件实例间共享）
+      if (typeof window !== 'undefined') {
+        if (!window._calendarCache) window._calendarCache = new Map();
+        if (window._calendarCache.has(cacheKey)) {
+          const cached = window._calendarCache.get(cacheKey);
+          performanceMonitor.record('calendar_dates_computation', Date.now() - startTime, 'ms');
+          return cached;
+        }
+      }
       const firstDay = new Date(year, month - 1, 1);
       const startDate = new Date(firstDay);
       startDate.setDate(startDate.getDate() - firstDay.getDay());
@@ -216,6 +229,15 @@ export default {
         });
       }
       
+      // 缓存结果（限制缓存大小）
+      if (typeof window !== 'undefined' && window._calendarCache) {
+        if (window._calendarCache.size > 10) {
+          const firstKey = window._calendarCache.keys().next().value;
+          window._calendarCache.delete(firstKey);
+        }
+        window._calendarCache.set(cacheKey, dates);
+      }
+      
       // 记录日历计算性能
       const duration = Date.now() - startTime;
       performanceMonitor.record('calendar_dates_computation', duration, 'ms');
@@ -261,21 +283,37 @@ export default {
         performanceMonitor.start('process_reminders_data', '处理提醒数据');
         
         // 确保数据是数组格式
-        const allReminders = Array.isArray(simpleReminders) ? simpleReminders : [];
+        const rawReminders = Array.isArray(simpleReminders) ? simpleReminders : [];
         
-        // 按时间排序
-        allReminders.sort((a, b) => {
-          const getDateTime = (reminder) => {
-            if (!reminder.eventTime) return new Date(0);
-            let dateTime = reminder.eventTime;
-            if (dateTime.includes(' ') && !dateTime.includes('T')) {
-              dateTime = dateTime.replace(' ', 'T');
-            }
-            return new Date(dateTime);
-          };
+        // 优化：预处理时间戳，避免重复计算
+        performanceMonitor.start('preprocess_timestamps', '预处理时间戳');
+        const processedReminders = rawReminders.map(reminder => {
+          if (!reminder.eventTime) {
+            return { ...reminder, _timestamp: 0, _formattedDateTime: null };
+          }
           
-          return getDateTime(a) - getDateTime(b);
+          // 统一处理日期格式，只处理一次
+          let dateTime = reminder.eventTime;
+          if (dateTime.includes(' ') && !dateTime.includes('T')) {
+            dateTime = dateTime.replace(' ', 'T');
+          }
+          
+          const timestamp = new Date(dateTime).getTime();
+          return {
+            ...reminder,
+            _timestamp: isNaN(timestamp) ? 0 : timestamp,
+            _formattedDateTime: dateTime // 缓存格式化后的日期字符串
+          };
         });
+        performanceMonitor.end('preprocess_timestamps');
+        
+        // 优化：使用预计算的时间戳进行排序
+        performanceMonitor.start('sort_reminders', '排序提醒数据');
+        processedReminders.sort((a, b) => a._timestamp - b._timestamp);
+        performanceMonitor.end('sort_reminders');
+        
+        // 冻结数据，减少响应式开销
+        const allReminders = Object.freeze(processedReminders);
         
         // 更新当前月份的所有提醒数据
         allRemindersInCurrentMonth.value = allReminders;
@@ -306,7 +344,7 @@ export default {
       return `${monthNames[month - 1]} ${year}`;
     };
     
-    // 获取选中日期标题
+    // 获取选中日期标题（优化版本：使用缓存）
     const getSelectedDateTitle = () => {
       if (!selectedDate.value) return '';
       const d = selectedDate.value;
@@ -325,6 +363,18 @@ export default {
         title = `${month}月${date}日 星期${weekday}`;
       }
       
+      // 优化：使用缓存避免重复计算农历信息
+      const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      
+      if (typeof window !== 'undefined') {
+        if (!window._lunarCache) window._lunarCache = new Map();
+        
+        if (window._lunarCache.has(dateKey)) {
+          const cachedLunar = window._lunarCache.get(dateKey);
+          return title + cachedLunar;
+        }
+      }
+      
       try {
         // 监控农历信息获取性能
         performanceMonitor.start('get_lunar_info', '获取农历信息');
@@ -340,31 +390,34 @@ export default {
         
         // 构建附加信息
         let additionalInfo = [];
-        
-        // 添加农历信息
         additionalInfo.push(lunarText);
         
-        // 添加节气信息
         if (solarTerm) {
           additionalInfo.push(solarTerm.name);
         }
         
-        // 添加农历节日信息
         if (lunarInfo.lunarFestival && lunarInfo.lunarFestival.trim()) {
           additionalInfo.push(lunarInfo.lunarFestival);
         }
         
-        // 组合标题
-        if (additionalInfo.length > 0) {
-          title += ` (${additionalInfo.join(' ')})`;
+        // 缓存农历信息
+        const lunarSuffix = additionalInfo.length > 0 ? ` (${additionalInfo.join(' ')})` : '';
+        
+        // 限制缓存大小
+        if (typeof window !== 'undefined' && window._lunarCache) {
+          if (window._lunarCache.size > 50) {
+            const firstKey = window._lunarCache.keys().next().value;
+            window._lunarCache.delete(firstKey);
+          }
+          window._lunarCache.set(dateKey, lunarSuffix);
         }
+        
+        return title + lunarSuffix;
         
       } catch (error) {
         console.warn('获取农历或节气信息失败:', error);
-        // 如果获取农历信息失败，仍然显示基本的日期信息
+        return title;
       }
-      
-      return title;
     };
     
     // 上一个月
@@ -424,46 +477,25 @@ export default {
       // 获取当前时间，用于标识未来的提醒
       const now = new Date();
 
-      //从当前月份已加载的所有提醒中筛选出属于选中日期的提醒
+      // 优化：使用预处理的时间戳和缓存的日期字符串
+      const targetDate = new Date(year, parseInt(month) - 1, parseInt(day));
+      const targetDateStart = new Date(targetDate).setHours(0, 0, 0, 0);
+      const targetDateEnd = new Date(targetDate).setHours(23, 59, 59, 999);
+
       const dayReminders = allRemindersInCurrentMonth.value.filter(reminder => {
-        if (!reminder.eventTime) return false;
+        if (!reminder._timestamp || reminder._timestamp === 0) return false;
         
-        // 处理不同格式的日期时间字符串
-        let dateTime = reminder.eventTime;
-        if (dateTime.includes(' ') && !dateTime.includes('T')) {
-          dateTime = dateTime.replace(' ', 'T');
-        }
-        
-        const reminderDate = new Date(dateTime);
-        if (isNaN(reminderDate.getTime())) {
-          console.warn('无效的提醒时间格式:', reminder.eventTime);
-          return false;
-        }
-        
-        // 检查是否是同一天
-        return reminderDate.getFullYear() === year &&
-               reminderDate.getMonth() === (parseInt(month) - 1) &&
-               reminderDate.getDate() === parseInt(day);
+        // 使用时间戳范围比较，避免重复日期解析
+        return reminder._timestamp >= targetDateStart && reminder._timestamp <= targetDateEnd;
       });
       
-      // 按时间排序，并标记是否为未来提醒
+      // 优化：使用预处理的时间戳进行排序和比较
       selectedDateReminders.value = dayReminders
         .map(reminder => ({
           ...reminder,
-          isPast: new Date(reminder.eventTime.includes(' ') && !reminder.eventTime.includes('T') 
-            ? reminder.eventTime.replace(' ', 'T') 
-            : reminder.eventTime) < now
+          isPast: reminder._timestamp < now.getTime()
         }))
-        .sort((a, b) => {
-          // 按时间升序排列，最近的提醒在前面
-          const timeA = new Date(a.eventTime.includes(' ') && !a.eventTime.includes('T') 
-            ? a.eventTime.replace(' ', 'T') 
-            : a.eventTime);
-          const timeB = new Date(b.eventTime.includes(' ') && !b.eventTime.includes('T') 
-            ? b.eventTime.replace(' ', 'T') 
-            : b.eventTime);
-          return timeA - timeB;
-        });
+        .sort((a, b) => a._timestamp - b._timestamp);
       
       console.log(`日期 ${dateStringPrefix} 的提醒事项:`, selectedDateReminders.value);
       // 数据加载完成，设置 loading 状态为 false

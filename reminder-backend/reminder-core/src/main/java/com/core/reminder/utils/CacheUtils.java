@@ -378,6 +378,91 @@ public class CacheUtils {
     }
     
     /**
+     * 设置用户月度提醒缓存
+     * @param userId 用户ID
+     * @param year 年份
+     * @param month 月份
+     * @param reminders 提醒列表
+     */
+    public void setUserMonthlyReminders(Long userId, int year, int month, List<?> reminders) {
+        String keySuffix = userId + ":" + year + ":" + month;
+        try {
+            String jsonValue = objectMapper.writeValueAsString(reminders);
+            set(CacheKeyEnum.USER_MONTHLY_REMINDERS, keySuffix, jsonValue);
+            log.debug("已设置用户[{}] {}-{} 月度提醒缓存，共{}条", userId, year, month, reminders.size());
+        } catch (JsonProcessingException e) {
+            log.error("序列化用户[{}] {}-{} 月度提醒失败", userId, year, month, e);
+        }
+    }
+    
+    /**
+     * 获取用户月度提醒缓存
+     * @param userId 用户ID
+     * @param year 年份
+     * @param month 月份
+     * @param clazz 提醒对象类型
+     * @return 提醒列表，如果缓存不存在返回null
+     */
+    public <T> List<T> getUserMonthlyRemindersFromCache(Long userId, int year, int month, Class<T> clazz) {
+        String keySuffix = userId + ":" + year + ":" + month;
+        try {
+            String jsonValue = get(CacheKeyEnum.USER_MONTHLY_REMINDERS, keySuffix);
+            if (jsonValue == null) {
+                log.debug("用户[{}] {}-{} 月度提醒缓存未命中", userId, year, month);
+                return null;
+            }
+            
+            // 使用TypeReference来处理List类型
+            com.fasterxml.jackson.core.type.TypeReference<List<Object>> typeRef = 
+                new com.fasterxml.jackson.core.type.TypeReference<List<Object>>() {};
+            List<Object> rawList = objectMapper.readValue(jsonValue, typeRef);
+            
+            // 转换为目标类型
+            List<T> reminders = new java.util.ArrayList<>(rawList.size());
+            for (Object obj : rawList) {
+                String objJson = objectMapper.writeValueAsString(obj);
+                T reminder = objectMapper.readValue(objJson, clazz);
+                reminders.add(reminder);
+            }
+            
+            log.debug("用户[{}] {}-{} 月度提醒缓存命中，共{}条", userId, year, month, reminders.size());
+            return reminders;
+        } catch (JsonProcessingException e) {
+            log.error("反序列化用户[{}] {}-{} 月度提醒失败", userId, year, month, e);
+            return null;
+        }
+    }
+    
+    /**
+     * 删除用户月度提醒缓存
+     * @param userId 用户ID
+     * @param year 年份
+     * @param month 月份
+     */
+    public void deleteUserMonthlyReminders(Long userId, int year, int month) {
+        String keySuffix = userId + ":" + year + ":" + month;
+        boolean deleted = delete(CacheKeyEnum.USER_MONTHLY_REMINDERS, keySuffix);
+        log.debug("删除用户[{}] {}-{} 月度提醒缓存，结果: {}", userId, year, month, deleted ? "成功" : "失败");
+    }
+    
+    /**
+     * 清除用户所有月度提醒缓存
+     * @param userId 用户ID
+     */
+    public void clearUserAllMonthlyReminders(Long userId) {
+        try {
+            String pattern = CacheKeyEnum.USER_MONTHLY_REMINDERS.buildKey(userId + ":*");
+            Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.debug("已清除用户[{}] 所有月度提醒缓存，共{}个", userId, keys.size());
+            }
+        } catch (Exception e) {
+            log.error("清除用户[{}] 所有月度提醒缓存失败", userId, e);
+        }
+    }
+    
+    /**
      * 批量添加提醒到用户的ZSet缓存
      * @param userId 用户ID
      * @param reminders 提醒列表（包含时间戳）

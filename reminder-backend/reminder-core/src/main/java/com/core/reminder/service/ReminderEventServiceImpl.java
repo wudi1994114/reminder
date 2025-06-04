@@ -124,8 +124,12 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             return;
         }
         
-        // 使用ZSet方式，直接清除整个用户的提醒缓存
+        // 清除ZSet缓存
         invalidateUserRemindersCache(userId);
+        
+        // 清除当前月份的月度缓存
+        LocalDate now = LocalDate.now();
+        cacheUtils.deleteUserMonthlyReminders(userId, now.getYear(), now.getMonthValue());
     }
 
     /**
@@ -137,8 +141,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         }
         
         try {
-            // 清除用户的提醒缓存
+            // 清除用户的ZSet提醒缓存
             cacheUtils.clearUserRemindersCache(userId);
+            
+            // 清除用户所有月度提醒缓存
+            cacheUtils.clearUserAllMonthlyReminders(userId);
             
             log.info("已清除用户[{}] 所有提醒相关缓存", userId);
         } catch (Exception e) {
@@ -155,8 +162,14 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         log.info("Creating simple reminder: {}", simpleReminder.getTitle());
         SimpleReminder savedReminder = simpleReminderRepository.save(simpleReminder);
         
-        // 同步添加到缓存
+        // 同步添加到ZSet缓存
         addReminderToCache(savedReminder);
+        
+        // 清除相关月度缓存
+        if (savedReminder.getEventTime() != null && savedReminder.getToUserId() != null) {
+            LocalDate eventDate = savedReminder.getEventTime().toLocalDate();
+            cacheUtils.deleteUserMonthlyReminders(savedReminder.getToUserId(), eventDate.getYear(), eventDate.getMonthValue());
+        }
         
         return savedReminder;
     }
@@ -291,23 +304,25 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 首先确保所有复杂任务都已生成该月份的简单任务
         ensureComplexRemindersGenerated(year, month);
         
-        // 优先从缓存获取
+        // 优先从月度缓存获取
         try {
-            // 尝试从缓存获取
-            List<SimpleReminder> cachedReminders = cacheUtils.getUserMonthlyReminders(userId, year, month, SimpleReminder.class);
+            List<SimpleReminder> cachedReminders = cacheUtils.getUserMonthlyRemindersFromCache(userId, year, month, SimpleReminder.class);
             
-            if (cachedReminders != null && !cachedReminders.isEmpty()) {
-                log.debug("缓存命中：用户[{}] {}-{} 月提醒数据，共{}条", userId, year, month, cachedReminders.size());
+            if (cachedReminders != null) {
+                log.debug("月度缓存命中：用户[{}] {}-{} 月提醒数据，共{}条", userId, year, month, cachedReminders.size());
                 return cachedReminders;
             }
             
-            // 缓存未命中，从数据库获取
-            log.debug("缓存未命中：从数据库获取用户[{}] {}-{} 月提醒数据", userId, year, month);
+            // 月度缓存未命中，从数据库获取
+            log.debug("月度缓存未命中：从数据库获取用户[{}] {}-{} 月提醒数据", userId, year, month);
             List<SimpleReminder> reminders = simpleReminderRepository.findByYearMonthAndUserId(year, month, userId);
             
-            // 缓存到Redis
+            // 缓存到Redis（月度缓存）
             if (!reminders.isEmpty()) {
-                cacheUtils.addRemindersToCache(userId, reminders);
+                cacheUtils.setUserMonthlyReminders(userId, year, month, reminders);
+            } else {
+                // 即使是空结果也要缓存，避免重复查询数据库
+                cacheUtils.setUserMonthlyReminders(userId, year, month, new ArrayList<>());
             }
             
             return reminders;
@@ -378,9 +393,16 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 从数据库删除
         simpleReminderRepository.deleteById(id);
         
-        // 同步从缓存中删除
+        // 同步从ZSet缓存中删除
         if (reminderOpt.isPresent()) {
-            removeReminderFromCache(reminderOpt.get());
+            SimpleReminder reminder = reminderOpt.get();
+            removeReminderFromCache(reminder);
+            
+            // 清除相关月度缓存
+            if (reminder.getEventTime() != null && reminder.getToUserId() != null) {
+                LocalDate eventDate = reminder.getEventTime().toLocalDate();
+                cacheUtils.deleteUserMonthlyReminders(reminder.getToUserId(), eventDate.getYear(), eventDate.getMonthValue());
+            }
         }
     }
 
@@ -399,11 +421,25 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 更新数据库
         SimpleReminder updatedReminder = simpleReminderRepository.save(simpleReminder);
         
-        // 同步更新缓存：先删除旧的，再添加新的
+        // 同步更新ZSet缓存：先删除旧的，再添加新的
         if (oldReminderOpt.isPresent()) {
-            removeReminderFromCache(oldReminderOpt.get());
+            SimpleReminder oldReminder = oldReminderOpt.get();
+            removeReminderFromCache(oldReminder);
+            
+            // 清除旧的月度缓存
+            if (oldReminder.getEventTime() != null && oldReminder.getToUserId() != null) {
+                LocalDate oldEventDate = oldReminder.getEventTime().toLocalDate();
+                cacheUtils.deleteUserMonthlyReminders(oldReminder.getToUserId(), oldEventDate.getYear(), oldEventDate.getMonthValue());
+            }
         }
+        
         addReminderToCache(updatedReminder);
+        
+        // 清除新的月度缓存
+        if (updatedReminder.getEventTime() != null && updatedReminder.getToUserId() != null) {
+            LocalDate newEventDate = updatedReminder.getEventTime().toLocalDate();
+            cacheUtils.deleteUserMonthlyReminders(updatedReminder.getToUserId(), newEventDate.getYear(), newEventDate.getMonthValue());
+        }
         
         return updatedReminder;
     }

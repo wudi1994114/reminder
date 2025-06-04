@@ -17,6 +17,14 @@ public enum CacheKeyEnum {
     USER_REMINDERS_ZSET("user:reminders:zset:", -1, null),
     
     /**
+     * 用户月度简单提醒缓存
+     * 格式: user:reminders:monthly:{userId}:{year}:{month}
+     * 过期时间: 7天（一周后过期，适合月度查询）
+     * 存储指定用户在指定月份的所有简单提醒
+     */
+    USER_MONTHLY_REMINDERS("user:reminders:monthly:", 7, TimeUnit.DAYS),
+    
+    /**
      * 用户信息缓存
      * 格式: user:info:{userId}
      * 过期时间: 30分钟
@@ -133,6 +141,17 @@ public enum CacheKeyEnum {
      */
     public static String buildUserRemindersZSetKey(Long userId) {
         return USER_REMINDERS_ZSET.buildKey(String.valueOf(userId));
+    }
+    
+    /**
+     * 构建用户月度提醒缓存键
+     * @param userId 用户ID
+     * @param year 年份
+     * @param month 月份
+     * @return 缓存键
+     */
+    public static String buildUserMonthlyRemindersKey(Long userId, int year, int month) {
+        return USER_MONTHLY_REMINDERS.buildKey(userId + ":" + year + ":" + month);
     }
     
     /**
