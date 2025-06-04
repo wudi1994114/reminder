@@ -96,11 +96,11 @@
 // watch: 用于侦听响应式数据的变化
 import { ref, computed, onMounted, watch, shallowRef } from 'vue';
 // 从后端服务 API 模块中导入获取简单提醒列表的函数
-import { getAllSimpleReminders } from '../../services/api';
+import { getAllSimpleReminders, getHolidaysByYearRange } from '../../services/api';
 // 从工具函数模块中导入格式化时间的函数
 import { formatTime } from '../../utils/helpers';
 // 导入节气和农历工具
-import { getLunarInfo, getSolarTermForDate } from '../../utils/solarTermHelper';
+import { getLunarInfo, getSolarTermForDate } from '../../utils/lunarManager';
 // 导入性能监控工具
 import performanceMonitor, { pagePerformanceHelper } from '../../utils/performanceMonitor';
 // 默认导出一个 Vue 组件对象
@@ -145,6 +145,8 @@ export default {
     const loadingRemindersForDate = ref(false);
     // 当前月份的所有提醒（使用 shallowRef 减少响应式开销）
     const allRemindersInCurrentMonth = shallowRef([]);
+    // 当前年份的所有节日数据
+    const holidaysInCurrentYear = shallowRef([]);
 
     // 星期标签
     const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
@@ -381,27 +383,55 @@ export default {
         const lunarInfo = getLunarInfo(d);
         performanceMonitor.end('get_lunar_info');
         
-        const lunarText = `${lunarInfo.lunarMonthName}月${lunarInfo.lunarDayName}`;
+        console.log('=== 农历信息详细调试 ===');
+        console.log('选中日期:', d.toISOString().split('T')[0]);
+        console.log('完整农历信息:', lunarInfo);
+        console.log('农历月份名:', lunarInfo.lunarMonthName);
+        console.log('农历日期名:', lunarInfo.lunarDayName);
+        console.log('节气信息:', lunarInfo.jieQi);
+        console.log('农历节日:', lunarInfo.lunarFestival);
+        console.log('节日是否为空:', !lunarInfo.lunarFestival);
+        console.log('节日trim后:', lunarInfo.lunarFestival ? lunarInfo.lunarFestival.trim() : 'null');
         
-        // 监控节气信息获取性能
-        performanceMonitor.start('get_solar_term', '获取节气信息');
-        const solarTerm = getSolarTermForDate(d);
-        performanceMonitor.end('get_solar_term');
+        const lunarText = `${lunarInfo.lunarMonthName}${lunarInfo.lunarDayName}`;
         
         // 构建附加信息
         let additionalInfo = [];
         additionalInfo.push(lunarText);
         
-        if (solarTerm) {
-          additionalInfo.push(solarTerm.name);
+        console.log('初始附加信息:', additionalInfo);
+        
+        // 添加节气信息（农历信息中已经包含了节气）
+        if (lunarInfo.jieQi && lunarInfo.jieQi.trim()) {
+          additionalInfo.push(lunarInfo.jieQi);
+          console.log('添加节气后:', additionalInfo);
         }
         
+        // 添加农历节日信息
         if (lunarInfo.lunarFestival && lunarInfo.lunarFestival.trim()) {
           additionalInfo.push(lunarInfo.lunarFestival);
+          console.log('添加农历节日后:', additionalInfo);
+        } else {
+          console.log('农历节日信息为空，未添加');
         }
+        
+        // 添加法定节日信息
+        const holidayInfo = getHolidayForDate(d);
+        if (holidayInfo && holidayInfo.name) {
+          additionalInfo.push(holidayInfo.name);
+          console.log('添加法定节日后:', additionalInfo);
+          console.log('法定节日信息:', holidayInfo);
+        } else {
+          console.log('法定节日信息为空，未添加');
+        }
+        
+        console.log('最终附加信息:', additionalInfo);
+        console.log('=== 调试结束 ===');
         
         // 缓存农历信息
         const lunarSuffix = additionalInfo.length > 0 ? ` (${additionalInfo.join(' ')})` : '';
+        
+        console.log('最终显示文本:', title + lunarSuffix);
         
         // 限制缓存大小
         if (typeof window !== 'undefined' && window._lunarCache) {
@@ -423,23 +453,31 @@ export default {
     // 上一个月
     const previousMonth = () => {
       const { year, month } = currentCalendarDisplayTime.value;
-      if (month === 1) {
-        currentCalendarDisplayTime.value = { year: year - 1, month: 12 };
-      } else {
-        currentCalendarDisplayTime.value = { year, month: month - 1 };
+      const newYear = month === 1 ? year - 1 : year;
+      const newMonth = month === 1 ? 12 : month - 1;
+      
+      currentCalendarDisplayTime.value = { year: newYear, month: newMonth };
+      loadRemindersForMonth(newYear, newMonth);
+      
+      // 如果年份变化，重新加载节日数据
+      if (newYear !== year) {
+        loadHolidaysForYear(newYear);
       }
-      loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
     };
     
     // 下一个月
     const nextMonth = () => {
       const { year, month } = currentCalendarDisplayTime.value;
-      if (month === 12) {
-        currentCalendarDisplayTime.value = { year: year + 1, month: 1 };
-      } else {
-        currentCalendarDisplayTime.value = { year, month: month + 1 };
+      const newYear = month === 12 ? year + 1 : year;
+      const newMonth = month === 12 ? 1 : month + 1;
+      
+      currentCalendarDisplayTime.value = { year: newYear, month: newMonth };
+      loadRemindersForMonth(newYear, newMonth);
+      
+      // 如果年份变化，重新加载节日数据
+      if (newYear !== year) {
+        loadHolidaysForYear(newYear);
       }
-      loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
     };
     
     // 选择日期
@@ -556,6 +594,63 @@ export default {
         return formatTime(date);
     };
     
+    // 定义一个异步函数，用于加载指定年份的节日数据
+    const loadHolidaysForYear = async (year) => {
+      console.log(`正在加载 ${year} 年的节日数据`);
+      
+      // 开始监控节日数据加载
+      performanceMonitor.start('load_holidays', `加载${year}年节日数据`);
+      
+      try {
+        // 获取当前年份的节日数据
+        const holidays = await getHolidaysByYearRange(year, year);
+        
+        console.log('获取到的节日数据:', holidays);
+        
+        // 确保数据是数组格式
+        const rawHolidays = Array.isArray(holidays) ? holidays : [];
+        
+        // 预处理节日数据，建立日期映射
+        const processedHolidays = rawHolidays.map(holiday => {
+          const dateStr = `${holiday.year}-${String(holiday.month).padStart(2, '0')}-${String(holiday.day).padStart(2, '0')}`;
+          return {
+            ...holiday,
+            dateStr: dateStr,
+            isHoliday: holiday.holiday === true
+          };
+        });
+        
+        // 冻结数据，减少响应式开销
+        const allHolidays = Object.freeze(processedHolidays);
+        
+        // 更新当前年份的节日数据
+        holidaysInCurrentYear.value = allHolidays;
+        console.log(`${year} 年节日总数:`, allHolidays.length);
+        
+        performanceMonitor.end('load_holidays');
+
+      } catch (error) {
+        performanceMonitor.end('load_holidays');
+        console.error("获取节日数据失败:", error);
+        // 清空相关数据，避免显示旧的或错误的数据
+        holidaysInCurrentYear.value = [];
+      }
+    };
+
+    // 获取指定日期的法定节日信息
+    const getHolidayForDate = (date) => {
+      if (!date || holidaysInCurrentYear.value.length === 0) {
+        return null;
+      }
+      
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      
+      return holidaysInCurrentYear.value.find(holiday => holiday.dateStr === dateStr);
+    };
+    
     // 组件挂载后执行的生命周期钩子
     onMounted(async () => {
       // 开始监控组件初始化性能
@@ -573,13 +668,18 @@ export default {
           currentCalendarDisplayTime.value.month
         );
         
+        // 加载当前年份的节日数据
+        const loadHolidaysPromise = loadHolidaysForYear(
+          currentCalendarDisplayTime.value.year
+        );
+        
         // 如果有选中日期，准备加载该日期的提醒（等数据加载完成后）
         const selectedDatePromise = selectedDate.value ? 
           loadDataPromise.then(() => loadRemindersForSelectedDate(selectedDate.value)) : 
           Promise.resolve();
         
         // 等待所有数据加载完成
-        await Promise.all([loadDataPromise, selectedDatePromise]);
+        await Promise.all([loadDataPromise, loadHolidaysPromise, selectedDatePromise]);
         
         performanceMonitor.end('component_mount');
         
@@ -613,6 +713,8 @@ export default {
       toggleReminderStatus,
       loadRemindersForSelectedDate,
       loadRemindersForMonth,
+      loadHolidaysForYear,
+      getHolidayForDate,
       viewReminderDetail,
       createReminderOnSelectedDate,
       formatDisplayTime,
