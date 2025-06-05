@@ -55,6 +55,7 @@
     "axios": "^1.9.0",
     "cron-parser": "^5.2.0",
     "cronstrue": "^2.61.0",
+    "lunar-calendar-zh": "^0.1.4",
     "lunar-typescript": "^1.8.0",
     "vue": "^3.4.21",
     "vue-i18n": "^9.1.9"

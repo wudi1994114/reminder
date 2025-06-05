@@ -4,7 +4,7 @@
  * 该模块提供了与二十四节气相关的计算和转换功能，用于日历显示和提醒功能。
  */
 
-import { Solar, Lunar, SolarTerm } from 'lunar-typescript';
+import { Solar, SolarTerm } from 'lunar-typescript';
 
 /**
  * 二十四节气名称数组

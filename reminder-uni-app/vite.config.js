@@ -38,42 +38,49 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // 更细粒度的代码分割
-        manualChunks: {
+        manualChunks: (id) => {
           // Vue核心
-          'vue-vendor': ['vue'],
+          if (id.includes('vue') && !id.includes('node_modules')) {
+            return 'vue-vendor';
+          }
           
           // uni-app核心
-          'uni-vendor': ['@dcloudio/uni-app'],
+          if (id.includes('@dcloudio/uni-app')) {
+            return 'uni-vendor';
+          }
           
           // 第三方库
-          'vendor-utils': ['axios', 'cron-parser', 'cronstrue'],
+          if (id.includes('axios') || id.includes('cron-parser') || id.includes('cronstrue')) {
+            return 'vendor-utils';
+          }
           
-          // 日期相关库
-          'vendor-date': ['lunar-typescript'],
+          // 农历相关库
+          if (id.includes('lunar-calendar-zh')) {
+            return 'vendor-lunar';
+          }
           
           // 组件按类型分割
-          'components-picker': [
-            './src/components/datetime-picker/datetime-picker.vue',
-            './src/components/unified-time-picker/unified-time-picker.vue'
-          ],
+          if (id.includes('/components/datetime-picker/') || id.includes('/components/unified-time-picker/')) {
+            return 'components-picker';
+          }
           
-          'components-cron': [
-            './src/components/CronExpressionPicker.vue',
-            './src/components/trigger-preview/trigger-preview.vue'
-          ],
+          if (id.includes('/components/CronExpressionPicker') || id.includes('/components/trigger-preview/')) {
+            return 'components-cron';
+          }
           
-          'components-calendar': [
-            './src/components/v-calendar/v-calendar.vue'
-          ],
+          if (id.includes('/components/v-calendar/')) {
+            return 'components-calendar';
+          }
           
-          'components-dialog': [
-            './src/components/ConfirmDialog.vue',
-            './src/components/ConfirmModal.vue'
-          ],
+          if (id.includes('/components/ConfirmDialog') || id.includes('/components/ConfirmModal')) {
+            return 'components-dialog';
+          }
           
-          'components-form': [
-            './src/components/LoginForm.vue'
-          ]
+          if (id.includes('/components/LoginForm')) {
+            return 'components-form';
+          }
+          
+          return null;
         },
         
         // 动态导入的chunk命名
@@ -95,47 +102,51 @@ export default defineConfig({
           }
           
           return 'chunks/[name]-[hash].js';
-    }
-  },
-      
-      // 压缩配置
-      terserOptions: {
-        compress: {
-          // 移除console.log (生产环境)
-          drop_console: process.env.NODE_ENV === 'production',
-          drop_debugger: true,
-          pure_funcs: process.env.NODE_ENV === 'production' ? ['console.log'] : []
         }
       }
     },
-    
+      
+    // 压缩配置
+    terserOptions: {
+      compress: {
+        // 移除console.log (生产环境)
+        drop_console: process.env.NODE_ENV === 'production',
+        drop_debugger: true,
+        pure_funcs: process.env.NODE_ENV === 'production' ? ['console.log'] : []
+      }
+    }
+  },
+       
   // CSS 配置
   css: {
     preprocessorOptions: {
       scss: {
         additionalData: `@import "@/styles/variables.scss";`
       }
-      }
-    },
-    
-    // 优化配置
-    optimizeDeps: {
-      include: [
-        'vue',
-        '@dcloudio/uni-app',
-        'axios'
-      ],
-      exclude: [
-        // 排除大型组件，让它们按需加载
-        '@/components/CronExpressionPicker.vue',
-        '@/components/v-calendar/v-calendar.vue'
-      ]
-    },
-    
-    // 定义全局常量
-    define: {
-      __COMPONENT_LAZY_LOADING__: true,
-      __DEV__: process.env.NODE_ENV === 'development'
     }
+  },
+    
+  // 优化配置
+  optimizeDeps: {
+    include: [
+      'vue',
+      '@dcloudio/uni-app',
+      'axios',
+      'lunar-calendar-zh'
+    ],
+    exclude: [
+      // 排除大型组件，让它们按需加载
+      '@/components/CronExpressionPicker.vue',
+      '@/components/v-calendar/v-calendar.vue'
+    ]
+  },
+    
+  // 定义全局常量
+  define: {
+    __COMPONENT_LAZY_LOADING__: true,
+    __DEV__: process.env.NODE_ENV === 'development',
+    // 为小程序环境定义兼容性标志
+    __UNI_PLATFORM__: JSON.stringify(process.env.UNI_PLATFORM || ''),
+    __IS_MP__: JSON.stringify(process.env.UNI_PLATFORM && process.env.UNI_PLATFORM.startsWith('mp-'))
   }
 })

@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import javax.persistence.*;
-import java.net.InetAddress;
 import java.time.OffsetDateTime;
 
 /**
@@ -71,7 +70,7 @@ public class UserActivityLog {
      * 客户端IP地址
      */
     @Column(name = "ip_address", columnDefinition = "inet")
-    private InetAddress ipAddress;
+    private String ipAddress;
 
     /**
      * 用户代理字符串
@@ -129,12 +128,14 @@ public class UserActivityLog {
      */
     public void setIpAddressString(String ipAddressString) {
         if (ipAddressString != null && !ipAddressString.trim().isEmpty()) {
-            try {
-                this.ipAddress = InetAddress.getByName(ipAddressString);
-            } catch (Exception e) {
-                // 忽略无效的IP地址
+            // 简单的IP地址格式验证
+            if (isValidIpAddress(ipAddressString)) {
+                this.ipAddress = ipAddressString;
+            } else {
                 this.ipAddress = null;
             }
+        } else {
+            this.ipAddress = null;
         }
     }
 
@@ -142,7 +143,39 @@ public class UserActivityLog {
      * 便捷方法：获取IP地址字符串
      */
     public String getIpAddressString() {
-        return ipAddress != null ? ipAddress.getHostAddress() : null;
+        return ipAddress;
+    }
+
+    /**
+     * 简单的IP地址格式验证
+     */
+    private boolean isValidIpAddress(String ip) {
+        if (ip == null || ip.trim().isEmpty()) {
+            return false;
+        }
+        
+        // IPv4 格式验证
+        String[] parts = ip.split("\\.");
+        if (parts.length == 4) {
+            try {
+                for (String part : parts) {
+                    int num = Integer.parseInt(part);
+                    if (num < 0 || num > 255) {
+                        return false;
+                    }
+                }
+                return true;
+            } catch (NumberFormatException e) {
+                // 可能是IPv6，继续检查
+            }
+        }
+        
+        // IPv6 格式简单验证（包含冒号）
+        if (ip.contains(":")) {
+            return true; // 简化的IPv6验证
+        }
+        
+        return false;
     }
 
     /**

@@ -80,8 +80,6 @@
 </template>
 
 <script>
-	// 导入 lunar-typescript 库，用于计算节气
-	import { Solar, Lunar, LunarUtil } from 'lunar-typescript';
 	// 导入API
 	import { getCalendarData } from '../../services/api.js';
 	

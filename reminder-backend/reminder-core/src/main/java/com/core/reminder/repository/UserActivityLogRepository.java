@@ -96,7 +96,7 @@ public interface UserActivityLogRepository extends JpaRepository<UserActivityLog
     /**
      * 根据IP地址查询活动日志
      */
-    @Query("SELECT l FROM UserActivityLog l WHERE CAST(l.ipAddress AS string) = :ipAddress " +
+    @Query("SELECT l FROM UserActivityLog l WHERE l.ipAddress = :ipAddress " +
            "ORDER BY l.createdAt DESC")
     List<UserActivityLog> findByIpAddress(@Param("ipAddress") String ipAddress, Pageable pageable);
 
