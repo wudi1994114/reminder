@@ -17,6 +17,9 @@ FROM docker-0.unsee.tech/openjdk:8-jre-slim
 # 设置工作目录
 WORKDIR /app
 
+# 创建日志目录
+RUN mkdir -p /var/log/reminder
+
 # 创建非root用户运行应用（安全最佳实践）
 RUN groupadd -r spring && useradd -r -g spring spring
 
@@ -24,7 +27,7 @@ RUN groupadd -r spring && useradd -r -g spring spring
 COPY --from=builder /app/reminder-core/target/*.jar app.jar
 
 # 更改文件所有者
-RUN chown spring:spring app.jar
+RUN chown -R spring:spring /app /var/log/reminder
 
 # 切换到非root用户
 USER spring
