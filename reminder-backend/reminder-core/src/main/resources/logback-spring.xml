@@ -41,28 +41,9 @@
     <logger name="com.core.reminder" level="DEBUG"/>
     <logger name="com.common.reminder" level="DEBUG"/>
     
-    <!-- 开发环境配置 -->
-    <springProfile name="dev">
-        <root level="DEBUG">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE_ALL"/>
-        </root>
-    </springProfile>
-    
-    <!-- 生产环境配置 -->
-    <springProfile name="prod">
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE_ALL"/>
-        </root>
-    </springProfile>
-    
-    <!-- 默认配置（当没有指定profile时） -->
-    <springProfile name="!dev & !prod">
-        <root level="INFO">
-            <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE_ALL"/>
-        </root>
-    </springProfile>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_ALL"/>
+    </root>
     
 </configuration> 
