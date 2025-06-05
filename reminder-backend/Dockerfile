@@ -4,29 +4,12 @@ FROM docker-0.unsee.tech/maven:3.8.1-openjdk-8-slim AS builder
 # 设置工作目录
 WORKDIR /app
 
-# 复制父项目pom.xml
-COPY pom.xml .
+# 复制整个项目结构
+COPY . .
 
-# 复制各个子模块的pom.xml文件（利用Docker层缓存优化）
-COPY reminder-common/pom.xml ./reminder-common/
-COPY reminder-core/pom.xml ./reminder-core/
-COPY reminder-job/pom.xml ./reminder-job/
-
-# 先安装父pom到本地仓库（解决多模块依赖问题）
-RUN mvn install -N -B
-
-# 预下载Maven依赖（这一层会被缓存，除非pom.xml发生变化）
-RUN mvn dependency:go-offline -B
-
-# 复制源代码
-COPY reminder-common/src ./reminder-common/src
-COPY reminder-core/src ./reminder-core/src
-COPY reminder-job/src ./reminder-job/src
-
-# 执行Maven构建，跳过测试以加快构建速度
-# 首先构建并安装common模块，然后构建core模块
-RUN mvn clean install -pl reminder-common -DskipTests -B && \
-    mvn clean package -pl reminder-core -DskipTests -B
+# 清理并构建整个项目
+# 使用Maven reactor模式，自动处理模块间依赖关系
+RUN mvn clean package -DskipTests -B
 
 # 第二阶段：运行时镜像
 FROM docker-0.unsee.tech/openjdk:8-jre-slim
