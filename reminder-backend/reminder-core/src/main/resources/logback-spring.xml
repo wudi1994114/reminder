@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 定义日志输出目录 -->
-    <property name="LOG_HOME" value="/var/log/reminder/core"/>
+    <!-- 定义日志输出目录，支持环境变量覆盖 -->
+    <property name="LOG_HOME" value="${LOG_PATH:-/var/log/reminder}"/>
     
     <!-- 定义日志格式 -->
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"/>
@@ -14,42 +14,20 @@
         </encoder>
     </appender>
     
-    <!-- 按小时滚动的文件输出 - INFO及以上级别日志 -->
-    <appender name="FILE_INFO" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/info/reminder-core-info.log</file>
+    <!-- 按小时滚动的文件输出 - 所有日志 -->
+    <appender name="FILE_ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_HOME}/reminder-core.log</file>
         <encoder>
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
-        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-            <level>INFO</level>
-        </filter>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- 按小时滚动 -->
-            <fileNamePattern>${LOG_HOME}/info/reminder-core-info.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
+            <fileNamePattern>${LOG_HOME}/reminder-core.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
             <!-- 保存30天，每天24小时，共720个文件 -->
             <maxHistory>720</maxHistory>
             <!-- 总日志大小限制为10GB -->
             <totalSizeCap>10GB</totalSizeCap>
-        </rollingPolicy>
-    </appender>
-    
-    <!-- 按小时滚动的文件输出 - 错误日志 -->
-    <appender name="FILE_ERROR" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/error/reminder-core-error.log</file>
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <filter class="ch.qos.logback.classic.filter.LevelFilter">
-            <level>ERROR</level>
-            <onMatch>ACCEPT</onMatch>
-            <onMismatch>DENY</onMismatch>
-        </filter>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_HOME}/error/reminder-core-error.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
-            <maxHistory>720</maxHistory>
-            <totalSizeCap>2GB</totalSizeCap>
         </rollingPolicy>
     </appender>
     
@@ -59,27 +37,31 @@
     <!-- Hibernate日志 -->
     <logger name="org.hibernate" level="WARN"/>
     
-    <!-- 根日志配置 -->
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE_INFO"/>
-        <appender-ref ref="FILE_ERROR"/>
-    </root>
+    <!-- 应用包日志 -->
+    <logger name="com.core.reminder" level="DEBUG"/>
+    <logger name="com.common.reminder" level="DEBUG"/>
     
     <!-- 开发环境配置 -->
     <springProfile name="dev">
         <root level="DEBUG">
             <appender-ref ref="CONSOLE"/>
-            <appender-ref ref="FILE_INFO"/>
-            <appender-ref ref="FILE_ERROR"/>
+            <appender-ref ref="FILE_ALL"/>
         </root>
     </springProfile>
     
     <!-- 生产环境配置 -->
     <springProfile name="prod">
         <root level="INFO">
-            <appender-ref ref="FILE_INFO"/>
-            <appender-ref ref="FILE_ERROR"/>
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE_ALL"/>
+        </root>
+    </springProfile>
+    
+    <!-- 默认配置（当没有指定profile时） -->
+    <springProfile name="!dev & !prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE_ALL"/>
         </root>
     </springProfile>
     
