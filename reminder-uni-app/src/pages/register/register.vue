@@ -12,10 +12,22 @@
           class="input" 
           type="text" 
           v-model="form.username" 
-          placeholder="请输入用户名"
-          @input="validateForm"
+          placeholder="请输入用户名（只能包含英文字母和数字）"
+          @input="handleUsernameInput"
         />
         <text class="error-msg" v-if="errors.username">{{ errors.username }}</text>
+      </view>
+      
+      <view class="form-group">
+        <text class="label">昵称</text>
+        <input 
+          class="input" 
+          type="text" 
+          v-model="form.nickname" 
+          placeholder="请输入昵称"
+          @input="validateForm"
+        />
+        <text class="error-msg" v-if="errors.nickname">{{ errors.nickname }}</text>
       </view>
       
       <view class="form-group">
@@ -35,6 +47,7 @@
         <input 
           class="input" 
           type="password" 
+          password="true"
           v-model="form.password" 
           placeholder="请输入密码"
           @input="validateForm"
@@ -47,6 +60,7 @@
         <input 
           class="input" 
           type="password" 
+          password="true"
           v-model="form.confirmPassword" 
           placeholder="请再次输入密码"
           @input="validateForm"
@@ -80,6 +94,7 @@ export default {
   setup() {
     const form = reactive({
       username: '',
+      nickname: '',
       email: '',
       password: '',
       confirmPassword: ''
@@ -87,6 +102,7 @@ export default {
     
     const errors = reactive({
       username: '',
+      nickname: '',
       email: '',
       password: '',
       confirmPassword: ''
@@ -96,21 +112,58 @@ export default {
     
     const isValid = computed(() => {
       return form.username.length >= 3 && 
+             form.nickname.length >= 1 &&
              isValidEmail(form.email) && 
              form.password.length >= 6 && 
              form.password === form.confirmPassword &&
              !errors.username && 
+             !errors.nickname &&
              !errors.email && 
              !errors.password && 
              !errors.confirmPassword;
     });
     
+    const handleUsernameInput = (event) => {
+      // 只保留英文字母和数字
+      const value = event.detail.value;
+      const filteredValue = value.replace(/[^a-zA-Z0-9]/g, '');
+      
+      // 如果输入了非法字符，更新输入框的值
+      if (value !== filteredValue) {
+        form.username = filteredValue;
+        // 显示提示
+        uni.showToast({
+          title: '只能输入英文字母和数字',
+          icon: 'none',
+          duration: 1500
+        });
+      } else {
+        form.username = value;
+      }
+      
+      // 触发验证
+      validateForm();
+    };
+    
     const validateForm = () => {
       // 用户名验证
-      if (form.username.length < 3) {
+      if (!form.username) {
+        errors.username = '用户名不能为空';
+      } else if (form.username.length < 3) {
         errors.username = '用户名不能少于3个字符';
+      } else if (!/^[a-zA-Z0-9]+$/.test(form.username)) {
+        errors.username = '用户名只能包含英文字母和数字';
       } else {
         errors.username = '';
+      }
+      
+      // 昵称验证
+      if (!form.nickname || form.nickname.length < 1) {
+        errors.nickname = '昵称不能为空';
+      } else if (form.nickname.length > 10) {
+        errors.nickname = '昵称不能超过10个字符';
+      } else {
+        errors.nickname = '';
       }
       
       // 邮箱验证
@@ -150,18 +203,20 @@ export default {
         // 构建注册请求数据
         const registerData = {
           username: form.username,
+          nickname: form.nickname,
           email: form.email,
           password: form.password
         };
         
-        // 调用注册API
-        await register(registerData);
+        console.log('发送注册请求:', registerData);
         
+        // 调用注册API
+        const result = await register(registerData);
         // 显示注册成功提示
         uni.showToast({
           title: '注册成功',
           icon: 'success',
-          duration: 2000
+          duration: 1000
         });
         
         // 延迟跳转到登录页
@@ -172,29 +227,54 @@ export default {
         }, 2000);
         
       } catch (error) {
-        console.error('注册失败:', error);
+        console.error('注册失败详情:', error);
+        
+        // 重置所有错误信息
+        Object.keys(errors).forEach(key => {
+          errors[key] = '';
+        });
+        
+        let errorMessage = '注册失败，请稍后重试';
+        
+        // 处理不同类型的错误
+        if (error.data) {
+          const errorData = error.data;
+          
+          // 处理字段验证错误
+          if (errorData.fieldErrors) {
+            const fieldErrors = errorData.fieldErrors;
+            if (fieldErrors.username) errors.username = fieldErrors.username;
+            if (fieldErrors.nickname) errors.nickname = fieldErrors.nickname;
+            if (fieldErrors.email) errors.email = fieldErrors.email;
+            if (fieldErrors.password) errors.password = fieldErrors.password;
+          }
+          
+          // 处理业务逻辑错误
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+          
+          // 处理特定错误码
+          if (errorData.code) {
+            switch(errorData.code) {
+              case 'USER_EXISTS':
+                errorMessage = '用户名或邮箱已存在';
+                break;
+              case 'VALIDATION_ERROR':
+                errorMessage = '输入信息格式不正确';
+                break;
+              default:
+                errorMessage = errorData.message || errorMessage;
+            }
+          }
+        }
         
         // 显示错误提示
-        if (error.data && error.data.fieldErrors) {
-          // 处理字段错误
-          const fieldErrors = error.data.fieldErrors;
-          if (fieldErrors.username) {
-            errors.username = fieldErrors.username;
-          }
-          if (fieldErrors.email) {
-            errors.email = fieldErrors.email;
-          }
-          if (fieldErrors.password) {
-            errors.password = fieldErrors.password;
-          }
-        } else {
-          // 显示通用错误
-          uni.showToast({
-            title: error.data?.message || '注册失败，请稍后重试',
-            icon: 'none',
-            duration: 3000
-          });
-        }
+        uni.showToast({
+          title: errorMessage,
+          icon: 'none',
+          duration: 3000
+        });
       } finally {
         loading.value = false;
       }
@@ -211,6 +291,7 @@ export default {
       errors,
       loading,
       isValid,
+      handleUsernameInput,
       validateForm,
       handleRegister,
       goToLogin

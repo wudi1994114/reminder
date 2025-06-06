@@ -181,11 +181,14 @@ export const login = (credentials) => request({
     data: credentials
 });
 
-export const register = (userData) => request({
-    url: '/auth/register',
-    method: 'POST',
-    data: userData
-});
+export const register = (userData) => {
+    console.log('注册API调用，数据:', userData);
+    return request({
+        url: '/auth/register',
+        method: 'POST',
+        data: userData
+    });
+};
 
 export const getUserProfile = () => request({
     url: '/auth/profile',
