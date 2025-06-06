@@ -1,12 +1,84 @@
 import { handleApiError } from '../utils/helpers';
+import cloudConfig from '../config/cloud.js';
 
 // 根据环境选择API地址
 // let API_URL = 'http://127.0.0.1:8080/api';
-let API_URL = 'http://123.57.175.66/task/api';
+// let API_URL = 'http://123.57.175.66/task/api';
+let API_URL = 'https://bewangji-166224-6-1362668225.sh.run.tcloudbase.com/api';
+
+// 使用外部配置文件
+const CLOUD_CONFIG = cloudConfig;
+
+// 云托管请求方法
+const callContainer = (options) => {
+    return new Promise((resolve, reject) => {
+        const token = uni.getStorageSync('accessToken');
+        
+        const callOptions = {
+            config: {
+                env: CLOUD_CONFIG.env
+            },
+            path: '/api' + options.url.replace(API_URL, ''), // 在路径前追加/api
+            method: options.method || 'GET',
+            header: {
+                'X-WX-SERVICE': CLOUD_CONFIG.serviceName,
+                'Content-Type': 'application/json',
+                ...options.header
+            },
+            data: options.data,
+            success: (res) => {
+                console.log('云托管请求成功:', options.url, res);
+                resolve(res.data || res);
+            },
+            fail: (err) => {
+                console.error('云托管请求失败:', err);
+                
+                // 对于特定接口，失败时返回默认值
+                if (options.url.includes('/reminders/simple')) {
+                    console.warn('获取提醒数据失败，返回空数组');
+                    resolve([]);
+                    return;
+                }
+                
+                reject({
+                    ...err,
+                    message: err.errMsg || '云托管请求失败'
+                });
+            }
+        };
+        
+        // 添加认证Token
+        if (token) {
+            callOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        }
+        
+        wx.cloud.callContainer(callOptions);
+    });
+};
 
 // 封装uni.request为Promise风格
 const request = (options) => {
     return new Promise((resolve, reject) => {
+        // 优先使用云托管
+        if (CLOUD_CONFIG.enabled) {
+            // #ifdef MP-WEIXIN
+            if (typeof wx !== 'undefined' && wx.cloud && wx.cloud.callContainer) {
+                console.log('✅ 使用云托管请求:', options.url);
+                callContainer(options).then(resolve).catch(reject);
+                return;
+            } else {
+                console.warn('⚠️ 微信云服务未初始化，降级使用HTTP请求');
+            }
+            // #endif
+            // #ifndef MP-WEIXIN
+            console.log('🌐 非微信环境，使用HTTP请求');
+            // #endif
+        } else {
+            console.log('🔄 云托管已禁用，使用HTTP请求');
+        }
+        
+        // 降级使用传统HTTP请求
+        console.log('📡 使用HTTP请求:', options.url);
         const token = uni.getStorageSync('accessToken');
         
         const requestOptions = {
@@ -259,4 +331,176 @@ export const getCalendarData = (startYear, endYear, apiType = 'all') => {
         // 对于日历数据，错误时返回空数组，避免阻断UI显示
         return []; 
     });
+};
+
+/**
+ * WebSocket 云托管连接
+ */
+export const connectWebSocket = () => {
+    return new Promise((resolve, reject) => {
+        // 检查WebSocket功能是否启用
+        if (!CLOUD_CONFIG.websocket.enabled) {
+            console.warn('WebSocket功能已关闭');
+            reject(new Error('WebSocket功能已关闭'));
+            return;
+        }
+        
+        // 检查是否支持云托管 WebSocket
+        if (!wx.cloud || !wx.cloud.connectContainer) {
+            console.warn('当前环境不支持云托管 WebSocket');
+            reject(new Error('不支持云托管 WebSocket'));
+            return;
+        }
+
+        console.log('建立云托管 WebSocket 连接...');
+        
+        wx.cloud.connectContainer({
+            config: {
+                env: CLOUD_CONFIG.env
+            },
+            service: CLOUD_CONFIG.serviceName,
+            path: CLOUD_CONFIG.websocket.path,
+            success: (res) => {
+                console.log('WebSocket 连接成功:', res);
+                const { socketTask } = res;
+                
+                // 设置事件监听
+                socketTask.onOpen((openRes) => {
+                    console.log('WebSocket 连接已建立', openRes);
+                });
+                
+                socketTask.onMessage((message) => {
+                    if (CLOUD_CONFIG.debug.verbose) {
+                        console.log('收到 WebSocket 消息:', message.data);
+                    }
+                    
+                    try {
+                        const data = JSON.parse(message.data);
+                        handleWebSocketMessage(data);
+                    } catch (e) {
+                        if (CLOUD_CONFIG.debug.verbose) {
+                            console.log('收到文本消息:', message.data);
+                        }
+                    }
+                });
+                
+                socketTask.onError((error) => {
+                    console.error('WebSocket 连接错误:', error);
+                });
+                
+                socketTask.onClose((closeRes) => {
+                    console.log('WebSocket 连接已关闭:', closeRes);
+                });
+                
+                resolve(socketTask);
+            },
+            fail: (err) => {
+                console.error('WebSocket 连接失败:', err);
+                reject(err);
+            }
+        });
+    });
+};
+
+// WebSocket 消息处理
+let webSocketMessageHandlers = [];
+
+export const onWebSocketMessage = (handler) => {
+    webSocketMessageHandlers.push(handler);
+};
+
+export const offWebSocketMessage = (handler) => {
+    const index = webSocketMessageHandlers.indexOf(handler);
+    if (index > -1) {
+        webSocketMessageHandlers.splice(index, 1);
+    }
+};
+
+const handleWebSocketMessage = (data) => {
+    webSocketMessageHandlers.forEach(handler => {
+        try {
+            handler(data);
+        } catch (e) {
+            console.error('WebSocket 消息处理错误:', e);
+        }
+    });
+};
+
+// WebSocket 消息发送
+export const sendWebSocketMessage = (socketTask, message) => {
+    if (!socketTask) {
+        console.error('WebSocket 连接不存在');
+        return false;
+    }
+    
+    try {
+        const data = typeof message === 'object' ? JSON.stringify(message) : message;
+        socketTask.send({
+            data: data,
+            success: () => {
+                if (CLOUD_CONFIG.debug.verbose) {
+                    console.log('WebSocket 消息发送成功:', data);
+                }
+            },
+            fail: (err) => {
+                console.error('WebSocket 消息发送失败:', err);
+            }
+        });
+        return true;
+    } catch (e) {
+        console.error('WebSocket 消息发送异常:', e);
+        return false;
+    }
+};
+
+/**
+ * 云托管开关控制
+ */
+export const setCloudEnabled = (enabled) => {
+    CLOUD_CONFIG.enabled = enabled;
+    console.log(`云托管已${enabled ? '启用' : '关闭'}`);
+};
+
+export const getCloudStatus = () => {
+    const hasWxCloud = typeof wx !== 'undefined' && wx.cloud;
+    const hasCallContainer = hasWxCloud && wx.cloud.callContainer;
+    const hasConnectContainer = hasWxCloud && wx.cloud.connectContainer;
+    
+    return {
+        enabled: CLOUD_CONFIG.enabled,
+        env: CLOUD_CONFIG.env,
+        serviceName: CLOUD_CONFIG.serviceName,
+        websocketEnabled: CLOUD_CONFIG.websocket.enabled,
+        // 运行时状态
+        runtime: {
+            hasWxCloud,
+            hasCallContainer,
+            hasConnectContainer,
+            isReady: hasWxCloud && hasCallContainer
+        }
+    };
+};
+
+// 测试云托管连接
+export const testCloudConnection = async () => {
+    try {
+        console.log('🧪 测试云托管连接...');
+        const status = getCloudStatus();
+        
+        if (!status.runtime.isReady) {
+            throw new Error('云托管服务未就绪');
+        }
+        
+        // 发送测试请求
+        const result = await request({
+            url: '/api/health', // 假设有健康检查接口
+            method: 'GET'
+        });
+        
+        console.log('✅ 云托管连接测试成功');
+        return { success: true, data: result };
+    } catch (error) {
+        console.error('❌ 云托管连接测试失败:', error);
+        return { success: false, error: error.message };
+    }
 }; 
