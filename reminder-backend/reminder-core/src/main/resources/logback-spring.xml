@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <!-- 定义日志输出目录，支持环境变量覆盖 -->
-    <property name="LOG_HOME" value="${LOG_PATH:-/var/log/reminder}"/>
+    <!-- Mac/Linux: 使用用户目录下的logs文件夹，Windows: 使用临时目录 -->
+    <property name="LOG_HOME" value="${LOG_PATH:-${user.home}/logs/reminder}"/>
     
     <!-- 定义日志格式 -->
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"/>

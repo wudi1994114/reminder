@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.core.reminder.exception.UserAlreadyExistsException;
 import com.core.reminder.dto.RegisterRequest;
+import com.core.reminder.utils.PasswordValidator;
 
 import java.time.OffsetDateTime;
 @Slf4j
@@ -73,11 +74,10 @@ public class AuthService {
             throw new UserAlreadyExistsException("Username already taken: " + registerRequest.getUsername());
         }
 
-        // 2. 邮箱不再要求唯一性，允许多个用户使用相同邮箱
-        // 注释掉邮箱唯一性检查
-        // if (appUserRepository.existsByEmail(registerRequest.getEmail())) {
-        //     throw new UserAlreadyExistsException("Email Address already in use: " + registerRequest.getEmail());
-        // }
+        // 2. 验证密码强度
+        if (!PasswordValidator.isValidPassword(registerRequest.getPassword())) {
+            throw new IllegalArgumentException(PasswordValidator.getPasswordRequirement());
+        }
 
         // 3. 创建新用户对象
         AppUser newUser = new AppUser();
@@ -97,9 +97,6 @@ public class AuthService {
         
         // Log the avatarUrl set on entity
         log.info("AuthService - Avatar URL set on AppUser entity: '{}'", newUser.getAvatarUrl());
-        
-        // newUser.setGender(registerRequest.getGender());
-        // newUser.setBirthDate(registerRequest.getBirthDate()); 
 
         // createdAt 和 updatedAt 会由 @CreationTimestamp 和 @UpdateTimestamp 自动处理
 
@@ -119,6 +116,11 @@ public class AuthService {
         // 验证当前密码
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
             throw new IllegalArgumentException("当前密码不正确");
+        }
+        
+        // 验证新密码强度
+        if (!PasswordValidator.isValidPassword(request.getNewPassword())) {
+            throw new IllegalArgumentException(PasswordValidator.getPasswordRequirement());
         }
         
         // 设置新密码

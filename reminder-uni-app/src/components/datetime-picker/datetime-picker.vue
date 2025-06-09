@@ -139,40 +139,66 @@ export default {
     };
     
     // 初始化日期时间
-    onMounted(() => {
+    const initializeDateTime = () => {
+      console.log('datetime-picker: 开始初始化, props:', { 
+        initialDate: props.initialDate, 
+        initialTime: props.initialTime,
+        autoSetDefault: props.autoSetDefault 
+      });
+      
+      // 初始化日期 - 优先使用props，否则设置默认值
       if (props.initialDate) {
         reminderDate.value = props.initialDate;
-      } else if (props.autoSetDefault) {
-        // 设置默认日期为今天
+        console.log('datetime-picker: 使用传入的初始日期:', props.initialDate);
+      } else if (props.autoSetDefault && !reminderDate.value) {
+        // 只有在autoSetDefault=true且当前没有值时才设置默认值
         const today = new Date();
         reminderDate.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        console.log('datetime-picker: 使用默认日期:', reminderDate.value);
+      } else {
+        console.log('datetime-picker: 保持现有日期值:', reminderDate.value);
       }
       
+      // 初始化时间 - 优先使用props，否则设置默认值
       if (props.initialTime) {
         reminderTime.value = props.initialTime;
-      } else if (props.autoSetDefault) {
-        // 设置默认时间为当前时间的后一小时整点
+        console.log('datetime-picker: 使用传入的初始时间:', props.initialTime);
+      } else if (props.autoSetDefault && !reminderTime.value) {
+        // 只有在autoSetDefault=true且当前没有值时才设置默认值
         const now = new Date();
         now.setHours(now.getHours() + 1);
         now.setMinutes(0);
         now.setSeconds(0);
         reminderTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        console.log('datetime-picker: 使用默认时间:', reminderTime.value);
+      } else {
+        console.log('datetime-picker: 保持现有时间值:', reminderTime.value);
       }
+      
+      console.log('datetime-picker: 初始化完成，最终值:', { date: reminderDate.value, time: reminderTime.value });
       
       // 初始化后触发一次change事件
       updateEventTime();
+    };
+    
+    onMounted(() => {
+      initializeDateTime();
     });
     
-    // 监听props变化
-    watch(() => props.initialDate, (newDate) => {
-      if (newDate) {
+    // 监听props变化 - 支持动态更新
+    watch(() => props.initialDate, (newDate, oldDate) => {
+      console.log('datetime-picker: initialDate watch 触发:', { newDate, oldDate, current: reminderDate.value });
+      if (newDate && newDate !== reminderDate.value) {
+        console.log('datetime-picker: 更新日期从', reminderDate.value, '到', newDate);
         reminderDate.value = newDate;
         updateEventTime();
       }
     });
     
-    watch(() => props.initialTime, (newTime) => {
-      if (newTime) {
+    watch(() => props.initialTime, (newTime, oldTime) => {
+      console.log('datetime-picker: initialTime watch 触发:', { newTime, oldTime, current: reminderTime.value });
+      if (newTime && newTime !== reminderTime.value) {
+        console.log('datetime-picker: 更新时间从', reminderTime.value, '到', newTime);
         reminderTime.value = newTime;
         updateEventTime();
       }
@@ -438,10 +464,10 @@ export default {
       
       if (hours < 12) {
         const displayHour = hours === 0 ? 12 : hours;
-        timeStr = `上午${displayHour}:${String(minutes).padStart(2, '0')}`;
+        timeStr = `上午${displayHour}时${String(minutes).padStart(2, '0')}分`;
       } else {
         const displayHour = hours === 12 ? 12 : hours - 12;
-        timeStr = `下午${displayHour}:${String(minutes).padStart(2, '0')}`;
+        timeStr = `下午${displayHour}时${String(minutes).padStart(2, '0')}分`;
       }
       
       return `${dateStr} ${timeStr}`;
@@ -449,8 +475,15 @@ export default {
     
     // 暴露方法供父组件调用
     const setDateTime = (date, time) => {
-      if (date) reminderDate.value = date;
-      if (time) reminderTime.value = time;
+      console.log('datetime-picker: setDateTime 被调用:', { date, time });
+      if (date) {
+        reminderDate.value = date;
+        console.log('datetime-picker: 设置日期为:', date);
+      }
+      if (time) {
+        reminderTime.value = time;
+        console.log('datetime-picker: 设置时间为:', time);
+      }
       updateEventTime();
     };
     

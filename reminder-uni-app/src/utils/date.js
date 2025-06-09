@@ -2,35 +2,44 @@
  * 日期相关工具函数
  */
 
-// 日期格式化
+// 日期格式化 - 完整的年月日时分格式
 export const formatDate = (date) => {
     if (!date) return '';
-    return new Date(date).toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    const hour = d.getHours();
+    const minute = d.getMinutes();
+    
+    return `${year}年${month}月${day}日 ${hour}时${String(minute).padStart(2, '0')}分`;
 };
 
-// 短日期格式化 (不含时间)
+// 短日期格式化 (不含时间) - 年月日格式
 export const formatShortDate = (date) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const day = d.getDate();
+    
+    return `${year}年${month}月${day}日`;
 };
 
-// 只显示时间
+// 只显示时间 - 时分格式
 export const formatTime = (date) => {
     if (!date) return '';
-    return new Date(date).toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    
+    const hour = d.getHours();
+    const minute = d.getMinutes();
+    
+    return `${hour}时${String(minute).padStart(2, '0')}分`;
 };
 
 // 格式化为ISO字符串

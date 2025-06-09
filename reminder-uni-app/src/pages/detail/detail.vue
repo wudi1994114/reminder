@@ -57,11 +57,6 @@
                 <text class="value-text">{{ getReminderTypeText(reminder.reminderType) }}</text>
               </view>
               
-              <view class="setting-item">
-                <text class="setting-label">时间</text>
-                <text class="value-text">{{ formatDisplayTime(reminder.eventTime) }}</text>
-              </view>
-              
               <view class="setting-item" v-if="reminder.cronExpression">
                 <text class="setting-label">重复</text>
                 <text class="value-text">{{ cronExpressionToText(reminder.cronExpression) }}</text>

@@ -18,8 +18,7 @@ export const isValidPhone = (phone) => {
 export const isStrongPassword = (password) => {
     if (!password) return false;
     return password.length >= 8 && 
-           /[A-Z]/.test(password) && 
-           /[a-z]/.test(password) && 
+           /[a-zA-Z]/.test(password) && 
            /[0-9]/.test(password);
 };
 
@@ -89,7 +88,7 @@ export const validationRules = {
     password: {
         required: true,
         validator: isStrongPassword,
-        message: '密码至少8位，包含大小写字母和数字'
+        message: '密码至少8位，包含字母和数字'
     },
     username: {
         required: true,

@@ -14,7 +14,7 @@ public class RegisterRequest {
     private String username;
 
     @NotBlank(message = "密码不能为空")
-    @Size(min = 6, message = "密码长度至少为6个字符") // 密码长度要求
+    @Size(min = 8, message = "密码长度至少为8个字符") // 密码长度要求
     private String password;
 
     @NotBlank(message = "昵称不能为空")

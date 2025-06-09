@@ -18,8 +18,7 @@ export const isValidEmail = (email) => {
 // 验证密码强度
 export const isStrongPassword = (password) => {
     return password.length >= 8 && 
-           /[A-Z]/.test(password) && 
-           /[a-z]/.test(password) && 
+           /[a-zA-Z]/.test(password) && 
            /[0-9]/.test(password);
 };
 

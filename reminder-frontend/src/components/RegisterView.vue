@@ -48,7 +48,7 @@ function validateField(fieldName) {
       break;
     case 'password':
       if (!isStrongPassword(fieldValue)) {
-        formErrors.value.password = '密码必须包含大小写字母和数字，且长度至少为8个字符';
+        formErrors.value.password = '密码必须包含字母和数字，且长度至少为8个字符';
       } else {
         delete formErrors.value.password;
       }
@@ -178,7 +178,7 @@ function showLogin() {
               @blur="validateField('password')"
               @input="validateField('password')"
             >
-            <small class="form-hint">密码必须包含大小写字母和数字，且长度至少为8个字符</small>
+            <small class="form-hint">密码必须包含字母和数字，且长度至少为8个字符</small>
           </div>
           <div v-if="formErrors.password" class="error-message">{{ formErrors.password }}</div>
         </div>

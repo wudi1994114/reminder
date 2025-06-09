@@ -5,7 +5,6 @@
       <view class="nav-close" @click="cancel">
         <text class="close-icon">✕</text>
       </view>
-      <text class="nav-title">{{ isEdit ? '编辑提醒' : '新建提醒' }}</text>
     </view>
     
     <!-- 主要内容区域 -->
@@ -41,6 +40,7 @@
       
       <!-- 时间设置 -->
       <datetime-picker 
+        v-if="isDataReady"
         ref="dateTimePickerRef"
         label="时间设置"
         :initial-date="reminderDate"
@@ -48,6 +48,9 @@
         :auto-set-default="!isEdit"
         @change="onDateTimeChange"
       />
+      <view v-else class="loading-placeholder">
+        <text>加载中...</text>
+      </view>
     </scroll-view>
     
     <!-- 底部保存按钮 -->
@@ -69,49 +72,103 @@
 </template>
 
 <script>
-import { ref, computed, reactive, onMounted, getCurrentInstance } from 'vue';
+import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick } from 'vue';
 import { createEvent, updateEvent, getSimpleReminderById } from '../../services/api';
 
 export default {
+  onLoad(options) {
+    console.log('创建页面: onLoad 接收到参数:', options);
+    // 将参数存储到全局变量中供setup使用
+    if (typeof window !== 'undefined') {
+      window._createPageOptions = { ...options };
+      console.log('创建页面: onLoad 存储到window._createPageOptions:', window._createPageOptions);
+    }
+  },
   setup() {
+    console.log('创建页面: setup函数开始执行');
+    
+    // 1. 定义响应式数据
     const isEdit = ref(false);
-    const pageOptions = ref({}); // 用于存储页面参数
+    const isDataReady = ref(false); // 用于控制组件渲染时机
     const reminderForm = reactive({
       id: null,
       title: '',
       description: '',
       eventTime: '',
-      reminderType: 'EMAIL', // 添加默认提醒方式
-      status: 'PENDING' // 默认为PENDING
+      reminderType: 'EMAIL',
+      status: 'PENDING'
     });
     
-    const reminderDate = ref('');
-    const reminderTime = ref('');
+    // 2. 初始化默认值（今天的日期和时间）
+    const today = new Date();
+    const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0);
+    now.setSeconds(0);
+    const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    
+    const reminderDate = ref(defaultDate);
+    const reminderTime = ref(defaultTime);
     const isSubmitting = ref(false);
     const dateTimePickerRef = ref(null);
     
-    // 提醒方式相关
+    // 3. 提醒方式相关
     const reminderTypeOptions = ['邮件', '短信', '微信'];
     const reminderTypeValues = ['EMAIL', 'SMS', 'WECHAT_MINI'];
-    const reminderTypeIndex = ref(0); // 默认选择邮件提醒
+    const reminderTypeIndex = ref(0);
     
-    onMounted(async () => {
-      // 获取页面参数 - 使用getCurrentPages方式
-      const pages = getCurrentPages();
-      const currentPage = pages[pages.length - 1];
-      const options = currentPage.options || {};
+    // 4. 统一的参数处理函数
+    const processPageOptions = () => {
+      let options = {};
+      
+      // 尝试获取页面参数
+      if (typeof window !== 'undefined' && window._createPageOptions) {
+        options = window._createPageOptions;
+        console.log('创建页面: 获取到页面参数:', options);
+      } else {
+        try {
+          const pages = getCurrentPages();
+          const currentPage = pages[pages.length - 1];
+          options = currentPage.options || {};
+          console.log('创建页面: 从getCurrentPages获取到参数:', options);
+        } catch (error) {
+          console.log('创建页面: 获取页面参数失败:', error);
+        }
+      }
       
       const id = options.id || null;
       const mode = options.mode || '';
-      const initialDate = options.date || ''; // 从日历页传来的日期
+      const initialDate = options.date || '';
       
-      console.log('页面参数:', { id, mode, initialDate }); // 添加调试日志
+      console.log('创建页面: 解析参数:', { id, mode, initialDate });
       
+      // 设置编辑模式
       isEdit.value = mode === 'edit' && id;
       
-      if (isEdit.value) {
+      // 如果有传入的日期，立即设置
+      if (initialDate) {
+        reminderDate.value = initialDate;
+        console.log('创建页面: 设置传入的日期:', initialDate);
+      }
+      
+      console.log('创建页面: 最终的初始值:', {
+        reminderDate: reminderDate.value,
+        reminderTime: reminderTime.value,
+        isEdit: isEdit.value
+      });
+      
+      return { id, mode, initialDate, options };
+    };
+    
+    // 5. 在onMounted中统一处理
+    onMounted(async () => {
+      const { id, mode, initialDate, options } = processPageOptions();
+      
+      if (isEdit.value && id) {
+        // 编辑模式：加载现有数据
         try {
-          isSubmitting.value = true; // 开始加载时也设为true，防止重复点击
+          isSubmitting.value = true;
           const result = await getSimpleReminderById(id);
           if (result) {
             reminderForm.id = result.id;
@@ -119,42 +176,27 @@ export default {
             reminderForm.description = result.description;
             reminderForm.eventTime = result.eventTime;
             reminderForm.status = result.status;
-            reminderForm.reminderType = result.reminderType || 'EMAIL'; // 设置提醒方式
+            reminderForm.reminderType = result.reminderType || 'EMAIL';
             
+            // 解析日期时间
             if (result.eventTime) {
-              // 处理不同格式的日期时间字符串
               let eventTimeStr = result.eventTime;
-              
-              // 如果是ISO格式，先转换为本地时间字符串
               if (eventTimeStr.includes('T')) {
-                // 确保使用iOS兼容的日期格式
                 const eventDate = new Date(eventTimeStr);
-                
-                // 检查日期是否有效
-                if (isNaN(eventDate.getTime())) {
-                  console.error('无效的日期格式:', eventTimeStr);
-                  // 使用当前时间作为默认值
-                  const now = new Date();
-                  reminderDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                  reminderTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                } else {
+                if (!isNaN(eventDate.getTime())) {
                   const year = eventDate.getFullYear();
                   const month = String(eventDate.getMonth() + 1).padStart(2, '0');
                   const day = String(eventDate.getDate()).padStart(2, '0');
                   const hours = String(eventDate.getHours()).padStart(2, '0');
                   const minutes = String(eventDate.getMinutes()).padStart(2, '0');
-                  const seconds = String(eventDate.getSeconds()).padStart(2, '0');
-                  eventTimeStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                   
-                  const [date, time] = eventTimeStr.split(' ');
-                  reminderDate.value = date;
-                  reminderTime.value = time.substring(0, 5); // HH:mm
+                  reminderDate.value = `${year}-${month}-${day}`;
+                  reminderTime.value = `${hours}:${minutes}`;
                 }
               } else {
-                // 非ISO格式，直接分割
                 const [date, time] = eventTimeStr.split(' ');
                 reminderDate.value = date;
-                reminderTime.value = time ? time.substring(0, 5) : '09:00'; // HH:mm，如果没有时间则默认09:00
+                reminderTime.value = time ? time.substring(0, 5) : '09:00';
               }
             }
             
@@ -169,27 +211,17 @@ export default {
           isSubmitting.value = false;
         }
       } else {
-        // 创建模式，设置默认值
-        // 1. 设置日期：优先使用传入的日期，否则使用今天
-        if (initialDate) {
-          reminderDate.value = initialDate;
-        } else {
-          const today = new Date();
-          reminderDate.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        }
-        
-        // 2. 设置默认时间为当前时间的后一小时整点
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
-        now.setMinutes(0);
-        now.setSeconds(0);
-        reminderTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
-        // 3. 通过组件引用设置日期时间
-        if (dateTimePickerRef.value) {
-          dateTimePickerRef.value.setDateTime(reminderDate.value, reminderTime.value);
-        }
+        // 创建模式：使用初始值
+        console.log('创建页面: 创建模式，使用初始值');
       }
+      
+      // 更新事件时间
+      reminderForm.eventTime = `${reminderDate.value} ${reminderTime.value}:00`;
+      console.log('创建页面: 设置初始eventTime:', reminderForm.eventTime);
+      
+      // 标记数据已准备好
+      isDataReady.value = true;
+      console.log('创建页面: 数据准备完成，组件可以正常渲染');
     });
     
     // 日期时间组件变化处理
@@ -264,11 +296,15 @@ export default {
           uni.showToast({
             title: isEdit.value ? '修改成功' : '创建成功',
             icon: 'success',
-            duration: 1500
+            duration: 500
           });
+          
+          console.log('保存成功，1.5秒后返回');
+          
           setTimeout(() => {
+            console.log('创建页面: 准备返回日历页面');
             uni.navigateBack();
-          }, 1500);
+          }, 500);
         } else {
            // API已在内部处理错误提示，这里可以不重复提示
         }
@@ -313,6 +349,7 @@ export default {
 
     return {
       isEdit,
+      isDataReady,
       reminderForm,
       reminderDate,
       reminderTime,
@@ -518,6 +555,20 @@ export default {
   100% {
     left: 100%;
   }
+}
+
+/* 加载占位符样式 */
+.loading-placeholder {
+  padding: 32rpx;
+  text-align: center;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  margin: 16rpx 0;
+}
+
+.loading-placeholder text {
+  color: #9d8148;
+  font-size: 28rpx;
 }
 
 /* 响应式适配 */

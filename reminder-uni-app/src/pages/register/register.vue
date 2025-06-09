@@ -114,7 +114,7 @@ export default {
       return form.username.length >= 3 && 
              form.nickname.length >= 1 &&
              isValidEmail(form.email) && 
-             form.password.length >= 6 && 
+             form.password.length >= 8 && 
              form.password === form.confirmPassword &&
              !errors.username && 
              !errors.nickname &&
@@ -178,10 +178,10 @@ export default {
       // 密码验证
       if (!form.password) {
         errors.password = '请输入密码';
-      } else if (form.password.length < 6) {
-        errors.password = '密码不能少于6个字符';
+      } else if (form.password.length < 8) {
+        errors.password = '密码不能少于8个字符';
       } else if (!isStrongPassword(form.password)) {
-        errors.password = '密码需包含大小写字母和数字';
+        errors.password = '密码需包含字母和数字';
       } else {
         errors.password = '';
       }
@@ -258,7 +258,7 @@ export default {
           if (errorData.code) {
             switch(errorData.code) {
               case 'USER_EXISTS':
-                errorMessage = '用户名或邮箱已存在';
+                errorMessage = '用户名已存在';
                 break;
               case 'VALIDATION_ERROR':
                 errorMessage = '输入信息格式不正确';

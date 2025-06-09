@@ -16,6 +16,7 @@
       <input 
         class="input" 
         type="password" 
+        password="true"
         v-model="form.password" 
         placeholder="请输入密码"
         @input="validateForm"
@@ -61,7 +62,7 @@ export default {
     const errorMsg = ref('');
     
     const isValid = computed(() => {
-      return form.username.length > 0 && form.password.length >= 6;
+      return form.username.length > 0 && form.password.length >= 8;
     });
     
     const validateForm = () => {
