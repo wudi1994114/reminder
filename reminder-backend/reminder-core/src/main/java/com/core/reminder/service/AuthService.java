@@ -73,10 +73,11 @@ public class AuthService {
             throw new UserAlreadyExistsException("Username already taken: " + registerRequest.getUsername());
         }
 
-        // 2. 检查邮箱是否已存在
-        if (appUserRepository.existsByEmail(registerRequest.getEmail())) {
-            throw new UserAlreadyExistsException("Email Address already in use: " + registerRequest.getEmail());
-        }
+        // 2. 邮箱不再要求唯一性，允许多个用户使用相同邮箱
+        // 注释掉邮箱唯一性检查
+        // if (appUserRepository.existsByEmail(registerRequest.getEmail())) {
+        //     throw new UserAlreadyExistsException("Email Address already in use: " + registerRequest.getEmail());
+        // }
 
         // 3. 创建新用户对象
         AppUser newUser = new AppUser();

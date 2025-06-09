@@ -19,7 +19,7 @@ CREATE TABLE app_user (
     username VARCHAR(100) UNIQUE NOT NULL, -- 用户登录名，唯一且不允许为空
     password VARCHAR(255) NOT NULL, -- 加密后的用户密码，不允许为空
     nickname VARCHAR(100) NOT NULL, -- 用户昵称，不允许为空
-    email VARCHAR(255) UNIQUE NOT NULL, -- 用户邮箱，唯一且不允许为空
+    email VARCHAR(255) NOT NULL, -- 用户邮箱，不允许为空
     phone_number VARCHAR(20) UNIQUE, -- 用户手机号，唯一 (如果提供的话)
     avatar_url TEXT, -- 用户头像 URL (允许为空)
     gender VARCHAR(50), -- 用户性别 (例如: 'Male', 'Female', 'Other', 'Prefer not to say')
@@ -50,7 +50,7 @@ COMMENT ON COLUMN app_user.password IS '用户加密后的密码哈希';
 
 COMMENT ON COLUMN app_user.nickname IS '用户的昵称';
 
-COMMENT ON COLUMN app_user.email IS '用户的电子邮箱地址 (唯一)';
+COMMENT ON COLUMN app_user.email IS '用户的电子邮箱地址';
 
 COMMENT ON COLUMN app_user.phone_number IS '用户的手机号码 (唯一，可选)';
 
