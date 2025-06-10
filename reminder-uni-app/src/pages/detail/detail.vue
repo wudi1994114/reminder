@@ -87,7 +87,7 @@
 <script>
 import { ref, onMounted, getCurrentInstance } from 'vue';
 import { getSimpleReminderById } from '../../services/api';
-import { formatDate } from '../../utils/helpers';
+import { formatDetail } from '../../utils/dateFormat';
 import cronstrue from 'cronstrue/i18n';
 
 export default {
@@ -166,7 +166,7 @@ export default {
     
     const formatDisplayTime = (timeString) => {
       if (!timeString) return '-';
-      return formatDate(timeString);
+      return formatDetail(timeString);
     };
 
     const cronExpressionToText = (cronExpression) => {

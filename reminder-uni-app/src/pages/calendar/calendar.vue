@@ -85,7 +85,7 @@
 // 1. 修正：从 vue 导入的列表中移除了 onShow
 import { ref, computed, onMounted, watch, shallowRef } from 'vue';
 import { getAllSimpleReminders, getHolidaysByYearRange } from '../../services/api';
-import { formatTime } from '../../utils/helpers';
+import { formatTime } from '../../utils/dateFormat';
 import { getLunarInfo } from '../../utils/lunarManager';
 import performanceMonitor from '../../utils/performanceMonitor';
 
@@ -295,7 +295,7 @@ export default {
 
     const formatDisplayTime = (dateTimeStr) => {
         if (!dateTimeStr) return '';
-        return formatTime(new Date(dateTimeStr.replace(' ', 'T')));
+        return formatTime(dateTimeStr);
     };
     
     const loadHolidaysForYear = async (year) => {

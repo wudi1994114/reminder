@@ -18,7 +18,7 @@
 </template>
 
 <script>
-import { formatDate } from '../utils/helpers';
+import { formatReminder } from '../utils/dateFormat';
 
 export default {
   name: 'SimpleReminderCard',
@@ -53,7 +53,7 @@ export default {
     };
     
     const formatTimeHelper = (timeString) => {
-      return formatDate(timeString);
+      return formatReminder(timeString);
     };
     
     return {

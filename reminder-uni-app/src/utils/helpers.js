@@ -1,42 +1,8 @@
-// 日期格式化 - 完整的年月日时分格式
-export const formatDate = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    const hour = d.getHours();
-    const minute = d.getMinutes();
-    
-    return `${year}年${month}月${day}日 ${hour}时${String(minute).padStart(2, '0')}分`;
-};
+// 导入统一的时间格式化工具
+import { formatDate, formatShortDate, formatTime } from './dateFormat.js';
 
-// 短日期格式化 (不含时间) - 年月日格式
-export const formatShortDate = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1;
-    const day = d.getDate();
-    
-    return `${year}年${month}月${day}日`;
-};
-
-// 只显示时间 - 时分格式
-export const formatTime = (date) => {
-    if (!date) return '';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    
-    const hour = d.getHours();
-    const minute = d.getMinutes();
-    
-    return `${hour}时${String(minute).padStart(2, '0')}分`;
-};
+// 重新导出时间格式化函数以保持向后兼容
+export { formatDate, formatShortDate, formatTime };
 
 // 验证邮箱格式
 export const isValidEmail = (email) => {
