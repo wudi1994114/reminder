@@ -397,7 +397,7 @@ export default {
 
 .notes-content {
   font-size: 30rpx;
-  color: #666666;
+  color: #9d8148;
   line-height: 1.6;
   word-break: break-word;
 }
@@ -436,13 +436,9 @@ export default {
 
 .value-text {
   font-size: 30rpx;
-  color: #666666;
+  color: #9d8148;
   font-weight: 400;
 }
-
-
-
-
 
 /* 响应式调整 */
 @media (max-width: 750rpx) {
@@ -516,7 +512,7 @@ export default {
 
 .cancel-btn {
   background-color: #f5f5f5;
-  color: #666666;
+  color: #9d8148;
 }
 
 .edit-btn {

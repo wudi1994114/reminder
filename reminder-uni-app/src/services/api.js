@@ -3,7 +3,6 @@ import cloudConfig from '../config/cloud.js';
 
 // 根据环境选择API地址
 let API_URL = 'http://127.0.0.1:8080/api';
-// let API_URL = 'http://123.57.175.66/task/api';
 // let API_URL = 'https://bewangji-166224-6-1362668225.sh.run.tcloudbase.com/api';
 
 // 使用外部配置文件

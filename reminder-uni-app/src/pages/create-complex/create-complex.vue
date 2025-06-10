@@ -230,6 +230,7 @@ import {
   getComplexReminderById 
 } from '../../services/api';
 import { reminderState } from '../../services/store';
+import { DateFormatter } from '../../utils/dateFormat';
 
 export default {
   data() {
@@ -1312,16 +1313,9 @@ export default {
       return targetDate;
     },
     
-    // 格式化日期时间
+    // 格式化日期时间 - 使用统一的时间格式化工具
     formatDateTime(date) {
-      return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+      return DateFormatter.formatReminder(date);
     },
     
     // 检查哪些月份不存在指定的日期
