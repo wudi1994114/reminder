@@ -736,12 +736,15 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         try {
             CronExpression cron = CronExpression.parse(cronExpression);
             
+            // 使用中国时区(Asia/Shanghai)确保时间一致性
+            ZoneId chinaZone = ZoneId.of("Asia/Shanghai");
+            
             // 设置起始时间（当前时间或validFrom，取较晚者）
-            ZonedDateTime now = ZonedDateTime.now();
+            ZonedDateTime now = ZonedDateTime.now(chinaZone);
             ZonedDateTime startTime = now;
             
             if (complexReminder.getValidFrom() != null) {
-                ZonedDateTime validFromTime = complexReminder.getValidFrom().atStartOfDay(ZoneId.systemDefault());
+                ZonedDateTime validFromTime = complexReminder.getValidFrom().atStartOfDay(chinaZone);
                 if (validFromTime.isAfter(now)) {
                     startTime = validFromTime;
                 }
@@ -756,17 +759,17 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                 .plusMonths(1).minusDays(1);
             
             // 设置结束时间为目标月份的最后一天的23:59:59
-            ZonedDateTime endTime = lastDayOfTargetMonth.atTime(23, 59, 59).atZone(ZoneId.systemDefault());
+            ZonedDateTime endTime = lastDayOfTargetMonth.atTime(23, 59, 59).atZone(chinaZone);
             
             // 如果有validUntil且在目标月份结束之前，则使用validUntil
             if (complexReminder.getValidUntil() != null) {
-                ZonedDateTime validUntilTime = complexReminder.getValidUntil().atTime(23, 59, 59).atZone(ZoneId.systemDefault());
+                ZonedDateTime validUntilTime = complexReminder.getValidUntil().atTime(23, 59, 59).atZone(chinaZone);
                 if (validUntilTime.isBefore(endTime)) {
                     endTime = validUntilTime;
                 }
             }
             
-            log.info("为复杂提醒ID: {} 生成简单任务的时间范围: {} 至 {}", 
+            log.info("为复杂提醒ID: {} 生成简单任务的时间范围: {} 至 {} (使用中国时区)", 
                      complexReminder.getId(), startTime, endTime);
             
             // 开始计算执行时间并生成简单任务
@@ -788,7 +791,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                     break;
                 }
                 
-                // 转换为OffsetDateTime
+                // 转换为OffsetDateTime，确保使用中国时区的偏移量
                 OffsetDateTime nextExecutionTime = nextTime.toOffsetDateTime();
                 
                 // 检查是否已经存在相同时间的简单任务
@@ -802,7 +805,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                     generatedReminders.add(savedReminder);
                     count++;
                     
-                    log.info("已生成SimpleReminder (ID: {}) 执行时间: {}", 
+                    log.info("已生成SimpleReminder (ID: {}) 执行时间: {} (中国时区)", 
                              savedReminder.getId(), nextExecutionTime);
                 }
             }
