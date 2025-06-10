@@ -129,7 +129,7 @@ export function generateCronExpression(timeData) {
   
   switch (type) {
     case TimeType.ONCE:
-      // 一次性任务不需要Cron表达式
+      // 一次性提醒不需要Cron表达式
       return '';
       
     case TimeType.DAILY:

@@ -3,7 +3,7 @@
  */
 export default {
   // 云托管功能开关 - 强制启用
-  enabled: false,
+  enabled: true,
   
   // 云环境ID - 从您当前的API URL提取
   env: 'prod-3gel427g5936cfa7',

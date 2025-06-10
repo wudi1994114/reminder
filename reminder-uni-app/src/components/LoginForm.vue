@@ -1,12 +1,12 @@
 <template>
   <view class="login-container">
     <view class="form-group">
-      <text class="label">用户名/邮箱</text>
+      <text class="label">用户名</text>
       <input 
         class="input" 
         type="text" 
         v-model="form.username" 
-        placeholder="请输入用户名或邮箱"
+        placeholder="请输入用户名"
         @input="validateForm"
       />
     </view>
@@ -62,7 +62,7 @@ export default {
     const errorMsg = ref('');
     
     const isValid = computed(() => {
-      return form.username.length > 0 && form.password.length >= 8;
+      return form.username.length > 0 && form.password.length > 0;
     });
     
     const validateForm = () => {

@@ -12,7 +12,7 @@
       </view>
     </view>
     
-    <!-- 任务类型切换标签 -->
+    <!-- 提醒类型切换标签 -->
     <view class="tab-container">
       <view class="tab-buttons">
         <view 
@@ -20,14 +20,14 @@
           :class="{ active: activeTab === 'simple' }"
           @click="switchTab('simple')"
         >
-          <text class="tab-text">简单任务</text>
+          <text class="tab-text">简单提醒</text>
         </view>
         <view 
           class="tab-button" 
           :class="{ active: activeTab === 'complex' }"
           @click="switchTab('complex')"
         >
-          <text class="tab-text">复杂任务</text>
+          <text class="tab-text">复杂提醒</text>
         </view>
       </view>
     </view>
@@ -42,17 +42,17 @@
           </view>
         </view>
         
-        <!-- 简单任务列表 -->
+        <!-- 简单提醒列表 -->
         <view v-else-if="activeTab === 'simple'">
         <!-- 空状态 -->
           <view v-if="simpleReminders && simpleReminders.length === 0" class="empty-state">
           <view class="empty-content">
             <text class="empty-icon">📝</text>
               <text class="empty-title">暂无简单提醒</text>
-              <text class="empty-desc">点击下方"新建简单任务"开始添加你的提醒</text>
+              <text class="empty-desc">点击下方"新建简单提醒"开始添加你的提醒</text>
           </view>
-        </view>
-        
+         </view>
+         
           <!-- 简单提醒列表 -->
         <view v-else class="reminder-list">
           <SimpleReminderCard
@@ -62,16 +62,16 @@
             @click="goToDetail"
           />
         </view>
-      </view>
+       </view>
         
-        <!-- 复杂任务列表 -->
+        <!-- 复杂提醒列表 -->
         <view v-else-if="activeTab === 'complex'">
           <!-- 空状态 -->
           <view v-if="complexReminders && complexReminders.length === 0" class="empty-state">
             <view class="empty-content">
               <text class="empty-icon">⚙️</text>
               <text class="empty-title">暂无复杂提醒</text>
-              <text class="empty-desc">点击下方"新建复杂任务"开始添加你的复杂提醒</text>
+              <text class="empty-desc">点击下方"新建复杂提醒"开始添加你的复杂提醒</text>
             </view>
           </view>
           
@@ -223,7 +223,7 @@ export default {
     };
     
     const goToDetail = (id) => {
-      console.log('=== Index页面跳转简单任务详情 ===');
+      console.log('=== Index页面跳转简单提醒详情 ===');
       console.log('点击的提醒ID:', id);
       console.log('ID类型:', typeof id);
       console.log('跳转URL:', `/pages/detail/detail?id=${id}`);
@@ -234,7 +234,7 @@ export default {
     };
     
     const goToComplexDetail = (id) => {
-      console.log('=== Index页面跳转复杂任务详情 ===');
+      console.log('=== Index页面跳转复杂提醒详情 ===');
       console.log('点击的复杂提醒ID:', id);
       
       // 暂时跳转到编辑页面，后续可以创建专门的详情页
@@ -364,11 +364,10 @@ export default {
 
 <style scoped>
 .page-container {
-  height: 100vh;
-  background-color: #fcfbf8;
   display: flex;
   flex-direction: column;
-  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-height: 100vh;
+  background-color: #E6EFEC;
 }
 
 /* 顶部标题区域 */
@@ -378,7 +377,6 @@ export default {
   align-items: center;
   padding: 32rpx;
   background-color: #fcfbf8;
-  border-bottom: none;
 }
 
 .title-container {
@@ -442,6 +440,10 @@ export default {
 .content-scroll {
   flex: 1;
   background-color: #fcfbf8;
+}
+
+.content-container {
+  padding: 0 32rpx;
 }
 
 .content-container {
@@ -552,8 +554,6 @@ export default {
     padding: 0 24rpx 24rpx;
   }
   
-
-  
   .bottom-actions {
     padding: 24rpx;
   }
@@ -575,9 +575,9 @@ export default {
 .tab-button {
   flex: 1;
   text-align: center;
-  padding: 24rpx;
-  border-radius: 12rpx;
-  transition: all 0.3s ease;
+  padding: 24rpx 32rpx;
+  border-radius: 8rpx;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
@@ -587,7 +587,7 @@ export default {
 
 .tab-text {
   font-size: 28rpx;
-  color: #666666;
+  color: #9d8148;
   font-weight: 500;
 }
 
@@ -617,10 +617,38 @@ export default {
   justify-content: center;
 }
 
-
-
 /* 底部间距 */
 .bottom-spacer {
   height: 120rpx;
+}
+
+/* 底部浮动按钮 */
+.fab-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  padding: 24rpx;
+  background-color: #fcfbf8;
+  border-top: 1rpx solid #e9e0ce;
+}
+
+.fab {
+  width: 88rpx;
+  height: 88rpx;
+  background-color: #f7bd4a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fab-text {
+  font-size: 48rpx;
+  font-weight: 600;
+  color: #1c170d;
 }
 </style>

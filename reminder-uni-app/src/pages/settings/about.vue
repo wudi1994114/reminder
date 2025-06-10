@@ -10,7 +10,7 @@
       <view class="info-section">
         <text class="section-title">应用简介</text>
         <text class="info-text">
-          Reminder Pro 是一款帮助您记录和管理日常提醒事项的便捷工具。无论是工作任务、学习计划还是生活琐事，都可以轻松创建提醒，并通过日历视图清晰掌握。
+          Reminder Pro 是一款帮助您记录和管理日常提醒事项的便捷工具。无论是工作提醒、学习计划还是生活琐事，都可以轻松创建提醒，并通过日历视图清晰掌握。
         </text>
       </view>
 
