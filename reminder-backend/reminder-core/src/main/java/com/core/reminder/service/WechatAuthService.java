@@ -126,7 +126,15 @@ public class WechatAuthService {
 
         } catch (Exception e) {
             log.error("微信登录失败", e);
-            throw new RuntimeException("微信登录失败: " + e.getMessage(), e);
+            
+            // 安全地处理异常消息，避免空指针
+            String errorMessage = e.getMessage();
+            if (errorMessage == null || errorMessage.trim().isEmpty()) {
+                errorMessage = "微信登录过程中发生未知错误";
+            }
+            
+            // 抛出包装后的异常，确保消息不为null
+            throw new RuntimeException("微信登录失败: " + errorMessage, e);
         }
     }
 

@@ -251,13 +251,33 @@ export const deleteEvent = (id) => request({
 export const getUpcomingReminders = () => request({
     url: '/reminders/upcoming',
     method: 'GET'
-}).catch(handleApiError);
+}).then(data => {
+    // 确保返回的数据是数组
+    if (!Array.isArray(data)) {
+        console.warn('getUpcomingReminders API返回的数据不是数组:', data);
+        return []; // 返回空数组
+    }
+    return data;
+}).catch(error => {
+    console.error('获取即将到来的提醒出错:', error);
+    return []; // 出错时返回空数组
+});
 
 // 复杂提醒事项相关
 export const getAllComplexReminders = () => request({
     url: '/reminders/complex',
     method: 'GET'
-}).catch(handleApiError);
+}).then(data => {
+    // 确保返回的数据是数组
+    if (!Array.isArray(data)) {
+        console.warn('getAllComplexReminders API返回的数据不是数组:', data);
+        return []; // 返回空数组
+    }
+    return data;
+}).catch(error => {
+    console.error('获取复杂提醒出错:', error);
+    return []; // 出错时返回空数组
+});
 
 export const getComplexReminderById = (id) => request({
     url: `/reminders/complex/${id}`,
@@ -504,5 +524,46 @@ export const testCloudConnection = async () => {
     } catch (error) {
         console.error('❌ 云托管连接测试失败:', error);
         return { success: false, error: error.message };
+    }
+};
+
+// 用户偏好设置相关API
+export const getUserPreferences = async () => {
+    try {
+        const response = await request('/api/user/preferences', {
+            method: 'GET'
+        });
+        console.log('获取用户偏好设置成功:', response);
+        return response;
+    } catch (error) {
+        console.error('获取用户偏好设置失败:', error);
+        throw error;
+    }
+};
+
+export const updateUserPreferences = async (preferences) => {
+    try {
+        const response = await request('/api/user/preferences', {
+            method: 'PUT',
+            data: preferences
+        });
+        console.log('更新用户偏好设置成功:', response);
+        return response;
+    } catch (error) {
+        console.error('更新用户偏好设置失败:', error);
+        throw error;
+    }
+};
+
+export const resetUserPreferences = async () => {
+    try {
+        const response = await request('/api/user/preferences/reset', {
+            method: 'POST'
+        });
+        console.log('重置用户偏好设置成功:', response);
+        return response;
+    } catch (error) {
+        console.error('重置用户偏好设置失败:', error);
+        throw error;
     }
 }; 

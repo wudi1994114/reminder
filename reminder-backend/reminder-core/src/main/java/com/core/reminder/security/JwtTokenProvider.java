@@ -64,6 +64,18 @@ public class JwtTokenProvider {
      
     // Overload for direct user info if Authentication object isn't readily available
     public String generateTokenFromUserDetails(AppUser user) {
+         if (user == null) {
+             throw new IllegalArgumentException("用户对象不能为空");
+         }
+         
+         if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
+             throw new IllegalArgumentException("用户名不能为空");
+         }
+         
+         if (user.getId() == null) {
+             throw new IllegalArgumentException("用户ID不能为空");
+         }
+         
          Date now = new Date();
          Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
  
@@ -71,8 +83,8 @@ public class JwtTokenProvider {
                  .setSubject(user.getUsername()) // 使用 username 作为 subject
                  // Add custom claims if needed, e.g., user ID, email, nickname
                  .claim("userId", user.getId())
-                 .claim("nickname", user.getNickname())
-                 .claim("email", user.getEmail()) // 可以将 email 作为额外 claim 添加
+                 .claim("nickname", user.getNickname() != null ? user.getNickname() : "")
+                 .claim("email", user.getEmail() != null ? user.getEmail() : "") // 可以将 email 作为额外 claim 添加
                  .setIssuedAt(now)
                  .setExpiration(expiryDate)
                  .signWith(key, SignatureAlgorithm.HS512)

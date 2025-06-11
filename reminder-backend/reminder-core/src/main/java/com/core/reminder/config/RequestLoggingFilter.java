@@ -24,38 +24,53 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 
-        // 继续处理请求
-        filterChain.doFilter(wrappedRequest, wrappedResponse);
+        try {
+            // 继续处理请求
+            filterChain.doFilter(wrappedRequest, wrappedResponse);
+        } finally {
+            try {
+                // 确保响应已提交后再进行日志记录
+                if (!response.isCommitted()) {
+                    // 简化的日志记录
+                    StringBuilder logMessage = new StringBuilder();
+                    
+                    // 请求方法和URL
+                    logMessage.append("接口：[")
+                              .append(wrappedRequest.getMethod()).append("] ")
+                              .append(wrappedRequest.getRequestURI());
+                    
+                    String queryString = wrappedRequest.getQueryString();
+                    if (queryString != null) {
+                        logMessage.append("?").append(queryString);
+                    }
+                    
+                    // 请求体
+                    String requestBody = getRequestBody(wrappedRequest);
+                    if (!requestBody.isEmpty() && isReadable(requestBody)) { 
+                        logMessage.append("\n入参：").append(requestBody);
+                    }
 
-        // 简化的日志记录
-        StringBuilder logMessage = new StringBuilder();
-        
-        // 请求方法和URL
-        logMessage.append("接口：[")
-                  .append(wrappedRequest.getMethod()).append("] ")
-                  .append(wrappedRequest.getRequestURI());
-        
-        String queryString = wrappedRequest.getQueryString();
-        if (queryString != null) {
-            logMessage.append("?").append(queryString);
-        }
-        
-        // 请求体
-        String requestBody = getRequestBody(wrappedRequest);
-        if (!requestBody.isEmpty() && isReadable(requestBody)) { 
-            logMessage.append("\n入参：").append(requestBody);
-        }
+                    // 响应体
+                    String responseBody = getResponseBody(wrappedResponse);
+                    if (!responseBody.isEmpty() && isReadable(responseBody)) {
+                        logMessage.append("\n返回：").append(responseBody);
+                    }
 
-        // 响应体
-        String responseBody = getResponseBody(wrappedResponse);
-        if (!responseBody.isEmpty() && isReadable(responseBody)) {
-            logMessage.append("\n返回：").append(responseBody);
+                    logger.info(logMessage.toString());
+                }
+            } catch (Exception ex) {
+                // 日志记录失败不应该影响正常响应
+                logger.warn("记录请求日志时发生异常", ex);
+            }
+            
+            try {
+                // 将响应内容复制回原始响应
+                wrappedResponse.copyBodyToResponse();
+            } catch (Exception ex) {
+                // 如果复制响应失败，记录错误但不抛出异常
+                logger.error("复制响应体时发生异常", ex);
+            }
         }
-
-        logger.info(logMessage.toString());
-        
-        // 将响应内容复制回原始响应
-        wrappedResponse.copyBodyToResponse(); 
     }
 
     private String getRequestBody(ContentCachingRequestWrapper request) {

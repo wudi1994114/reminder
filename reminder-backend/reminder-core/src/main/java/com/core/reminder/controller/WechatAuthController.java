@@ -39,13 +39,42 @@ public class WechatAuthController {
             log.info("微信小程序登录成功，用户ID: {}, 是否新用户: {}", 
                     response.getUserId(), response.getIsNewUser());
             
+            // 确保响应对象不为null且包含必要字段
+            if (response == null) {
+                log.error("微信登录服务返回null响应");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("message", "登录服务内部错误");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            }
+            
+            // 验证响应的关键字段
+            if (response.getAccessToken() == null || response.getAccessToken().trim().isEmpty()) {
+                log.error("微信登录响应缺少访问令牌");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("message", "登录失败：无法生成访问令牌");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            }
+            
+            if (response.getUserId() == null) {
+                log.error("微信登录响应缺少用户ID");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("message", "登录失败：无法获取用户信息");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            }
+            
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             log.error("微信小程序登录失败", e);
             
+            // 安全地处理异常消息
+            String errorMessage = "微信登录失败";
+            if (e.getMessage() != null && !e.getMessage().trim().isEmpty()) {
+                errorMessage = "微信登录失败：" + e.getMessage();
+            }
+            
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("message", "微信登录失败：" + e.getMessage());
+            errorResponse.put("message", errorMessage);
             
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }

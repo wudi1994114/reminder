@@ -60,10 +60,26 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Allow requests from typical frontend development server origin
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:8081", "http://localhost:5173", "http://123.57.175.66", "http://123.57.175.66:5173"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type"));
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000", 
+            "http://localhost:8081", 
+            "http://localhost:5173", 
+            "http://123.57.175.66", 
+            "http://123.57.175.66:5173"
+        ));
+        configuration.setAllowedMethods(Arrays.asList(
+            "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
+        ));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization", "Cache-Control", "Content-Type", "X-Requested-With"
+        ));
+        // 设置暴露的响应头
+        configuration.setExposedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "X-Total-Count"
+        ));
         configuration.setAllowCredentials(true); // Important for cookies, authorization headers
+        configuration.setMaxAge(3600L); // 设置预检请求的缓存时间
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration); // Apply CORS to all paths
         return source;

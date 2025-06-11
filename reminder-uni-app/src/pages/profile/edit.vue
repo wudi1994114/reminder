@@ -16,12 +16,12 @@
 
       <view class="form-item">
         <text class="label">邮箱</text>
-        <input class="input disabled-input" :value="userState.user?.email || ''" placeholder="邮箱不可修改" disabled />
+        <input class="input" v-model="form.email" placeholder="请输入邮箱地址" type="email" />
       </view>
       
-      <view class="form-item" v-if="userState.user?.phone">
+      <view class="form-item">
         <text class="label">手机号</text>
-        <input class="input disabled-input" :value="userState.user?.phone || ''" placeholder="手机号不可修改" disabled />
+        <input class="input" v-model="form.phone" placeholder="请输入手机号码" type="number" />
       </view>
 
       <button class="btn btn-primary save-btn" @click="saveProfile" :disabled="isSubmitting" :loading="isSubmitting">
@@ -39,7 +39,9 @@ import { updateProfile } from '../../services/api';
 export default {
   setup() {
     const form = reactive({
-      nickname: ''
+      nickname: '',
+      email: '',
+      phone: ''
     });
     const avatarPreview = ref('');
     let avatarFile = null; // Store the chosen file object
@@ -48,6 +50,8 @@ export default {
     onMounted(() => {
       if (userState.user) {
         form.nickname = userState.user.nickname || userState.user.username || '';
+        form.email = userState.user.email || '';
+        form.phone = userState.user.phone || userState.user.phoneNumber || '';
       }
     });
 
@@ -83,38 +87,35 @@ export default {
             // 'customParam': 'value'
             // },
             success: (uploadFileRes) => {
-              console.log('uni.uploadFile success response:', uploadFileRes);
-              if (uploadFileRes.statusCode === 200) {
-                try {
-                  const responseData = JSON.parse(uploadFileRes.data);
-                  if (responseData && responseData.avatarUrl) { // 直接检查 avatarUrl
-                    resolve(responseData.avatarUrl);
-                  } else if (responseData && responseData.data && responseData.data.avatarUrl) { // 检查嵌套的 avatarUrl
-                     resolve(responseData.data.avatarUrl);
-                  } else {
-                    console.error('Avatar upload success, but avatarUrl not found in response:', responseData);
-                    uni.showToast({ title: '头像上传成功，但未找到URL', icon: 'none' });
-                    reject(new Error('Avatar URL not found in response'));
-                  }
-                } catch (e) {
-                  console.error('Error parsing upload response:', e, uploadFileRes.data);
-                  uni.showToast({ title: '解析上传响应失败', icon: 'none' });
-                  reject(new Error('Error parsing upload response'));
+              console.log('uploadFile success:', uploadFileRes);
+              
+              // 先检查 HTTP 状态码
+              if (uploadFileRes.statusCode !== 200) {
+                console.error('Upload failed with status:', uploadFileRes.statusCode);
+                resolve(null); // 不要 reject，返回 null 让调用方处理
+                return;
+              }
+              
+              try {
+                // 尝试解析响应
+                const response = JSON.parse(uploadFileRes.data);
+                if (response && response.url) {
+                  resolve(response.url); // 后端返回的图片URL
+                } else {
+                  console.error('Invalid response format:', response);
+                  resolve(null);
                 }
-              } else {
-                console.error('Avatar upload failed with status code:', uploadFileRes.statusCode, uploadFileRes.data);
-                uni.showToast({ title: `头像上传失败: ${uploadFileRes.statusCode}`, icon: 'none' });
-                reject(new Error(`Upload failed with status ${uploadFileRes.statusCode}`));
+              } catch (e) {
+                console.error('Failed to parse upload response:', e);
+                resolve(null);
               }
             },
-            fail: (err) => {
-              console.error('uni.uploadFile fail:', err);
-              uni.showToast({ title: '头像上传请求失败', icon: 'none' });
-              reject(err);
+            fail: (error) => {
+              console.error('uploadFile fail:', error);
+              resolve(null); // 不要 reject，返回 null 让调用方处理
             }
           });
         });
-
       } catch (error) {
         console.error('uploadAvatar 函数出错:', error);
         uni.showToast({ title: '头像上传功能异常', icon: 'none' });
@@ -122,9 +123,37 @@ export default {
       }
     };
 
-    const saveProfile = async () => {
+    const validateForm = () => {
       if (!form.nickname.trim()) {
         uni.showToast({ title: '昵称不能为空', icon: 'none' });
+        return false;
+      }
+
+      if (form.email && !isValidEmail(form.email)) {
+        uni.showToast({ title: '请输入有效的邮箱地址', icon: 'none' });
+        return false;
+      }
+
+      if (form.phone && !isValidPhone(form.phone)) {
+        uni.showToast({ title: '请输入有效的手机号码', icon: 'none' });
+        return false;
+      }
+
+      return true;
+    };
+
+    const isValidEmail = (email) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
+
+    const isValidPhone = (phone) => {
+      const phoneRegex = /^1[3-9]\d{9}$/;
+      return phoneRegex.test(phone);
+    };
+
+    const saveProfile = async () => {
+      if (!validateForm()) {
         return;
       }
 
@@ -132,6 +161,7 @@ export default {
       try {
         let avatarUrlToUpdate = userState.user?.avatarUrl;
 
+        // 处理头像上传
         if (avatarFile && avatarFile.path) {
           uni.showLoading({ title: '头像上传中...' });
           try {
@@ -156,16 +186,20 @@ export default {
         const profileData = {
           nickname: form.nickname,
           avatarUrl: avatarUrlToUpdate,
-          email: userState.user?.email 
+          email: form.email,
+          phoneNumber: form.phone
         };
 
         const updatedUserResponse = await updateProfile(profileData);
         
         if (updatedUserResponse) {
             const userToSave = {
-                ...userState.user, // 保留旧信息如 id, email 等
-                nickname: updatedUserResponse.nickname || profileData.nickname, // 优先使用后端返回的
-                avatarUrl: updatedUserResponse.avatarUrl || profileData.avatarUrl, // 优先使用后端返回的
+                ...userState.user, // 保留旧信息如 id 等
+                nickname: updatedUserResponse.nickname || profileData.nickname,
+                avatarUrl: updatedUserResponse.avatarUrl || profileData.avatarUrl,
+                email: updatedUserResponse.email || profileData.email,
+                phone: updatedUserResponse.phone || updatedUserResponse.phoneNumber || profileData.phoneNumber,
+                phoneNumber: updatedUserResponse.phoneNumber || profileData.phoneNumber
              };
             saveUserInfo(userToSave);
 
@@ -254,11 +288,6 @@ export default {
   padding: 0 25rpx;
   font-size: 30rpx;
   color: #333;
-}
-
-.disabled-input {
-  background-color: #f0f0f0;
-  color: #999999;
 }
 
 .save-btn {

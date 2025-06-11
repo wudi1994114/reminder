@@ -153,10 +153,11 @@ export default {
         
         const result = await getUpcomingReminders();
         
-        if (result) {
+        // 确保result是数组才设置状态，否则设置为空数组
+        if (Array.isArray(result)) {
           reminderState.upcomingReminders = result;
         } else {
-          // 确保upcomingReminders始终是数组
+          console.warn('API返回的数据不是数组:', result);
           reminderState.upcomingReminders = [];
         }
       } catch (error) {
@@ -183,10 +184,12 @@ export default {
         
         const result = await getAllComplexReminders();
         
-        if (result) {
+        // 确保result是数组才设置状态，否则设置为空数组
+        if (Array.isArray(result)) {
           // 更新全局状态
           reminderState.complexReminders = result;
         } else {
+          console.warn('API返回的数据不是数组:', result);
           reminderState.complexReminders = [];
         }
       } catch (error) {

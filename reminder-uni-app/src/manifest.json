@@ -1,7 +1,7 @@
 {
     "name" : "reminder-uni-app",
     "appid" : "__UNI__REMINDER",
-    "description" : "提醒应用",
+    "description" : "备忘鸡",
     "versionName" : "1.0.0",
     "versionCode" : "100",
     "transformPx" : false,
