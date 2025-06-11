@@ -41,4 +41,23 @@ public class WechatLoginResponse {
      * 微信openid（可选返回）
      */
     private String openid;
+
+    /**
+     * 微信unionid（可选返回）
+     */
+    private String unionid;
+
+    /**
+     * 构造函数（不包含unionid，向后兼容）
+     */
+    public WechatLoginResponse(String accessToken, Long userId, String nickname, 
+                              String avatarUrl, Boolean isNewUser, String openid) {
+        this.accessToken = accessToken;
+        this.userId = userId;
+        this.nickname = nickname;
+        this.avatarUrl = avatarUrl;
+        this.isNewUser = isNewUser;
+        this.openid = openid;
+        this.unionid = null;
+    }
 } 

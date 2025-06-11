@@ -36,6 +36,18 @@
       {{ loading ? '登录中...' : '登录' }}
     </button>
     
+    <!-- 微信登录按钮 -->
+    <button 
+      class="wechat-login-btn" 
+      :disabled="wechatLoading"
+      :class="{'loading': wechatLoading}"
+      @click="handleWechatLogin"
+      v-if="isWeChatMiniProgram"
+    >
+      <text class="wechat-icon">🏮</text>
+      <text class="wechat-text">{{ wechatLoading ? '微信登录中...' : '微信快捷登录' }}</text>
+    </button>
+    
     <view class="links">
       <text class="link" @click="onForgotPassword">忘记密码?</text>
       <text class="link" @click="onRegister">注册账号</text>
@@ -48,6 +60,7 @@ import { ref, reactive, computed } from 'vue';
 import { login } from '../services/api';
 import { isValidEmail } from '../utils/helpers';
 import { userState, saveUserInfo } from '../services/store';
+import WeChatUtils from '../utils/wechat';
 
 export default {
   emits: ['register', 'forgot-password', 'login-success'],
@@ -59,6 +72,7 @@ export default {
     });
     
     const loading = ref(false);
+    const wechatLoading = ref(false);
     const errorMsg = ref('');
     
     const isValid = computed(() => {
@@ -142,14 +156,95 @@ export default {
     const onForgotPassword = () => {
       emit('forgot-password');
     };
+
+    // 检查是否为微信小程序环境
+    const isWeChatMiniProgram = WeChatUtils.isWeChatMiniProgram();
+
+    // 微信登录处理
+    const handleWechatLogin = async () => {
+      try {
+        wechatLoading.value = true;
+        errorMsg.value = '';
+
+        console.log('开始微信登录...');
+
+        // 使用智能微信登录流程（自动判断是否需要获取用户信息）
+        const response = await WeChatUtils.smartWechatLogin();
+
+        console.log('微信登录完成，响应:', response);
+
+        if (response && response.accessToken) {
+          // 保存token和用户信息
+          uni.setStorageSync('accessToken', `Bearer ${response.accessToken}`);
+          
+          const userInfo = {
+            id: response.userId,
+            username: response.nickname || '微信用户',
+            nickname: response.nickname,
+            avatar: response.avatarUrl,
+            loginType: 'wechat',
+            isNewUser: response.isNewUser
+          };
+          
+          saveUserInfo(userInfo);
+
+          // 显示登录成功提示（使用返回的消息）
+          uni.showToast({
+            title: response.message || (response.isNewUser ? '注册成功' : '登录成功'),
+            icon: 'success',
+            duration: 2000
+          });
+
+          // 通知登录成功
+          emit('login-success', userInfo);
+
+          // 跳转到首页
+          setTimeout(() => {
+            uni.switchTab({
+              url: '/pages/index/index'
+            });
+          }, 2000);
+
+        } else {
+          throw new Error('微信登录响应格式错误');
+        }
+
+      } catch (error) {
+        console.error('微信登录失败:', error);
+        
+        let errorMessage = '微信登录失败';
+        if (error.message) {
+          if (error.message.includes('用户拒绝')) {
+            errorMessage = '用户取消了微信授权';
+          } else if (error.message.includes('网络')) {
+            errorMessage = '网络连接失败，请检查网络';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        errorMsg.value = errorMessage;
+        
+        uni.showToast({
+          title: errorMessage,
+          icon: 'none',
+          duration: 3000
+        });
+      } finally {
+        wechatLoading.value = false;
+      }
+    };
     
     return {
       form,
       loading,
+      wechatLoading,
       errorMsg,
       isValid,
+      isWeChatMiniProgram,
       validateForm,
       handleLogin,
+      handleWechatLogin,
       onRegister,
       onForgotPassword
     };
@@ -207,6 +302,35 @@ export default {
 
 .login-btn.loading {
   opacity: 0.8;
+}
+
+.wechat-login-btn {
+  width: 100%;
+  height: 90rpx;
+  line-height: 90rpx;
+  text-align: center;
+  background-color: #3cc51f;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 8rpx;
+  margin-bottom: 30rpx;
+}
+
+.wechat-login-btn:disabled {
+  background-color: #cccccc;
+  color: #ffffff;
+}
+
+.wechat-login-btn.loading {
+  opacity: 0.8;
+}
+
+.wechat-icon {
+  margin-right: 10rpx;
+}
+
+.wechat-text {
+  font-size: 32rpx;
 }
 
 .links {

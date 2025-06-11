@@ -1202,7 +1202,6 @@ export default {
           }
         } else {
           // 简单模式：使用simpleData生成
-          console.log('简单模式数据:', this.simpleData);
           for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
             const targetDate = this.getNextTriggerTime(currentDate);
             if (!targetDate) break;

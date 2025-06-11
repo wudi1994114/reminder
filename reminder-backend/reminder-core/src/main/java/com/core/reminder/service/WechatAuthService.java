@@ -17,6 +17,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,8 +59,20 @@ public class WechatAuthService {
             // 1. 调用微信API获取openid和session_key
             WechatApiResponse apiResponse = wechatApiService.jscode2session(request.getCode());
             
+            log.info("微信API响应详情 - openid: {}, unionid: {}, session_key: {}", 
+                    apiResponse.getOpenid(), 
+                    apiResponse.getUnionid(), 
+                    apiResponse.getSessionKey() != null ? "***已获取***" : "未获取");
+            
             if (apiResponse.getOpenid() == null || apiResponse.getOpenid().isEmpty()) {
                 throw new RuntimeException("微信登录失败：未获取到有效的openid");
+            }
+            
+            // 检查unionid状态
+            if (apiResponse.getUnionid() != null && !apiResponse.getUnionid().isEmpty()) {
+                log.info("✅ 获取到unionid: {}", apiResponse.getUnionid());
+            } else {
+                log.warn("⚠️ 未获取到unionid，这是正常情况。只有绑定微信开放平台或满足特定条件才会有unionid");
             }
 
             // 2. 查找或创建微信用户
@@ -92,7 +108,7 @@ public class WechatAuthService {
             userCacheService.refreshUserCache(appUser);
 
             // 5. 构建响应
-            return new WechatLoginResponse(
+            WechatLoginResponse response = new WechatLoginResponse(
                     accessToken,
                     appUser.getId(),
                     appUser.getNickname(),
@@ -100,6 +116,13 @@ public class WechatAuthService {
                     isNewUser,
                     apiResponse.getOpenid()
             );
+            // 设置unionid
+            response.setUnionid(wechatUser.getUnionid());
+            
+            log.info("微信登录响应构建完成 - 用户ID: {}, openid: {}, unionid: {}", 
+                    response.getUserId(), response.getOpenid(), response.getUnionid());
+            
+            return response;
 
         } catch (Exception e) {
             log.error("微信登录失败", e);
@@ -122,19 +145,63 @@ public class WechatAuthService {
         // 设置默认密码（微信用户不需要密码）
         appUser.setPassword("WECHAT_USER_NO_PASSWORD");
         
-        // 设置用户信息
+        // 🎯 重点处理微信用户信息存储到AppUser表
         if (request.getUserInfo() != null) {
-            appUser.setNickname(request.getUserInfo().getNickName() != null ? 
-                    request.getUserInfo().getNickName() : "微信用户");
-            appUser.setAvatarUrl(request.getUserInfo().getAvatarUrl());
+            WechatLoginRequest.WechatUserInfo userInfo = request.getUserInfo();
+            
+            // 处理昵称
+            String nickname = userInfo.getNickName();
+            if (nickname != null && !nickname.trim().isEmpty()) {
+                appUser.setNickname(nickname);
+                log.info("👤 [AppUser存储] 设置用户昵称: {}", nickname);
+            } else {
+                appUser.setNickname("微信用户");
+                log.info("👤 [AppUser存储] 使用默认昵称: 微信用户");
+            }
+            
+            // 处理头像
+            String avatarUrl = userInfo.getAvatarUrl();
+            if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
+                appUser.setAvatarUrl(avatarUrl);
+                log.info("🖼️ [AppUser存储] 设置用户头像: {}", avatarUrl);
+            } else {
+                log.info("🖼️ [AppUser存储] 未获取到用户头像");
+            }
+            
+            // 如果有性别信息，可以存储到AppUser的gender字段
+            if (userInfo.getGender() != null) {
+                String genderStr = convertGenderToString(userInfo.getGender());
+                appUser.setGender(genderStr);
+                log.info("⚤ [AppUser存储] 设置用户性别: {}", genderStr);
+            }
+            
         } else {
             appUser.setNickname("微信用户");
+            log.info("👤 [AppUser存储] 未获取到微信用户信息，使用默认昵称: 微信用户");
         }
         
         // 设置默认邮箱（微信用户可能没有邮箱）
         appUser.setEmail(username + "@wechat.local");
         
-        return appUserRepository.save(appUser);
+        AppUser savedUser = appUserRepository.save(appUser);
+        log.info("✅ [AppUser存储] 用户创建成功 - ID: {}, 昵称: {}, 头像: {}", 
+                savedUser.getId(), 
+                savedUser.getNickname(), 
+                savedUser.getAvatarUrl() != null ? "已设置" : "未设置");
+        
+        return savedUser;
+    }
+    
+    /**
+     * 转换性别数值为字符串
+     */
+    private String convertGenderToString(Integer gender) {
+        if (gender == null) return null;
+        switch (gender) {
+            case 1: return "男";
+            case 2: return "女";
+            default: return "未知";
+        }
     }
 
     /**
@@ -149,6 +216,13 @@ public class WechatAuthService {
         wechatUser.setUnionid(apiResponse.getUnionid());
         wechatUser.setSessionKey(apiResponse.getSessionKey());
         wechatUser.setLastLoginTime(OffsetDateTime.now());
+        
+        // 记录unionid存储状态
+        if (apiResponse.getUnionid() != null && !apiResponse.getUnionid().isEmpty()) {
+            log.info("💾 新用户创建：将unionid [{}] 存储到数据库", apiResponse.getUnionid());
+        } else {
+            log.info("💾 新用户创建：unionid为空，存储null值到数据库");
+        }
         
         // 设置用户信息
         if (request.getUserInfo() != null) {
@@ -176,11 +250,22 @@ public class WechatAuthService {
         wechatUser.setLastLoginTime(OffsetDateTime.now());
         
         // 更新unionid（如果有）
-        if (apiResponse.getUnionid() != null) {
-            wechatUser.setUnionid(apiResponse.getUnionid());
+        if (apiResponse.getUnionid() != null && !apiResponse.getUnionid().isEmpty()) {
+            if (!apiResponse.getUnionid().equals(wechatUser.getUnionid())) {
+                log.info("🔄 更新unionid：从 [{}] 更新为 [{}]", wechatUser.getUnionid(), apiResponse.getUnionid());
+                wechatUser.setUnionid(apiResponse.getUnionid());
+            } else {
+                log.debug("✅ unionid无变化：{}", apiResponse.getUnionid());
+            }
+        } else {
+            if (wechatUser.getUnionid() != null) {
+                log.warn("⚠️ 注意：之前有unionid [{}]，但本次登录未获取到unionid", wechatUser.getUnionid());
+            } else {
+                log.debug("ℹ️ unionid保持为空");
+            }
         }
         
-        // 更新用户信息（如果提供）
+        // 更新微信用户表的用户信息（辅助存储）
         if (request.getUserInfo() != null) {
             WechatLoginRequest.WechatUserInfo userInfo = request.getUserInfo();
             if (userInfo.getNickName() != null) {
@@ -208,29 +293,201 @@ public class WechatAuthService {
         
         wechatUserRepository.save(wechatUser);
         
-        // 同时更新系统用户的头像和昵称
+        // 🎯 重点：同时更新系统用户的头像和昵称（AppUser表为主要存储）
         if (request.getUserInfo() != null) {
             AppUser appUser = appUserRepository.findById(wechatUser.getAppUserId()).orElse(null);
             if (appUser != null) {
                 boolean needUpdate = false;
+                WechatLoginRequest.WechatUserInfo userInfo = request.getUserInfo();
                 
-                if (request.getUserInfo().getNickName() != null && 
-                    !request.getUserInfo().getNickName().equals(appUser.getNickname())) {
-                    appUser.setNickname(request.getUserInfo().getNickName());
-                    needUpdate = true;
+                // 更新昵称
+                if (userInfo.getNickName() != null && !userInfo.getNickName().trim().isEmpty()) {
+                    if (!userInfo.getNickName().equals(appUser.getNickname())) {
+                        log.info("🔄 [AppUser更新] 昵称从 [{}] 更新为 [{}]", 
+                                appUser.getNickname(), userInfo.getNickName());
+                        appUser.setNickname(userInfo.getNickName());
+                        needUpdate = true;
+                    } else {
+                        log.debug("👤 [AppUser更新] 昵称无变化: {}", userInfo.getNickName());
+                    }
                 }
                 
-                if (request.getUserInfo().getAvatarUrl() != null && 
-                    !request.getUserInfo().getAvatarUrl().equals(appUser.getAvatarUrl())) {
-                    appUser.setAvatarUrl(request.getUserInfo().getAvatarUrl());
-                    needUpdate = true;
+                // 更新头像
+                if (userInfo.getAvatarUrl() != null && !userInfo.getAvatarUrl().trim().isEmpty()) {
+                    if (!userInfo.getAvatarUrl().equals(appUser.getAvatarUrl())) {
+                        log.info("🔄 [AppUser更新] 头像从 [{}] 更新为 [{}]", 
+                                appUser.getAvatarUrl() != null ? "已设置" : "未设置", 
+                                "新头像链接");
+                        appUser.setAvatarUrl(userInfo.getAvatarUrl());
+                        needUpdate = true;
+                    } else {
+                        log.debug("🖼️ [AppUser更新] 头像无变化");
+                    }
+                }
+                
+                // 更新性别
+                if (userInfo.getGender() != null) {
+                    String genderStr = convertGenderToString(userInfo.getGender());
+                    if (!genderStr.equals(appUser.getGender())) {
+                        log.info("🔄 [AppUser更新] 性别从 [{}] 更新为 [{}]", 
+                                appUser.getGender(), genderStr);
+                        appUser.setGender(genderStr);
+                        needUpdate = true;
+                    }
                 }
                 
                 if (needUpdate) {
                     appUser.setUpdatedAt(OffsetDateTime.now());
-                    appUserRepository.save(appUser);
+                    AppUser updatedUser = appUserRepository.save(appUser);
+                    log.info("✅ [AppUser更新] 用户信息更新成功 - ID: {}, 昵称: {}, 头像: {}, 性别: {}", 
+                            updatedUser.getId(), 
+                            updatedUser.getNickname(), 
+                            updatedUser.getAvatarUrl() != null ? "已设置" : "未设置",
+                            updatedUser.getGender());
+                } else {
+                    log.debug("ℹ️ [AppUser更新] 用户信息无变化，跳过更新");
+                }
+            } else {
+                log.error("❌ [AppUser更新] 未找到关联的系统用户，appUserId: {}", wechatUser.getAppUserId());
+            }
+        } else {
+            log.debug("ℹ️ [AppUser更新] 请求中无用户信息，跳过AppUser更新");
+        }
+    }
+
+    /**
+     * 获取unionid统计信息（调试用）
+     * @return unionid统计数据
+     */
+    public Map<String, Object> getUnionidStats() {
+        Map<String, Object> stats = new HashMap<>();
+        
+        try {
+            // 获取所有微信用户
+            List<WechatUser> allWechatUsers = wechatUserRepository.findAll();
+            
+            int totalUsers = allWechatUsers.size();
+            int usersWithUnionid = 0;
+            int usersWithoutUnionid = 0;
+            
+            List<Map<String, Object>> userDetails = new ArrayList<>();
+            
+            for (WechatUser user : allWechatUsers) {
+                if (user.getUnionid() != null && !user.getUnionid().isEmpty()) {
+                    usersWithUnionid++;
+                } else {
+                    usersWithoutUnionid++;
+                }
+                
+                // 详细信息（隐藏敏感数据）
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("id", user.getId());
+                userInfo.put("appUserId", user.getAppUserId());
+                userInfo.put("openid", maskSensitiveData(user.getOpenid()));
+                userInfo.put("unionid", user.getUnionid() != null ? maskSensitiveData(user.getUnionid()) : null);
+                userInfo.put("hasUnionid", user.getUnionid() != null && !user.getUnionid().isEmpty());
+                userInfo.put("nickname", user.getNickname());
+                userInfo.put("lastLoginTime", user.getLastLoginTime());
+                userInfo.put("createdAt", user.getCreatedAt());
+                
+                userDetails.add(userInfo);
+            }
+            
+            stats.put("totalUsers", totalUsers);
+            stats.put("usersWithUnionid", usersWithUnionid);
+            stats.put("usersWithoutUnionid", usersWithoutUnionid);
+            stats.put("unionidCoverageRate", totalUsers > 0 ? 
+                    String.format("%.2f%%", (double) usersWithUnionid / totalUsers * 100) : "0%");
+            stats.put("userDetails", userDetails);
+            stats.put("timestamp", OffsetDateTime.now());
+            
+            // 解释说明
+            stats.put("explanation", 
+                    "微信小程序默认不返回unionid。只有当小程序绑定了微信开放平台账号且用户满足特定条件时才会有unionid。");
+            
+        } catch (Exception e) {
+            log.error("获取unionid统计失败", e);
+            stats.put("error", "获取统计失败：" + e.getMessage());
+        }
+        
+        return stats;
+    }
+    
+    /**
+     * 掩码敏感数据
+     */
+    private String maskSensitiveData(String data) {
+        if (data == null || data.length() <= 8) {
+            return data;
+        }
+        return data.substring(0, 4) + "****" + data.substring(data.length() - 4);
+    }
+
+    /**
+     * 更新微信用户信息到AppUser表（主要存储）
+     * @param appUserId 系统用户ID
+     * @param userInfo 微信用户信息
+     * @return 是否更新成功
+     */
+    @LogActivity(action = ActivityAction.PROFILE_UPDATE, resourceType = ResourceType.USER, 
+                description = "更新微信用户信息到AppUser表", async = true, logParams = false)
+    public boolean updateWechatUserInfoToAppUser(Long appUserId, WechatLoginRequest.WechatUserInfo userInfo) {
+        try {
+            AppUser appUser = appUserRepository.findById(appUserId).orElse(null);
+            if (appUser == null) {
+                log.error("❌ [AppUser更新] 未找到用户，ID: {}", appUserId);
+                return false;
+            }
+            
+            boolean hasUpdates = false;
+            
+            // 更新昵称
+            if (userInfo.getNickName() != null && !userInfo.getNickName().trim().isEmpty()) {
+                if (!userInfo.getNickName().equals(appUser.getNickname())) {
+                    log.info("🔄 [手动更新] 昵称从 [{}] 更新为 [{}]", 
+                            appUser.getNickname(), userInfo.getNickName());
+                    appUser.setNickname(userInfo.getNickName());
+                    hasUpdates = true;
                 }
             }
+            
+            // 更新头像
+            if (userInfo.getAvatarUrl() != null && !userInfo.getAvatarUrl().trim().isEmpty()) {
+                if (!userInfo.getAvatarUrl().equals(appUser.getAvatarUrl())) {
+                    log.info("🔄 [手动更新] 头像更新: {}", userInfo.getAvatarUrl());
+                    appUser.setAvatarUrl(userInfo.getAvatarUrl());
+                    hasUpdates = true;
+                }
+            }
+            
+            // 更新性别
+            if (userInfo.getGender() != null) {
+                String genderStr = convertGenderToString(userInfo.getGender());
+                if (!genderStr.equals(appUser.getGender())) {
+                    log.info("🔄 [手动更新] 性别从 [{}] 更新为 [{}]", 
+                            appUser.getGender(), genderStr);
+                    appUser.setGender(genderStr);
+                    hasUpdates = true;
+                }
+            }
+            
+            if (hasUpdates) {
+                appUser.setUpdatedAt(OffsetDateTime.now());
+                AppUser updatedUser = appUserRepository.save(appUser);
+                log.info("✅ [手动更新] 用户信息更新成功 - ID: {}, 昵称: {}, 头像: {}, 性别: {}", 
+                        updatedUser.getId(), 
+                        updatedUser.getNickname(), 
+                        updatedUser.getAvatarUrl() != null ? "已设置" : "未设置",
+                        updatedUser.getGender());
+                return true;
+            } else {
+                log.debug("ℹ️ [手动更新] 用户信息无变化");
+                return true;
+            }
+            
+        } catch (Exception e) {
+            log.error("❌ [手动更新] 更新用户信息失败", e);
+            return false;
         }
     }
 } 

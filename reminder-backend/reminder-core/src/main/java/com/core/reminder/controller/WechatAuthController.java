@@ -57,10 +57,78 @@ public class WechatAuthController {
      */
     @GetMapping("/status")
     public ResponseEntity<?> getWechatLoginStatus() {
-        Map<String, Object> status = new HashMap<>();
-        status.put("wechatLoginEnabled", true);
-        status.put("message", "微信小程序登录功能已启用");
-        
-        return ResponseEntity.ok(status);
+        try {
+            // 返回微信登录配置状态
+            Map<String, Object> status = new HashMap<>();
+            status.put("service", "微信小程序登录服务");
+            status.put("status", "运行中");
+            status.put("timestamp", System.currentTimeMillis());
+            
+            return ResponseEntity.ok(status);
+            
+        } catch (Exception e) {
+            log.error("获取微信登录状态失败", e);
+            
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "获取状态失败：" + e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * 调试接口：查看微信用户unionid存储状况
+     * 注意：此接口仅用于开发调试，生产环境应移除或添加权限控制
+     */
+    @GetMapping("/debug/unionid-status")
+    public ResponseEntity<?> getUnionidStatus() {
+        try {
+            // 获取所有微信用户的unionid状态统计
+            Map<String, Object> stats = wechatAuthService.getUnionidStats();
+            
+            return ResponseEntity.ok(stats);
+            
+        } catch (Exception e) {
+            log.error("获取unionid状态失败", e);
+            
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "获取unionid状态失败：" + e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * 手动更新微信用户信息到AppUser表
+     * @param request 包含用户信息的请求
+     * @return 更新结果
+     */
+    @PostMapping("/update-profile")
+    public ResponseEntity<?> updateWechatProfile(@Valid @RequestBody WechatLoginRequest request) {
+        try {
+            log.info("收到手动更新微信用户信息请求");
+            
+            if (request.getUserInfo() == null) {
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("message", "用户信息不能为空");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            // 这里需要从JWT token中获取当前用户ID
+            // 为简化，先返回操作指导
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "接口已就绪，需要集成JWT认证以获取当前用户ID");
+            response.put("note", "请在前端调用 /auth/wechat/login 进行完整的登录流程");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("手动更新微信用户信息失败", e);
+            
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "更新失败：" + e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 } 

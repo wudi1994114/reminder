@@ -15,12 +15,12 @@ public class WechatConfig {
     /**
      * 小程序appid
      */
-    private String appid;
+    private String appid = "wx597f8aaca581205f";
 
     /**
      * 小程序secret
      */
-    private String secret;
+    private String secret = "b70c1fd582a6f6d66e8dc1e2e436d023";
 
     /**
      * 微信API基础URL

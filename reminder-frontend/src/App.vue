@@ -12,7 +12,6 @@ import UpcomingRemindersModal from './components/UpcomingRemindersModal.vue';
 import ComplexReminderModal from './components/ComplexReminderModal.vue';
 import ComplexReminderListModal from './components/ComplexReminderListModal.vue';
 import RegisterView from './components/RegisterView.vue';
-import ConfirmDialog from './components/ConfirmDialog.vue';
 import { 
   login,
   register,
@@ -157,7 +156,6 @@ function debounce(func, wait) {
 
 // --- 优化：主题更新函数，增强兼容性 ---
 function updateThemeAndSelector(view) {
-  console.log('Updating theme and selector with view:', view);
   
   // 处理不同格式的视图对象
   let date;
