@@ -334,14 +334,11 @@ public class WechatAuthService {
                 }
                 
                 // 更新性别
-                if (userInfo.getGender() != null) {
-                    String genderStr = convertGenderToString(userInfo.getGender());
-                    if (!genderStr.equals(appUser.getGender())) {
-                        log.info("🔄 [AppUser更新] 性别从 [{}] 更新为 [{}]", 
-                                appUser.getGender(), genderStr);
-                        appUser.setGender(genderStr);
-                        needUpdate = true;
-                    }
+                if (userInfo.getGender() != null && !userInfo.getGender().equals(wechatUser.getGender())) {
+                    log.info("🔄 [AppUser更新] 性别从 [{}] 更新为 [{}]", 
+                            wechatUser.getGender(), userInfo.getGender());
+                    wechatUser.setGender(userInfo.getGender());
+                    needUpdate = true;
                 }
                 
                 if (needUpdate) {
@@ -471,8 +468,8 @@ public class WechatAuthService {
             // 更新性别
             if (userInfo.getGender() != null) {
                 String genderStr = convertGenderToString(userInfo.getGender());
-                if (!genderStr.equals(appUser.getGender())) {
-                    log.info("🔄 [手动更新] 性别从 [{}] 更新为 [{}]", 
+                if (appUser.getGender() == null || !appUser.getGender().equals(genderStr)) {
+                    log.info("🔄 [手动更新] 性别从 [{}] 更新为 [{}]",
                             appUser.getGender(), genderStr);
                     appUser.setGender(genderStr);
                     hasUpdates = true;
@@ -496,6 +493,150 @@ public class WechatAuthService {
         } catch (Exception e) {
             log.error("❌ [手动更新] 更新用户信息失败", e);
             return false;
+        }
+    }
+
+    /**
+     * 新增：微信云托管登录
+     * @param openid 从云托管请求头中获取的openid
+     * @param userInfo 从请求体中获取的可选用户信息
+     * @return 登录响应
+     */
+    @Transactional
+    @LogActivity(action = ActivityAction.WECHAT_LOGIN, resourceType = ResourceType.USER,
+            description = "微信云托管登录", async = true, logParams = false, logResult = false)
+    public WechatLoginResponse cloudLogin(String openid, WechatLoginRequest.WechatUserInfo userInfo) {
+        if (openid == null || openid.trim().isEmpty()) {
+            throw new IllegalArgumentException("OpenID 不能为空");
+        }
+
+        try {
+            log.info("处理云托管登录，openid: {}", openid);
+
+            Optional<WechatUser> existingWechatUser = wechatUserRepository.findByOpenid(openid);
+
+            WechatUser wechatUser;
+            AppUser appUser;
+            boolean isNewUser = false;
+
+            if (existingWechatUser.isPresent()) {
+                // 已存在的微信用户
+                wechatUser = existingWechatUser.get();
+                appUser = appUserRepository.findById(wechatUser.getAppUserId())
+                        .orElseThrow(() -> new RuntimeException("关联的系统用户不存在，ID: " + wechatUser.getAppUserId()));
+
+                // 如果前端传递了新的用户信息，则更新
+                if (userInfo != null) {
+                    updateWechatUserAndAppUser(wechatUser, appUser, userInfo);
+                }
+
+                log.info("云托管用户登录成功，openid: {}, 用户ID: {}", openid, appUser.getId());
+            } else {
+                // 新用户
+                isNewUser = true;
+                // 用userInfo创建一个临时的WechatLoginRequest对象以复用方法
+                WechatLoginRequest tempRequest = new WechatLoginRequest();
+                tempRequest.setUserInfo(userInfo);
+
+                appUser = createAppUser(tempRequest);
+                wechatUser = createWechatUserForCloud(appUser.getId(), openid, tempRequest);
+
+                log.info("新微信用户通过云托管注册成功，openid: {}, 用户ID: {}", openid, appUser.getId());
+            }
+
+            // 生成JWT token
+            String accessToken = jwtTokenProvider.generateTokenFromUserDetails(appUser);
+            userCacheService.refreshUserCache(appUser);
+
+            return new WechatLoginResponse(
+                    accessToken,
+                    appUser.getId(),
+                    appUser.getNickname(),
+                    appUser.getAvatarUrl(),
+                    isNewUser,
+                    openid
+            );
+
+        } catch (Exception e) {
+            log.error("微信云托管登录处理失败", e);
+            throw new RuntimeException("微信云托管登录失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 为云托管创建微信用户，不依赖微信API响应
+     */
+    private WechatUser createWechatUserForCloud(Long appUserId, String openid, WechatLoginRequest request) {
+        WechatUser wechatUser = new WechatUser();
+        wechatUser.setAppUserId(appUserId);
+        wechatUser.setOpenid(openid);
+        // 云托管登录时，默认没有unionid和sessionKey，除非后续有其他方式获取
+        wechatUser.setUnionid(null);
+        wechatUser.setSessionKey(null);
+        wechatUser.setLastLoginTime(OffsetDateTime.now());
+
+        if (request.getUserInfo() != null) {
+            WechatLoginRequest.WechatUserInfo userInfo = request.getUserInfo();
+            wechatUser.setNickname(userInfo.getNickName());
+            wechatUser.setAvatarUrl(userInfo.getAvatarUrl());
+            wechatUser.setGender(userInfo.getGender());
+            wechatUser.setCountry(userInfo.getCountry());
+            wechatUser.setProvince(userInfo.getProvince());
+            wechatUser.setCity(userInfo.getCity());
+            wechatUser.setLanguage(userInfo.getLanguage());
+        }
+
+        return wechatUserRepository.save(wechatUser);
+    }
+
+    /**
+     * 更新微信用户和关联的AppUser信息
+     */
+    @LogActivity(action = ActivityAction.PROFILE_UPDATE, resourceType = ResourceType.USER,
+            description = "更新微信用户及AppUser信息", async = true, logParams = false)
+    private void updateWechatUserAndAppUser(WechatUser wechatUser, AppUser appUser, WechatLoginRequest.WechatUserInfo userInfo) {
+        boolean wechatUserUpdated = false;
+        boolean appUserUpdated = false;
+
+        // 更新 WechatUser
+        if (userInfo.getNickName() != null && !userInfo.getNickName().equals(wechatUser.getNickname())) {
+            wechatUser.setNickname(userInfo.getNickName());
+            wechatUserUpdated = true;
+        }
+        if (userInfo.getAvatarUrl() != null && !userInfo.getAvatarUrl().equals(wechatUser.getAvatarUrl())) {
+            wechatUser.setAvatarUrl(userInfo.getAvatarUrl());
+            wechatUserUpdated = true;
+        }
+        if (userInfo.getGender() != null && !userInfo.getGender().equals(wechatUser.getGender())) {
+            wechatUser.setGender(userInfo.getGender());
+            wechatUserUpdated = true;
+        }
+
+        // 更新 AppUser
+        if (userInfo.getNickName() != null && !userInfo.getNickName().equals(appUser.getNickname())) {
+            appUser.setNickname(userInfo.getNickName());
+            appUserUpdated = true;
+        }
+        if (userInfo.getAvatarUrl() != null && !userInfo.getAvatarUrl().equals(appUser.getAvatarUrl())) {
+            appUser.setAvatarUrl(userInfo.getAvatarUrl());
+            appUserUpdated = true;
+        }
+        if (userInfo.getGender() != null) {
+            String genderStr = convertGenderToString(userInfo.getGender());
+            if (appUser.getGender() == null || !appUser.getGender().equals(genderStr)) {
+                log.info("🔄 [手动更新] 性别从 [{}] 更新为 [{}]",
+                        appUser.getGender(), genderStr);
+                appUser.setGender(genderStr);
+                appUserUpdated = true;
+            }
+        }
+
+        if (wechatUserUpdated) {
+            wechatUserRepository.save(wechatUser);
+        }
+        if (appUserUpdated) {
+            appUserRepository.save(appUser);
+            userCacheService.refreshUserCache(appUser);
         }
     }
 } 
