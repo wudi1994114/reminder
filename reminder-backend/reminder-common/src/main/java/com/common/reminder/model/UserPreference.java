@@ -10,7 +10,7 @@ import javax.persistence.*;
 import java.time.OffsetDateTime;
 
 /**
- * 用户偏好设置实体
+ * 用户偏好设置实体 - 键值对存储模式
  */
 @Entity
 @Table(name = "user_preference")
@@ -26,116 +26,55 @@ public class UserPreference {
     /**
      * 用户ID
      */
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, name = "user_id")
     private Long userId;
 
     /**
-     * 默认通知类型
+     * 偏好设置键名
+     * 例如：defaultReminderType, emailNotificationEnabled, theme 等
      */
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private ReminderType defaultReminderType = ReminderType.EMAIL;
+    @Column(nullable = false, length = 100, name = "key")
+    private String key;
 
     /**
-     * 是否启用邮件通知
+     * 偏好设置值
+     * 存储为字符串，可根据需要进行类型转换
      */
-    @Column(nullable = false)
-    private Boolean emailNotificationEnabled = true;
+    @Column(columnDefinition = "TEXT", name = "value")
+    private String value;
 
     /**
-     * 是否启用短信通知
+     * 偏好设置属性/描述
+     * 可选字段，用于存储配置项的额外描述信息
      */
-    @Column(nullable = false)
-    private Boolean smsNotificationEnabled = false;
+    @Column(length = 500, name = "property")
+    private String property;
 
     /**
-     * 是否启用微信小程序通知
+     * 创建时间
      */
-    @Column(nullable = false)
-    private Boolean wechatNotificationEnabled = false;
-
-    /**
-     * 默认提前提醒时间（分钟）
-     */
-    @Column(nullable = false)
-    private Integer defaultAdvanceMinutes = 15;
-
-    /**
-     * 是否启用声音提醒
-     */
-    @Column(nullable = false)
-    private Boolean soundEnabled = true;
-
-    /**
-     * 是否启用震动提醒
-     */
-    @Column(nullable = false)
-    private Boolean vibrationEnabled = true;
-
-    /**
-     * 时区设置
-     */
-    @Column(length = 50)
-    private String timezone = "Asia/Shanghai";
-
-    /**
-     * 语言设置
-     */
-    @Column(length = 10)
-    private String language = "zh-CN";
-
-    /**
-     * 主题设置
-     */
-    @Column(length = 20)
-    private String theme = "light";
-
-    /**
-     * 每日汇总邮件时间（24小时制，如 "08:00"）
-     */
-    @Column(length = 5)
-    private String dailySummaryTime = "08:00";
-
-    /**
-     * 是否启用每日汇总邮件
-     */
-    @Column(nullable = false)
-    private Boolean dailySummaryEnabled = false;
-
-    /**
-     * 周末是否接收提醒
-     */
-    @Column(nullable = false)
-    private Boolean weekendNotificationEnabled = true;
-
-    /**
-     * 免打扰开始时间（24小时制，如 "22:00"）
-     */
-    @Column(length = 5)
-    private String quietHoursStart = "22:00";
-
-    /**
-     * 免打扰结束时间（24小时制，如 "07:00"）
-     */
-    @Column(length = 5)
-    private String quietHoursEnd = "07:00";
-
-    /**
-     * 是否启用免打扰模式
-     */
-    @Column(nullable = false)
-    private Boolean quietHoursEnabled = false;
-
     @CreationTimestamp
-    @Column(nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
-    private OffsetDateTime createdAt;
+    @Column(nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE", name = "create_at")
+    private OffsetDateTime createAt;
 
+    /**
+     * 修改时间
+     */
     @UpdateTimestamp
-    @Column(nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
-    private OffsetDateTime updatedAt;
+    @Column(nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE", name = "modify_at")
+    private OffsetDateTime modifyAt;
 
-    // 与用户表建立关系（可选）
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "userId", insertable = false, updatable = false)
-    private AppUser user;
+    // 构造函数
+    public UserPreference(Long userId, String key, String value) {
+        this.userId = userId;
+        this.key = key;
+        this.value = value;
+    }
+
+    public UserPreference(Long userId, String key, String value, String property) {
+        this.userId = userId;
+        this.key = key;
+        this.value = value;
+        this.property = property;
+    }
 } 

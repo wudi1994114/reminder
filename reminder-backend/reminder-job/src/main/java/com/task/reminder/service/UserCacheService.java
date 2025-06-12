@@ -1,8 +1,11 @@
 package com.task.reminder.service;
 
 import com.common.reminder.dto.UserProfileDto;
+import com.common.reminder.dto.UserNotificationProfileDto;
 import com.common.reminder.model.AppUser;
+import com.common.reminder.model.WechatUser;
 import com.task.reminder.repository.AppUserRepository;
+import com.task.reminder.repository.WechatUserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +27,9 @@ public class UserCacheService {
 
     @Autowired
     private AppUserRepository appUserRepository;
+    
+    @Autowired
+    private WechatUserRepository wechatUserRepository;
 
     /**
      * 根据用户名获取用户信息，优先从缓存获取，缓存未命中则从数据库获取并缓存
@@ -147,5 +153,43 @@ public class UserCacheService {
                 log.debug("已清除用户[{}(ID:{})]的ID缓存", username, cachedDto.getId());
             }
         }
+    }
+    
+    /**
+     * 根据用户ID获取用户通知配置信息（包含微信信息）
+     * @param userId 用户ID
+     * @return 用户通知配置信息DTO
+     */
+    public UserNotificationProfileDto getUserNotificationProfileById(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        
+        // 先获取基础用户信息
+        UserProfileDto userProfile = getUserProfileById(userId);
+        if (userProfile == null) {
+            return null;
+        }
+        
+        // 构建通知配置信息
+        UserNotificationProfileDto notificationProfile = new UserNotificationProfileDto(userProfile);
+        
+        // 获取微信信息
+        try {
+            Optional<WechatUser> wechatUserOpt = wechatUserRepository.findByAppUserId(userId);
+            if (wechatUserOpt.isPresent()) {
+                WechatUser wechatUser = wechatUserOpt.get();
+                notificationProfile.setWechatOpenid(wechatUser.getOpenid());
+                notificationProfile.setWechatUnionid(wechatUser.getUnionid());
+                log.debug("用户ID[{}]的微信信息已获取 - openid: {}", userId, 
+                        wechatUser.getOpenid() != null ? wechatUser.getOpenid().substring(0, 6) + "***" : "null");
+            } else {
+                log.debug("用户ID[{}]未绑定微信账号", userId);
+            }
+        } catch (Exception e) {
+            log.error("获取用户ID[{}]的微信信息失败: {}", userId, e.getMessage());
+        }
+        
+        return notificationProfile;
     }
 } 

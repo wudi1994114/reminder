@@ -1,8 +1,10 @@
 import { handleApiError } from '../utils/helpers';
 import cloudConfig from '../config/cloud.js';
+import wechatConfig from '../config/wechat.js';
 
 // 根据环境选择API地址
-let API_URL = 'http://127.0.0.1:8080/api';
+// let API_URL = 'http://127.0.0.1:8080/api';
+let API_URL = 'http://192.168.100.174:8080/api';
 // let API_URL = 'https://bewangji-166224-6-1362668225.sh.run.tcloudbase.com/api';
 
 // 使用外部配置文件
@@ -58,6 +60,9 @@ const callContainer = (options) => {
 // 封装uni.request为Promise风格
 const request = (options) => {
     return new Promise((resolve, reject) => {
+        // 简化调试日志
+        console.log('🔍 API请求:', options.method || 'GET', options.url);
+        
         // 优先使用云托管
         if (CLOUD_CONFIG.enabled) {
             // #ifdef MP-WEIXIN
@@ -77,12 +82,13 @@ const request = (options) => {
         }
         
         // 降级使用传统HTTP请求
-        console.log('📡 使用HTTP请求:', options.url);
+        const fullUrl = options.url.startsWith('http') ? options.url : API_URL + options.url;
+        console.log('📡 使用HTTP请求:', fullUrl);
         const token = uni.getStorageSync('accessToken');
         
         const requestOptions = {
             ...options,
-            url: options.url.startsWith('http') ? options.url : API_URL + options.url,
+            url: fullUrl,
             header: {
                 'Content-Type': 'application/json',
                 ...options.header
@@ -166,19 +172,26 @@ const request = (options) => {
             requestOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
         
-        console.log('发起API请求:', requestOptions.url);
+        // 简化调试输出
+        console.log('🚀 发起请求:', requestOptions.method || 'GET', requestOptions.url);
         uni.request(requestOptions);
     });
 };
 
-// API方法
+// --- 导出基础请求函数 ---
+export { request };
+
+// --- API方法 ---
 
 // 认证相关
-export const login = (credentials) => request({
-    url: '/auth/login',
-    method: 'POST',
-    data: credentials
-});
+export const login = (credentials) => {
+    console.log('🔐 login函数接收到的credentials:', JSON.stringify(credentials, null, 2));
+    return request({
+        url: '/auth/login',
+        method: 'POST',
+        data: credentials
+    });
+};
 
 export const register = (userData) => {
     console.log('注册API调用，数据:', userData);
@@ -202,7 +215,6 @@ export const updateProfile = (profileData) => request({
 
 // 提醒事项相关
 export const getAllSimpleReminders = (year, month) => {
-    // 如果提供了年月参数，则添加到请求URL中
     let url = '/reminders/simple';
     if (year && month) {
         url += `?year=${year}&month=${month}`;
@@ -213,16 +225,15 @@ export const getAllSimpleReminders = (year, month) => {
         method: 'GET'
     })
     .then(data => {
-        // 确保返回的数据是数组
         if (!Array.isArray(data)) {
             console.warn('API返回的数据不是数组:', data);
-            return []; // 返回空数组
+            return [];
         }
         return data;
     })
     .catch(error => {
         console.error('获取提醒列表出错:', error);
-        return []; // 出错时返回空数组
+        return [];
     });
 };
 
@@ -252,15 +263,14 @@ export const getUpcomingReminders = () => request({
     url: '/reminders/upcoming',
     method: 'GET'
 }).then(data => {
-    // 确保返回的数据是数组
     if (!Array.isArray(data)) {
         console.warn('getUpcomingReminders API返回的数据不是数组:', data);
-        return []; // 返回空数组
+        return [];
     }
     return data;
 }).catch(error => {
     console.error('获取即将到来的提醒出错:', error);
-    return []; // 出错时返回空数组
+    return [];
 });
 
 // 复杂提醒事项相关
@@ -268,15 +278,14 @@ export const getAllComplexReminders = () => request({
     url: '/reminders/complex',
     method: 'GET'
 }).then(data => {
-    // 确保返回的数据是数组
     if (!Array.isArray(data)) {
         console.warn('getAllComplexReminders API返回的数据不是数组:', data);
-        return []; // 返回空数组
+        return [];
     }
     return data;
 }).catch(error => {
     console.error('获取复杂提醒出错:', error);
-    return []; // 出错时返回空数组
+    return [];
 });
 
 export const getComplexReminderById = (id) => request({
@@ -301,27 +310,14 @@ export const deleteComplexReminder = (id) => request({
     method: 'DELETE'
 }).catch(handleApiError);
 
-/**
- * 获取指定年份范围的法定节假日
- * @param {number} startYear - 开始年份
- * @param {number} endYear - 结束年份
- * @returns {Promise} - 返回节假日数据
- */
+// 节假日相关
 export const getHolidaysByYearRange = (startYear, endYear) => request({
     url: `/holidays`,
     method: 'GET',
     data: { startYear, endYear }
 }).catch(handleApiError);
 
-/**
- * 获取日历数据（包括节假日、调休日等）
- * @param {number} startYear - 开始年份
- * @param {number} endYear - 结束年份
- * @param {string} apiType - 数据类型: 'holidays'(节假日), 'events'(普通事件), 'all'(全部)
- * @returns {Promise} - 返回日历数据
- */
 export const getCalendarData = (startYear, endYear, apiType = 'all') => {
-    // 参数校验和处理
     startYear = startYear || new Date().getFullYear();
     endYear = endYear || (startYear + 1);
     
@@ -329,7 +325,6 @@ export const getCalendarData = (startYear, endYear, apiType = 'all') => {
     
     let url = `/holidays?startYear=${startYear}&endYear=${endYear}`;
     
-    // 如果提供了apiType参数且不为空，添加到URL中
     if (apiType && apiType !== 'all') {
         url += `&type=${apiType}`;
     }
@@ -339,63 +334,45 @@ export const getCalendarData = (startYear, endYear, apiType = 'all') => {
         method: 'GET'
     })
     .then(data => {
-        // 确保返回的数据是数组
         if (!Array.isArray(data)) {
             console.warn('日历API返回的数据不是数组:', data);
-            return []; // 返回空数组
+            return [];
         }
-        
         console.log(`获取到 ${data.length} 条日历数据`);
         return data;
     })
     .catch(error => {
         console.error('获取日历数据出错:', error);
-        // 对于日历数据，错误时返回空数组，避免阻断UI显示
         return []; 
     });
 };
 
-/**
- * WebSocket 云托管连接
- */
+// WebSocket 相关
 export const connectWebSocket = () => {
     return new Promise((resolve, reject) => {
-        // 检查WebSocket功能是否启用
         if (!CLOUD_CONFIG.websocket.enabled) {
             console.warn('WebSocket功能已关闭');
             reject(new Error('WebSocket功能已关闭'));
             return;
         }
-        
-        // 检查是否支持云托管 WebSocket
         if (!wx.cloud || !wx.cloud.connectContainer) {
             console.warn('当前环境不支持云托管 WebSocket');
             reject(new Error('不支持云托管 WebSocket'));
             return;
         }
-
         console.log('建立云托管 WebSocket 连接...');
-        
         wx.cloud.connectContainer({
-            config: {
-                env: CLOUD_CONFIG.env
-            },
+            config: { env: CLOUD_CONFIG.env },
             service: CLOUD_CONFIG.serviceName,
             path: CLOUD_CONFIG.websocket.path,
             success: (res) => {
                 console.log('WebSocket 连接成功:', res);
                 const { socketTask } = res;
-                
-                // 设置事件监听
-                socketTask.onOpen((openRes) => {
-                    console.log('WebSocket 连接已建立', openRes);
-                });
-                
+                socketTask.onOpen((openRes) => console.log('WebSocket 连接已建立', openRes));
                 socketTask.onMessage((message) => {
                     if (CLOUD_CONFIG.debug.verbose) {
                         console.log('收到 WebSocket 消息:', message.data);
                     }
-                    
                     try {
                         const data = JSON.parse(message.data);
                         handleWebSocketMessage(data);
@@ -405,15 +382,8 @@ export const connectWebSocket = () => {
                         }
                     }
                 });
-                
-                socketTask.onError((error) => {
-                    console.error('WebSocket 连接错误:', error);
-                });
-                
-                socketTask.onClose((closeRes) => {
-                    console.log('WebSocket 连接已关闭:', closeRes);
-                });
-                
+                socketTask.onError((error) => console.error('WebSocket 连接错误:', error));
+                socketTask.onClose((closeRes) => console.log('WebSocket 连接已关闭:', closeRes));
                 resolve(socketTask);
             },
             fail: (err) => {
@@ -424,49 +394,31 @@ export const connectWebSocket = () => {
     });
 };
 
-// WebSocket 消息处理
 let webSocketMessageHandlers = [];
-
-export const onWebSocketMessage = (handler) => {
-    webSocketMessageHandlers.push(handler);
-};
-
+export const onWebSocketMessage = (handler) => { webSocketMessageHandlers.push(handler); };
 export const offWebSocketMessage = (handler) => {
     const index = webSocketMessageHandlers.indexOf(handler);
-    if (index > -1) {
-        webSocketMessageHandlers.splice(index, 1);
-    }
+    if (index > -1) webSocketMessageHandlers.splice(index, 1);
 };
-
 const handleWebSocketMessage = (data) => {
     webSocketMessageHandlers.forEach(handler => {
-        try {
-            handler(data);
-        } catch (e) {
-            console.error('WebSocket 消息处理错误:', e);
-        }
+        try { handler(data); } catch (e) { console.error('WebSocket 消息处理错误:', e); }
     });
 };
 
-// WebSocket 消息发送
 export const sendWebSocketMessage = (socketTask, message) => {
     if (!socketTask) {
         console.error('WebSocket 连接不存在');
         return false;
     }
-    
     try {
         const data = typeof message === 'object' ? JSON.stringify(message) : message;
         socketTask.send({
             data: data,
             success: () => {
-                if (CLOUD_CONFIG.debug.verbose) {
-                    console.log('WebSocket 消息发送成功:', data);
-                }
+                if (CLOUD_CONFIG.debug.verbose) console.log('WebSocket 消息发送成功:', data);
             },
-            fail: (err) => {
-                console.error('WebSocket 消息发送失败:', err);
-            }
+            fail: (err) => console.error('WebSocket 消息发送失败:', err)
         });
         return true;
     } catch (e) {
@@ -475,9 +427,7 @@ export const sendWebSocketMessage = (socketTask, message) => {
     }
 };
 
-/**
- * 云托管开关控制
- */
+// 云托管控制
 export const setCloudEnabled = (enabled) => {
     CLOUD_CONFIG.enabled = enabled;
     console.log(`云托管已${enabled ? '启用' : '关闭'}`);
@@ -487,38 +437,23 @@ export const getCloudStatus = () => {
     const hasWxCloud = typeof wx !== 'undefined' && wx.cloud;
     const hasCallContainer = hasWxCloud && wx.cloud.callContainer;
     const hasConnectContainer = hasWxCloud && wx.cloud.connectContainer;
-    
     return {
         enabled: CLOUD_CONFIG.enabled,
         env: CLOUD_CONFIG.env,
         serviceName: CLOUD_CONFIG.serviceName,
         websocketEnabled: CLOUD_CONFIG.websocket.enabled,
-        // 运行时状态
-        runtime: {
-            hasWxCloud,
-            hasCallContainer,
-            hasConnectContainer,
-            isReady: hasWxCloud && hasCallContainer
-        }
+        runtime: { hasWxCloud, hasCallContainer, hasConnectContainer, isReady: hasWxCloud && hasCallContainer }
     };
 };
 
-// 测试云托管连接
 export const testCloudConnection = async () => {
     try {
         console.log('🧪 测试云托管连接...');
         const status = getCloudStatus();
-        
         if (!status.runtime.isReady) {
             throw new Error('云托管服务未就绪');
         }
-        
-        // 发送测试请求
-        const result = await request({
-            url: '/api/health', // 假设有健康检查接口
-            method: 'GET'
-        });
-        
+        const result = await request({ url: '/api/health', method: 'GET' });
         console.log('✅ 云托管连接测试成功');
         return { success: true, data: result };
     } catch (error) {
@@ -527,43 +462,745 @@ export const testCloudConnection = async () => {
     }
 };
 
-// 用户偏好设置相关API
-export const getUserPreferences = async () => {
-    try {
-        const response = await request('/api/user/preferences', {
-            method: 'GET'
-        });
-        console.log('获取用户偏好设置成功:', response);
-        return response;
-    } catch (error) {
-        console.error('获取用户偏好设置失败:', error);
-        throw error;
-    }
-};
+// 用户偏好设置
+export const getUserPreferences = () => request({ url: '/user/preferences', method: 'GET' });
+export const getUserPreference = (key) => request({ url: `/user/preferences/${key}`, method: 'GET' });
+export const setUserPreference = (key, value, property = null) => request({ url: `/user/preferences/${key}`, method: 'PUT', data: { key, value, property } });
+export const batchUpdateUserPreferences = (preferences, override = false) => request({ url: '/user/preferences/batch', method: 'PUT', data: { preferences, override } });
+export const deleteUserPreference = (key) => request({ url: `/user/preferences/${key}`, method: 'DELETE' });
+export const initializeUserPreferences = () => request({ url: '/user/preferences/initialize', method: 'POST' });
+export const resetUserPreferences = () => request({ url: '/user/preferences/reset', method: 'POST' });
 
-export const updateUserPreferences = async (preferences) => {
-    try {
-        const response = await request('/api/user/preferences', {
-            method: 'PUT',
-            data: preferences
+/**
+ * 微信小程序工具类
+ * 封装微信小程序常用API，提供统一的调用接口
+ */
+class WeChatUtils {
+  
+  static getUserProfile(options = {}) {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      console.log('📱 尝试获取微信用户信息...');
+      
+      // 检查是否支持 getUserProfile API
+      if (typeof uni !== 'undefined' && uni.getUserProfile) {
+        console.log('✅ 使用 uni.getUserProfile API');
+        uni.getUserProfile({
+          desc: options.desc || '用于完善用户资料和提供个性化服务',
+          success: (res) => {
+            console.log('✅ 获取用户信息成功:', {
+              nickName: res.userInfo?.nickName,
+              hasAvatar: !!res.userInfo?.avatarUrl,
+              gender: res.userInfo?.gender
+            });
+            resolve(res.userInfo);
+          },
+          fail: (error) => {
+            console.error('❌ getUserProfile 调用失败:', error);
+            
+            // 如果是用户拒绝授权，给出友好提示
+            if (error.errMsg && error.errMsg.includes('auth deny')) {
+              console.log('ℹ️ 用户拒绝授权，返回默认信息');
+              resolve({
+                nickName: '微信用户',
+                avatarUrl: '',
+                gender: 0,
+                country: '',
+                province: '',
+                city: '',
+                language: 'zh_CN'
+              });
+            } else {
+              reject(error);
+            }
+          }
         });
-        console.log('更新用户偏好设置成功:', response);
-        return response;
-    } catch (error) {
-        console.error('更新用户偏好设置失败:', error);
-        throw error;
-    }
-};
+      } else if (typeof wx !== 'undefined' && wx.getUserProfile) {
+        console.log('✅ 使用 wx.getUserProfile API');
+        wx.getUserProfile({
+          desc: options.desc || '用于完善用户资料和提供个性化服务',
+          success: (res) => {
+            console.log('✅ 获取用户信息成功:', {
+              nickName: res.userInfo?.nickName,
+              hasAvatar: !!res.userInfo?.avatarUrl,
+              gender: res.userInfo?.gender
+            });
+            resolve(res.userInfo);
+          },
+          fail: (error) => {
+            console.error('❌ wx.getUserProfile 调用失败:', error);
+            
+            // 如果是用户拒绝授权，给出友好提示
+            if (error.errMsg && error.errMsg.includes('auth deny')) {
+              console.log('ℹ️ 用户拒绝授权，返回默认信息');
+              resolve({
+                nickName: '微信用户',
+                avatarUrl: '',
+                gender: 0,
+                country: '',
+                province: '',
+                city: '',
+                language: 'zh_CN'
+              });
+            } else {
+              reject(error);
+            }
+          }
+        });
+      } else {
+        // API不可用，返回默认信息
+        console.warn('⚠️ getUserProfile API不可用，返回默认用户信息');
+        console.log('💡 建议使用头像昵称填写组件获取用户信息');
+        resolve({
+          nickName: '微信用户',
+          avatarUrl: '',
+          gender: 0,
+          country: '',
+          province: '',
+          city: '',
+          language: 'zh_CN'
+        });
+      }
+      // #endif
+      // #ifndef MP-WEIXIN
+      console.error('❌ 非微信小程序环境，无法获取用户信息');
+      reject(new Error('当前环境不支持微信用户信息获取'));
+      // #endif
+    });
+  }
 
-export const resetUserPreferences = async () => {
-    try {
-        const response = await request('/api/user/preferences/reset', {
-            method: 'POST'
-        });
-        console.log('重置用户偏好设置成功:', response);
-        return response;
-    } catch (error) {
-        console.error('重置用户偏好设置失败:', error);
-        throw error;
+  static login(options = {}) {
+    console.log('🔐 微信登录开始...');
+    
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      const loginOptions = {
+        timeout: options.timeout || 8000, // 缩短默认超时时间
+        success: (res) => {
+          console.log('🎉 微信登录成功');
+          if (options.success) options.success(res);
+          resolve({ code: res.code, errMsg: res.errMsg || 'login:ok' });
+        },
+        fail: (error) => {
+          console.error('❌ 微信登录失败:', error.errMsg);
+          if (options.fail) options.fail(error);
+          reject({ errCode: error.errCode || -1, errMsg: error.errMsg || 'login:fail', detail: error });
+        },
+        complete: (res) => {
+          if (options.complete) options.complete(res);
+        }
+      };
+      
+      // 快速检查并调用
+      if (typeof wx !== 'undefined' && wx.login) {
+        wx.login(loginOptions);
+      } else {
+        uni.login({ provider: 'weixin', ...loginOptions });
+      }
+      // #endif
+      // #ifndef MP-WEIXIN
+      const error = new Error('当前环境不支持微信登录');
+      if (options.fail) options.fail(error);
+      if (options.complete) options.complete({ errMsg: 'login:fail 当前环境不支持微信登录' });
+      reject(error);
+      // #endif
+    });
+  }
+
+  static async getLoginCode() {
+    const result = await this.login();
+    return result.code;
+  }
+
+  /**
+   * 新的用户信息获取方法 - 适配微信新的头像昵称填写组件
+   * 注意：这个方法需要配合页面中的头像昵称填写组件使用
+   * @param {Object} userInfo - 从头像昵称填写组件获取的用户信息
+   * @param {boolean} showLoading - 是否显示加载提示，默认false
+   * @returns {Promise} 处理结果
+   */
+  static async updateUserInfoFromComponent(userInfo, showLoading = false) {
+    if (showLoading) {
+      WeChatUtils.showLoading('更新中...');
     }
-}; 
+    
+    try {
+      console.log('📝 从头像昵称组件更新用户信息:', userInfo);
+      
+      if (!userInfo) {
+        throw new Error('用户信息不能为空');
+      }
+      
+      // 构造更新数据
+      const updateData = {};
+      
+      if (userInfo.nickName) {
+        updateData.nickname = userInfo.nickName;
+      }
+      
+      if (userInfo.avatarUrl) {
+        updateData.avatarUrl = userInfo.avatarUrl;
+      }
+      
+      // 添加邮箱字段
+      if (userInfo.email) {
+        updateData.email = userInfo.email;
+      }
+      
+      // 添加手机号字段（后端使用phoneNumber字段名）
+      if (userInfo.phone) {
+        updateData.phoneNumber = userInfo.phone;
+      }
+      
+      if (Object.keys(updateData).length === 0) {
+        console.warn('没有需要更新的用户信息');
+        if (showLoading) {
+          WeChatUtils.hideLoading();
+        }
+        return { success: false, message: '没有需要更新的信息' };
+      }
+      
+      console.log('📤 发送到后端的更新数据:', updateData);
+      
+      // 调用后端更新接口
+      const result = await updateProfile(updateData);
+      console.log('✅ 用户信息更新成功:', result);
+      
+      if (showLoading) {
+        WeChatUtils.hideLoading();
+      }
+      
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('❌ 更新用户信息失败:', error);
+      
+      if (showLoading) {
+        WeChatUtils.hideLoading();
+        WeChatUtils.showToast(error.message || '更新失败，请重试', 'none', 3000);
+      }
+      
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // ... 其他未修改的WeChatUtils方法保持不变 ...
+  static shareToWeChat(shareData = {}) {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      uni.shareWithSystem({
+        type: 'text',
+        summary: shareData.title || '分享内容',
+        success: resolve,
+        fail: reject
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持微信分享'));
+      // #endif
+    });
+  }
+
+  static shareToTimeline(shareData = {}) {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      uni.share({
+        provider: 'weixin',
+        scene: 'WXSceneTimeline',
+        type: 0,
+        title: shareData.title || '分享标题',
+        summary: shareData.desc || '分享描述',
+        imageUrl: shareData.imageUrl,
+        success: resolve,
+        fail: reject
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持朋友圈分享'));
+      // #endif
+    });
+  }
+
+  static requestPayment(paymentData) {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      uni.requestPayment({
+        ...paymentData,
+        success: resolve,
+        fail: reject
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持微信支付'));
+      // #endif
+    });
+  }
+
+  static getWeRunData() {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      uni.getWeRunData({
+        success: resolve,
+        fail: reject
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持微信运动数据'));
+      // #endif
+    });
+  }
+
+  static getLocation(options = {}) {
+    return new Promise((resolve, reject) => {
+      uni.getLocation({
+        type: options.type || 'wgs84',
+        success: resolve,
+        fail: reject
+      });
+    });
+  }
+
+  static chooseAddress() {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      uni.chooseAddress({
+        success: resolve,
+        fail: reject
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持选择地址'));
+      // #endif
+    });
+  }
+
+  static saveImageToPhotosAlbum(filePath) {
+    return new Promise((resolve, reject) => {
+      uni.saveImageToPhotosAlbum({
+        filePath: filePath,
+        success: resolve,
+        fail: reject
+      });
+    });
+  }
+
+  static scanCode(options = {}) {
+    return new Promise((resolve, reject) => {
+      uni.scanCode({
+        onlyFromCamera: options.onlyFromCamera || false,
+        scanType: options.scanType || ['barCode', 'qrCode'],
+        success: resolve,
+        fail: reject
+      });
+    });
+  }
+
+  static vibrate(type = 'short') {
+    if (type === 'long') {
+      uni.vibrateLong();
+    } else {
+      uni.vibrateShort();
+    }
+  }
+
+  static setNavigationBarTitle(title) {
+    uni.setNavigationBarTitle({
+      title: title
+    });
+  }
+
+  static setNavigationBarColor(options = {}) {
+    uni.setNavigationBarColor({
+      frontColor: options.frontColor || '#000000',
+      backgroundColor: options.backgroundColor || '#ffffff',
+      animation: options.animation || {}
+    });
+  }
+
+  static showLoading(title = '加载中...') {
+    uni.showLoading({
+      title: title,
+      mask: true
+    });
+  }
+
+  static hideLoading() {
+    uni.hideLoading();
+  }
+
+  static showToast(title, icon = 'none', duration = 2000) {
+    uni.showToast({
+      title: title,
+      icon: icon,
+      duration: duration
+    });
+  }
+
+  static showModal(options = {}) {
+    return new Promise((resolve) => {
+      uni.showModal({
+        title: options.title || '提示',
+        content: options.content || '',
+        showCancel: options.showCancel !== false,
+        cancelText: options.cancelText || '取消',
+        confirmText: options.confirmText || '确定',
+        success: (res) => {
+          resolve(res.confirm);
+        }
+      });
+    });
+  }
+
+  static getSystemInfo() {
+    return new Promise((resolve, reject) => {
+      uni.getSystemInfo({
+        success: resolve,
+        fail: reject
+      });
+    });
+  }
+
+  static isWeChatMiniProgram() {
+    // #ifdef MP-WEIXIN
+    return true;
+    // #endif
+    // #ifndef MP-WEIXIN
+    return false;
+    // #endif
+  }
+
+  static getVersionInfo() {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      if (typeof wx !== 'undefined' && wx.getAccountInfoSync) {
+        try {
+          const accountInfo = wx.getAccountInfoSync();
+          resolve({
+            version: accountInfo.miniProgram.version,
+            envVersion: accountInfo.miniProgram.envVersion
+          });
+        } catch (error) {
+          reject(error);
+        }
+      } else {
+        reject(new Error('获取版本信息失败'));
+      }
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject(new Error('当前环境不支持获取版本信息'));
+      // #endif
+    });
+  }
+
+
+  /**
+   * 已重构: 更新用户信息到后台
+   * @param {Object} userInfo - 从getUserProfile获取的用户信息
+   * @returns {Promise} 更新结果
+   */
+  static async updateUserProfile(userInfo) {
+    console.log('📝 调用用户信息更新接口，数据:', userInfo);
+    
+    // 构造发送到后端的数据
+    const updateData = {
+      nickname: userInfo.nickName,
+      avatarUrl: userInfo.avatarUrl
+    };
+    if (userInfo.gender !== undefined) {
+      updateData.gender = userInfo.gender;
+    }
+    
+    // 使用全局的`request`函数，它会自动处理Token、云托管和URL
+    // 注意：这里使用了`updateProfile`函数，它是`request`的封装，更加简洁
+    return updateProfile(updateData);
+  }
+
+  /**
+   * 已重构: 微信登录API调用 - 将js_code发送给后台
+   * @param {Object} data - 登录数据
+   * @param {string} data.code - 微信登录凭证
+   * @param {Object} data.userInfo - 用户信息（可选）
+   * @returns {Promise} 后台登录响应
+   */
+  static async wechatLogin(data) {
+    console.log('🔐 调用后台微信登录接口，数据:', JSON.stringify(data, null, 2));
+    
+    if (!data || !data.code) {
+      console.error('❌ wechatLogin: 缺少必要的code参数:', data);
+      throw new Error('微信登录数据无效：缺少code参数');
+    }
+    
+    console.log('📡 发送微信登录请求到后端...');
+    
+    // 使用全局的`request`函数，它会自动处理云托管和URL
+    try {
+      const result = await request({
+          url: '/auth/wechat/login',
+          method: 'POST',
+          data: data
+          // 注意：这里不需要手动添加Token，因为登录接口本身不应该需要携带Token
+      });
+      
+      console.log('✅ 后端微信登录响应:', JSON.stringify(result, null, 2));
+      return result;
+    } catch (error) {
+      console.error('❌ 后端微信登录失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 智能微信登录流程 - 获取用户信息并完成登录
+   * @param {Object} options - 登录选项
+   * @returns {Promise} 登录结果
+   */
+  static async smartWechatLogin(options = {}) {
+    // 显示加载弹窗
+    WeChatUtils.showLoading('登录中...');
+    
+    try {
+      console.log('🚀 开始智能微信登录流程...');
+      
+      // 快速环境检查，减少日志输出
+      const isWxEnv = WeChatUtils.isWeChatMiniProgram() && typeof wx !== 'undefined';
+      if (!isWxEnv) {
+        throw new Error('当前环境不支持微信登录');
+      }
+      
+      console.log('📞 获取微信登录凭证...');
+      
+      // 并行执行：获取登录code和用户信息（如果需要）
+      const loginPromise = WeChatUtils.login({ timeout: 5000 }); // 缩短超时时间
+      const userInfoPromise = options.skipUserInfo ? Promise.resolve(null) : 
+        WeChatUtils.getUserProfile({ desc: '用于完善用户资料和提供个性化服务' })
+          .catch(error => {
+            console.warn('⚠️ 获取用户信息失败，继续登录流程:', error.message);
+            return null; // 失败时返回null，不阻断流程
+          });
+      
+      // 等待两个操作完成
+      const [loginResult, userInfo] = await Promise.all([loginPromise, userInfoPromise]);
+      
+      if (!loginResult?.code) {
+        console.error('❌ 未获取到微信登录凭证');
+        throw new Error('获取微信登录凭证失败');
+      }
+      
+      console.log('📱 获取凭证成功，code长度:', loginResult.code.length);
+      
+      // 构建登录数据
+      const wechatLoginData = { code: loginResult.code };
+      if (userInfo) {
+        console.log('✅ 用户信息已获取:', userInfo.nickName || '未知用户');
+        wechatLoginData.userInfo = userInfo;
+      }
+      
+      console.log('🔐 发送登录请求到后端...');
+      const response = await WeChatUtils.wechatLogin(wechatLoginData);
+      
+      console.log('✅ 登录完成:', response.isNewUser ? '新用户' : '老用户');
+      
+      // 隐藏加载弹窗
+      WeChatUtils.hideLoading();
+      
+      // 快速构建返回结果 - 不包含提示信息
+      const result = {
+        ...response
+      };
+      
+      if (response.isNewUser) {
+        result.needCompleteProfile = !userInfo;
+      } else {
+        result.userInfoUpdated = !!userInfo;
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ 智能微信登录失败:', error.message);
+      
+      // 隐藏加载弹窗
+      WeChatUtils.hideLoading();
+      
+      // 显示失败提示
+      const errorMessage = error.message || '登录失败，请重试';
+      WeChatUtils.showToast(errorMessage, 'none', 3000);
+      
+      throw error;
+    }
+  }
+
+  /**
+   * 完整的微信登录流程
+   * @param {Object} options - 登录选项
+   * @param {boolean} options.withUserInfo - 是否获取用户信息
+   * @returns {Promise} 登录结果
+   */
+  static async loginWithBackend(options = {}) {
+    // 显示加载弹窗
+    WeChatUtils.showLoading('登录中...');
+    
+    try {
+      const loginResult = await WeChatUtils.login();
+      if (!loginResult || !loginResult.code) {
+        throw new Error('获取微信登录凭证失败');
+      }
+      
+      const loginData = { code: loginResult.code };
+      
+      if (options.withUserInfo) {
+        try {
+          const userInfo = await WeChatUtils.getUserProfile({ desc: '用于完善用户资料' });
+          loginData.userInfo = userInfo;
+        } catch (userInfoError) {
+          console.warn('获取用户信息失败，继续登录流程:', userInfoError);
+        }
+      }
+      
+      // 调用重构后的登录接口
+      const result = await WeChatUtils.wechatLogin(loginData);
+      
+      // 隐藏加载弹窗
+      WeChatUtils.hideLoading();
+      
+      return result;
+    } catch (error) {
+      console.error('微信登录流程失败:', error);
+      
+      // 隐藏加载弹窗
+      WeChatUtils.hideLoading();
+      
+      // 显示失败提示
+      const errorMessage = error.message || '登录失败，请重试';
+      WeChatUtils.showToast(errorMessage, 'none', 3000);
+      
+      throw error;
+    }
+  }
+
+  /**
+   * 请求微信一次性订阅权限
+   * @param {string} templateId - 模板ID
+   * @returns {Promise} 订阅结果
+   */
+  static requestSubscribeMessage(templateId) {
+    return new Promise((resolve, reject) => {
+      // #ifdef MP-WEIXIN
+      if (typeof wx !== 'undefined' && wx.requestSubscribeMessage) {
+        wx.requestSubscribeMessage({
+          tmplIds: [templateId],
+          success: (res) => {
+            console.log('订阅消息权限请求成功:', res);
+            // 检查用户是否同意订阅
+            if (res[templateId] === 'accept') {
+              resolve({ success: true, granted: true, templateId });
+            } else if (res[templateId] === 'reject') {
+              resolve({ success: true, granted: false, templateId, reason: '用户拒绝' });
+            } else {
+              resolve({ success: true, granted: false, templateId, reason: '未知状态' });
+            }
+          },
+          fail: (error) => {
+            console.error('订阅消息权限请求失败:', error);
+            reject({ success: false, error: error.errMsg || '请求失败' });
+          }
+        });
+      } else {
+        console.warn('当前环境不支持微信订阅消息');
+        reject({ success: false, error: '当前环境不支持微信订阅消息' });
+      }
+      // #endif
+      // #ifndef MP-WEIXIN
+      reject({ success: false, error: '当前环境不支持微信订阅消息' });
+      // #endif
+    });
+  }
+
+  /**
+   * 智能请求微信订阅权限 - 带用户友好的提示
+   * @param {Object} options - 配置选项
+   * @param {string} options.templateId - 模板ID
+   * @param {string} options.title - 提示标题
+   * @param {string} options.content - 提示内容
+   * @param {boolean} options.showToast - 是否显示提示消息，默认false
+   * @returns {Promise} 订阅结果
+   */
+  static async smartRequestSubscribe(options = {}) {
+    try {
+      const {
+        templateId = wechatConfig.subscribeTemplates.reminder,
+        title = wechatConfig.subscribe.defaultTitle,
+        content = wechatConfig.subscribe.defaultContent,
+        showToast = false
+      } = options;
+
+      // 先询问用户是否同意
+      const userConfirm = await WeChatUtils.showModal({
+        title,
+        content,
+        showCancel: true,
+        cancelText: '暂不开启',
+        confirmText: '立即开启'
+      });
+
+      if (!userConfirm) {
+        return { success: false, granted: false, reason: '用户取消' };
+      }
+
+      // 用户同意后请求订阅权限
+      const result = await WeChatUtils.requestSubscribeMessage(templateId);
+      
+      if (result.success && result.granted) {
+        if (showToast) {
+          WeChatUtils.showToast(wechatConfig.subscribe.successMessage, 'success');
+        }
+        return { success: true, granted: true };
+      } else {
+        if (showToast) {
+          WeChatUtils.showToast(wechatConfig.subscribe.failureMessage, 'none');
+        }
+        return { success: false, granted: false, reason: result.reason || '权限获取失败' };
+      }
+    } catch (error) {
+      console.error('智能请求订阅权限失败:', error);
+      if (showToast) {
+        WeChatUtils.showToast(wechatConfig.subscribe.errorMessage, 'none');
+      }
+      return { success: false, granted: false, error: error.message };
+    }
+  }
+}
+
+// 导出工具类
+export default WeChatUtils;
+
+// 也可以按需导出具体方法
+export const {
+  // 注意：此处导出的 updateUserProfile 和 wechatLogin 是重构后的静态方法
+  getUserProfile: wcGetUserProfile, // 避免命名冲突
+  login: wcLogin, // 避免命名冲突
+  getLoginCode,
+  wechatLogin,
+  loginWithBackend,
+  smartWechatLogin,
+  updateUserInfoFromComponent, // 新增：适配新的头像昵称填写组件
+  shareToWeChat,
+  shareToTimeline,
+  requestPayment,
+  getWeRunData,
+  getLocation,
+  chooseAddress,
+  saveImageToPhotosAlbum,
+  scanCode,
+  vibrate,
+  setNavigationBarTitle,
+  setNavigationBarColor,
+  showLoading,
+  hideLoading,
+  showToast,
+  showModal,
+  getSystemInfo,
+  isWeChatMiniProgram,
+  getVersionInfo,
+  updateUserProfile,
+  requestSubscribeMessage, // 新增：请求订阅权限
+  smartRequestSubscribe // 新增：智能请求订阅权限
+} = WeChatUtils;

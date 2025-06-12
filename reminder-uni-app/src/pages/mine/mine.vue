@@ -21,7 +21,12 @@
         <!-- 用户信息区域 -->
         <view class="user-section">
           <view class="user-avatar" @click="goToUserProfile">
-            <image class="avatar-image" src="/static/images/avatar.png" mode="aspectFill"></image>
+            <image 
+              class="avatar-image" 
+              :src="getUserAvatar()" 
+              mode="aspectFill"
+              @error="onAvatarError"
+            ></image>
           </view>
           <view class="user-info">
             <text class="username">{{ userState.user?.nickname || userState.user?.username || '未登录' }}</text>
@@ -111,8 +116,7 @@
 
 <script>
 import { ref, reactive } from 'vue';
-import { userState, clearUserInfo, saveUserInfo } from '../../services/store';
-import { getUserProfile } from '../../services/api';
+import { UserService, userState } from '../../services/userService';
 
 export default {
   onShow() {
@@ -130,20 +134,15 @@ export default {
     const showLogoutConfirmDialog = ref(false);
 
     const checkUserSession = async () => {
-      const token = uni.getStorageSync('accessToken');
-      if (token && !userState.user) {
-        try {
-          const profile = await getUserProfile();
-          if (profile) {
-            saveUserInfo(profile);
-            fetchUserStats();
-          }
-        } catch (error) {
-          console.log('获取用户信息失败，可能token已过期', error);
-          clearUserInfo();
+      try {
+        const userInfo = await UserService.getCurrentUser();
+        if (userInfo) {
+          fetchUserStats();
+        } else {
+          console.log('用户未登录或token已过期');
         }
-      } else if (!token) {
-        clearUserInfo();
+      } catch (error) {
+        console.log('检查用户会话失败:', error);
       }
     };
 
@@ -159,7 +158,7 @@ export default {
     };
 
     const handleLogout = () => {
-      clearUserInfo();
+      UserService.logout();
       showLogoutConfirmDialog.value = false;
       uni.showToast({
         title: '已退出登录',
@@ -200,6 +199,26 @@ export default {
       }
       uni.navigateTo({ url: url });
     };
+
+    // 获取用户头像
+    const getUserAvatar = () => {
+      // 如果用户已登录且有头像，使用用户头像
+      if (userState.isAuthenticated && userState.user?.avatarUrl) {
+        console.log('我的页面: 使用用户头像:', userState.user.avatarUrl);
+        return userState.user.avatarUrl;
+      }
+      
+      // 否则使用默认头像
+      console.log('我的页面: 使用默认头像');
+      return '/static/images/avatar.png';
+    };
+
+    // 头像加载失败处理
+    const onAvatarError = (e) => {
+      console.log('我的页面: 头像加载失败，使用默认头像');
+      // 头像加载失败时，可以设置一个默认头像
+      e.target.src = '/static/images/avatar.png';
+    };
     
     return {
       userState,
@@ -212,7 +231,9 @@ export default {
       goToUserProfile,
       navTo,
       checkUserSession,
-      fetchUserStats
+      fetchUserStats,
+      getUserAvatar,
+      onAvatarError
     };
   }
 };

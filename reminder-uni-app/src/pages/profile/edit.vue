@@ -1,230 +1,174 @@
 <template>
   <view class="container">
-    <view class="form-card">
-      <view class="form-item avatar-section">
-        <text class="label">头像</text>
-        <view class="avatar-preview" @click="chooseAvatar">
-          <image class="avatar-image" :src="avatarPreview || userState.user?.avatarUrl || '/static/images/avatar.png'" mode="aspectFill"></image>
-          <text class="change-avatar-text">点击更换头像</text>
+    <view class="header-section">
+      <view class="nav-container">
+        <view class="nav-back" @click="goBack">
+          <text class="back-icon">‹</text>
         </view>
+        <view class="title-container">
+          <text class="page-title">编辑个人资料</text>
+        </view>
+        <view class="nav-spacer"></view>
       </view>
-
-      <view class="form-item">
-        <text class="label">昵称</text>
-        <input class="input" v-model="form.nickname" placeholder="请输入昵称" />
+    </view>
+    
+    <view class="content-container">
+      <view v-if="isLoading" class="loading-container">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">加载用户信息中...</text>
       </view>
-
-      <view class="form-item">
-        <text class="label">邮箱</text>
-        <input class="input" v-model="form.email" placeholder="请输入邮箱地址" type="email" />
+      <view v-else class="editor-wrapper">
+        <UserInfoEditor
+          :initialUserInfo="initialUserInfo"
+          :promptMessage="promptMessage"
+          :required="false"
+          @success="onUpdateSuccess"
+          @cancel="onUpdateCancel"
+        />
       </view>
-      
-      <view class="form-item">
-        <text class="label">手机号</text>
-        <input class="input" v-model="form.phone" placeholder="请输入手机号码" type="number" />
-      </view>
-
-      <button class="btn btn-primary save-btn" @click="saveProfile" :disabled="isSubmitting" :loading="isSubmitting">
-        {{ isSubmitting ? '保存中...' : '保存更改' }}
-      </button>
     </view>
   </view>
 </template>
 
 <script>
-import { ref, reactive, onMounted } from 'vue';
-import { userState, saveUserInfo } from '../../services/store';
-import { updateProfile } from '../../services/api';
+import { ref, onMounted, watch } from 'vue';
+import { UserService, userState } from '../../services/userService';
+import UserInfoEditor from '../../components/UserInfoEditor.vue';
 
 export default {
+  components: {
+    UserInfoEditor
+  },
+  
   setup() {
-    const form = reactive({
-      nickname: '',
-      email: '',
-      phone: ''
-    });
-    const avatarPreview = ref('');
-    let avatarFile = null; // Store the chosen file object
-    const isSubmitting = ref(false);
+    const initialUserInfo = ref({});
+    const isLoading = ref(true);
+    const promptMessage = ref('');
 
-    onMounted(() => {
-      if (userState.user) {
-        form.nickname = userState.user.nickname || userState.user.username || '';
-        form.email = userState.user.email || '';
-        form.phone = userState.user.phone || userState.user.phoneNumber || '';
-      }
-    });
-
-    const chooseAvatar = () => {
-      uni.chooseImage({
-        count: 1,
-        sizeType: ['compressed'],
-        sourceType: ['album', 'camera'],
-        success: (res) => {
-          avatarPreview.value = res.tempFilePaths[0];
-          avatarFile = { path: res.tempFilePaths[0], name: res.tempFiles[0].name }; // 存储路径和文件名
-        },
-        fail: (err) => {
-          console.log('选择图片失败:', err);
-          uni.showToast({ title: '选择图片失败', icon: 'none' });
+    // 计算初始用户信息
+    const prepareInitialUserInfo = (userData) => {
+      if (userData) {
+        const isWechatVirtualEmail = (email) => {
+          return email && email.includes('@wechat.local');
+        };
+        
+        const userInfo = {
+          nickname: userData.nickname || userData.username || '',
+          avatarUrl: userData.avatarUrl || userData.avatar || '',
+          email: isWechatVirtualEmail(userData.email) ? '' : (userData.email || ''),
+          phone: userData.phone || userData.phoneNumber || ''
+        };
+        initialUserInfo.value = userInfo;
+        
+        // --- 修改：根据缺失信息生成更具体的提示 ---
+        const missingInfo = [];
+        if (!userInfo.email) {
+          missingInfo.push('邮箱');
         }
-      });
+        if (!userInfo.phone) {
+          missingInfo.push('手机号');
+        }
+
+        if (missingInfo.length === 2) {
+          // 两者都缺失
+          promptMessage.value = '建议补充手机号和邮箱，确保能通过这两个重要渠道接收服务通知。';
+        } else if (missingInfo.length === 1) {
+          if (missingInfo[0] === '邮箱') {
+            // 只缺失邮箱
+            promptMessage.value = '补充邮箱后，您将能通过邮件接收订单回执和服务通知。';
+          } else {
+            // 只缺失手机号
+            promptMessage.value = '补充手机号后，您将能通过短信接收紧急安全提醒或登录验证。';
+          }
+        } else {
+          // 信息完整
+          promptMessage.value = '';
+        }
+        // --- 结束修改 ---
+
+        console.log('编辑资料页面: 生成的提示信息:', promptMessage.value);
+        return userInfo;
+      }
+      return {};
     };
 
-    const uploadAvatar = async (filePath, fileName) => {
+    // 获取用户信息 (此部分无变化)
+    const loadUserInfo = async () => {
       try {
-        return new Promise((resolve, reject) => {
-          uni.uploadFile({
-            url: 'YOUR_BACKEND_UPLOAD_URL', // <--- 再次确保这是你的后端上传接口地址
-            filePath: filePath,
-            name: 'file', // 后端接收文件的 key
-            fileName: fileName, // uni-app 中建议指定 fileName，有些平台可能需要
-            header: {
-              // 'Authorization': 'Bearer ' + uni.getStorageSync('token'), // 如果需要认证
-              // 'Content-Type': 'multipart/form-data' // 通常会自动设置，但可以显式指定
-            },
-            // formData: {
-            // 'customParam': 'value'
-            // },
-            success: (uploadFileRes) => {
-              console.log('uploadFile success:', uploadFileRes);
-              
-              // 先检查 HTTP 状态码
-              if (uploadFileRes.statusCode !== 200) {
-                console.error('Upload failed with status:', uploadFileRes.statusCode);
-                resolve(null); // 不要 reject，返回 null 让调用方处理
-                return;
-              }
-              
-              try {
-                // 尝试解析响应
-                const response = JSON.parse(uploadFileRes.data);
-                if (response && response.url) {
-                  resolve(response.url); // 后端返回的图片URL
-                } else {
-                  console.error('Invalid response format:', response);
-                  resolve(null);
-                }
-              } catch (e) {
-                console.error('Failed to parse upload response:', e);
-                resolve(null);
-              }
-            },
-            fail: (error) => {
-              console.error('uploadFile fail:', error);
-              resolve(null); // 不要 reject，返回 null 让调用方处理
+        isLoading.value = true;
+        const userInfo = await UserService.getCurrentUser();
+        if (userInfo) {
+          console.log('编辑资料页面: 获取用户信息成功');
+          prepareInitialUserInfo(userInfo);
+        } else {
+          uni.showModal({
+            title: '提示',
+            content: '请先登录',
+            showCancel: false,
+            success: () => {
+              uni.reLaunch({ url: '/pages/login/login' });
             }
           });
+          return;
+        }
+      } catch (error) {
+        console.error('编辑资料页面: 获取用户信息失败:', error);
+        uni.showToast({
+          title: '获取用户信息失败',
+          icon: 'none'
         });
-      } catch (error) {
-        console.error('uploadAvatar 函数出错:', error);
-        uni.showToast({ title: '头像上传功能异常', icon: 'none' });
-        return null; // 或 reject(error) 如果上层调用 await
-      }
-    };
-
-    const validateForm = () => {
-      if (!form.nickname.trim()) {
-        uni.showToast({ title: '昵称不能为空', icon: 'none' });
-        return false;
-      }
-
-      if (form.email && !isValidEmail(form.email)) {
-        uni.showToast({ title: '请输入有效的邮箱地址', icon: 'none' });
-        return false;
-      }
-
-      if (form.phone && !isValidPhone(form.phone)) {
-        uni.showToast({ title: '请输入有效的手机号码', icon: 'none' });
-        return false;
-      }
-
-      return true;
-    };
-
-    const isValidEmail = (email) => {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    };
-
-    const isValidPhone = (phone) => {
-      const phoneRegex = /^1[3-9]\d{9}$/;
-      return phoneRegex.test(phone);
-    };
-
-    const saveProfile = async () => {
-      if (!validateForm()) {
-        return;
-      }
-
-      isSubmitting.value = true;
-      try {
-        let avatarUrlToUpdate = userState.user?.avatarUrl;
-
-        // 处理头像上传
-        if (avatarFile && avatarFile.path) {
-          uni.showLoading({ title: '头像上传中...' });
-          try {
-            const uploadedAvatarUrl = await uploadAvatar(avatarFile.path, avatarFile.name);
-            uni.hideLoading();
-            if (uploadedAvatarUrl) {
-              avatarUrlToUpdate = uploadedAvatarUrl;
-            } else {
-              uni.showToast({ title: '头像上传失败，请重试', icon: 'none' });
-              isSubmitting.value = false;
-              return; // 终止保存
-            }
-          } catch (uploadError) {
-            uni.hideLoading();
-            console.error("头像上传时发生错误: ", uploadError);
-            uni.showToast({ title: '头像上传出错，请重试', icon: 'none' });
-            isSubmitting.value = false;
-            return; // 终止保存
-          }
-        }
-
-        const profileData = {
-          nickname: form.nickname,
-          avatarUrl: avatarUrlToUpdate,
-          email: form.email,
-          phoneNumber: form.phone
-        };
-
-        const updatedUserResponse = await updateProfile(profileData);
-        
-        if (updatedUserResponse) {
-            const userToSave = {
-                ...userState.user, // 保留旧信息如 id 等
-                nickname: updatedUserResponse.nickname || profileData.nickname,
-                avatarUrl: updatedUserResponse.avatarUrl || profileData.avatarUrl,
-                email: updatedUserResponse.email || profileData.email,
-                phone: updatedUserResponse.phone || updatedUserResponse.phoneNumber || profileData.phoneNumber,
-                phoneNumber: updatedUserResponse.phoneNumber || profileData.phoneNumber
-             };
-            saveUserInfo(userToSave);
-
-            uni.showToast({ title: '资料更新成功', icon: 'success' });
-            setTimeout(() => {
-            uni.navigateBack();
-          }, 1500);
-        } else {
-          // uni.showToast({ title: '更新失败，请重试', icon: 'none' }); // handleApiError 应该会处理
-        }
-      } catch (error) {
-        console.error('保存资料失败:', error);
-        uni.showToast({ title: '保存失败，请稍后重试', icon: 'none' });
       } finally {
-        isSubmitting.value = false;
+        isLoading.value = false;
       }
+    };
+
+    // 监听用户状态变化 (此部分无变化)
+    watch(() => userState.user, (newUser) => {
+      if (newUser && newUser.id) {
+        console.log('编辑资料页面: 检测到用户状态变化:', newUser);
+        prepareInitialUserInfo(newUser);
+      }
+    }, { deep: true, immediate: true });
+
+    onMounted(() => {
+      loadUserInfo();
+    });
+
+    // 返回按钮处理 (此部分无变化)
+    const goBack = () => {
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.reLaunch({ url: '/pages/mine/mine' });
+      } else {
+        uni.navigateBack();
+      }
+    };
+
+    // 更新成功处理 (此部分无变化)
+    const onUpdateSuccess = (data) => {
+      console.log('编辑资料页面: 用户信息更新成功:', data);
+      if (data.userInfo) {
+        const userToSave = { ...userState.user, ...data.userInfo };
+        saveUserInfo(userToSave);
+      }
+      setTimeout(() => {
+        goBack();
+      }, 1000);
+    };
+
+    // 取消处理 (此部分无变化)
+    const onUpdateCancel = () => {
+      console.log('编辑资料页面: 用户取消编辑资料');
+      goBack();
     };
 
     return {
-      userState,
-      form,
-      avatarPreview,
-      isSubmitting,
-      chooseAvatar,
-      saveProfile
+      initialUserInfo,
+      isLoading,
+      promptMessage,
+      goBack,
+      onUpdateSuccess,
+      onUpdateCancel
     };
   }
 };
@@ -232,68 +176,126 @@ export default {
 
 <style scoped>
 .container {
-  padding: 30rpx;
-}
-
-.form-card {
-  background-color: #ffffff;
-  border-radius: 10rpx;
-  padding: 30rpx;
-  box-shadow: 0 2rpx 20rpx rgba(0, 0, 0, 0.1);
-}
-
-.form-item {
-  margin-bottom: 40rpx;
-}
-
-.label {
-  display: block;
-  font-size: 28rpx;
-  color: #666666;
-  margin-bottom: 15rpx;
-}
-
-.avatar-section {
+  height: 100vh;
+  background-color: #fcfbf8;
   display: flex;
   flex-direction: column;
-  align-items: center; /* Center avatar content */
+  font-family: 'Manrope', 'Noto Sans', sans-serif;
 }
 
-.avatar-preview {
+.header-section {
+  background-color: #fcfbf8;
+  padding: 32rpx 32rpx 16rpx;
+  flex-shrink: 0;
+}
+
+.nav-container {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: space-between;
+  height: 96rpx;
+}
+
+.nav-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx;
   cursor: pointer;
 }
 
-.avatar-image {
-  width: 180rpx;
-  height: 180rpx;
+.back-icon {
+  font-size: 48rpx;
+  color: #1c170d;
+  font-weight: 600;
+}
+
+.title-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.page-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #1c170d;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.nav-spacer {
+  width: 96rpx;
+  height: 96rpx;
+}
+
+.content-container {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #fcfbf8;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120rpx 32rpx;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 4rpx solid #f4efe7;
+  border-top: 4rpx solid #f7bd4a;
   border-radius: 50%;
-  background-color: #f0f0f0;
-  margin-bottom: 15rpx;
-  border: 2rpx solid #eee;
+  animation: spin 1s linear infinite;
+  margin-bottom: 24rpx;
 }
 
-.change-avatar-text {
-  font-size: 26rpx;
-  color: #3cc51f;
+.loading-text {
+  font-size: 28rpx;
+  color: #9d8148;
+  text-align: center;
 }
 
-.input {
-  width: 100%;
-  height: 88rpx; /* Standard height */
-  background-color: #f8f8f8;
-  border-radius: 8rpx;
-  padding: 0 25rpx;
-  font-size: 30rpx;
-  color: #333;
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-.save-btn {
-  width: 100%;
-  height: 88rpx;
-  line-height: 88rpx;
-  margin-top: 20rpx; /* Add some space before button */
+.editor-wrapper {
+  padding: 16rpx 32rpx 32rpx;
+}
+
+@media (max-width: 750rpx) {
+  .header-section {
+    padding: 24rpx 24rpx 12rpx;
+  }
+  
+  .nav-container {
+    height: 80rpx;
+  }
+  
+  .nav-back,
+  .nav-spacer {
+    width: 80rpx;
+    height: 80rpx;
+  }
+  
+  .back-icon {
+    font-size: 40rpx;
+  }
+  
+  .page-title {
+    font-size: 32rpx;
+  }
+  
+  .editor-wrapper {
+    padding: 12rpx 24rpx 24rpx;
+  }
 }
 </style>

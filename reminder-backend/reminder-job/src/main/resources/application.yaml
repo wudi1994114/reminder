@@ -102,3 +102,6 @@ spring:
       org.quartz.dataSource.quartzDS.idleConnectionTestPeriod: 60
 email:
   provider: tencent
+
+
+

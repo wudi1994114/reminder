@@ -153,11 +153,6 @@ public class AuthService {
         }
         
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            // 检查邮箱是否已被其他用户使用
-            AppUser existingUser = appUserRepository.findByEmail(request.getEmail()).orElse(null);
-            if (existingUser != null && !existingUser.getId().equals(userId)) {
-                throw new IllegalArgumentException("该邮箱已被其他用户使用");
-            }
             user.setEmail(request.getEmail());
             needUpdate = true;
         }

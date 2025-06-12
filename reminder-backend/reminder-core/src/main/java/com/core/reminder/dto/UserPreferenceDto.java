@@ -9,9 +9,14 @@ import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 用户偏好设置DTO
+ * 用户偏好设置DTO - 键值对存储模式
  */
 @Data
 @NoArgsConstructor
@@ -23,99 +28,133 @@ public class UserPreferenceDto {
     private Long userId;
 
     /**
-     * 默认通知类型
+     * 偏好设置键名
      */
-    @NotNull(message = "默认通知类型不能为空")
-    private ReminderType defaultReminderType;
+    @NotBlank(message = "偏好设置键名不能为空")
+    @Size(max = 100, message = "偏好设置键名长度不能超过100个字符")
+    private String key;
 
     /**
-     * 是否启用邮件通知
+     * 偏好设置值
      */
-    @NotNull(message = "邮件通知设置不能为空")
-    private Boolean emailNotificationEnabled;
+    private String value;
 
     /**
-     * 是否启用短信通知
+     * 偏好设置描述/属性
      */
-    @NotNull(message = "短信通知设置不能为空")
-    private Boolean smsNotificationEnabled;
+    @Size(max = 500, message = "偏好设置描述长度不能超过500个字符")
+    private String property;
 
     /**
-     * 是否启用微信小程序通知
+     * 创建时间
      */
-    @NotNull(message = "微信通知设置不能为空")
-    private Boolean wechatNotificationEnabled;
+    private OffsetDateTime createAt;
 
     /**
-     * 默认提前提醒时间（分钟）
+     * 修改时间
      */
-    @NotNull(message = "默认提前提醒时间不能为空")
-    @Min(value = 0, message = "提前提醒时间不能小于0分钟")
-    @Max(value = 1440, message = "提前提醒时间不能超过24小时")
-    private Integer defaultAdvanceMinutes;
+    private OffsetDateTime modifyAt;
+
+    // 便利构造函数
+    public UserPreferenceDto(String key, String value) {
+        this.key = key;
+        this.value = value;
+    }
+
+    public UserPreferenceDto(String key, String value, String property) {
+        this.key = key;
+        this.value = value;
+        this.property = property;
+    }
 
     /**
-     * 是否启用声音提醒
+     * 批量用户偏好设置DTO
+     * 用于批量操作和返回用户的所有偏好设置
      */
-    @NotNull(message = "声音提醒设置不能为空")
-    private Boolean soundEnabled;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UserPreferencesDto {
+        
+        private Long userId;
+        
+        /**
+         * 用户所有偏好设置的键值对
+         */
+        private Map<String, String> preferences;
+        
+        /**
+         * 偏好设置详情列表（包含完整信息）
+         */
+        private List<UserPreferenceDto> details;
+        
+        /**
+         * 总数量
+         */
+        private Integer total;
+        
+        /**
+         * 最后更新时间
+         */
+        private OffsetDateTime lastModified;
+        
+        public UserPreferencesDto(Long userId, Map<String, String> preferences) {
+            this.userId = userId;
+            this.preferences = preferences;
+            this.total = preferences != null ? preferences.size() : 0;
+        }
+    }
 
     /**
-     * 是否启用震动提醒
+     * 批量更新偏好设置的请求DTO
      */
-    @NotNull(message = "震动提醒设置不能为空")
-    private Boolean vibrationEnabled;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BatchUpdateDto {
+        
+        /**
+         * 要更新的偏好设置键值对
+         */
+        @NotNull(message = "偏好设置不能为空")
+        private Map<String, String> preferences;
+        
+        /**
+         * 是否覆盖现有设置
+         * true: 覆盖，false: 只更新提供的键，保留其他现有设置
+         */
+        private Boolean override = false;
+    }
 
     /**
-     * 时区设置
+     * 偏好设置键值常量类
+     * 定义系统中常用的偏好设置键名
      */
-    private String timezone;
-
-    /**
-     * 语言设置
-     */
-    @Pattern(regexp = "^(zh-CN|en-US)$", message = "语言设置只支持zh-CN和en-US")
-    private String language;
-
-    /**
-     * 主题设置
-     */
-    @Pattern(regexp = "^(light|dark)$", message = "主题设置只支持light和dark")
-    private String theme;
-
-    /**
-     * 每日汇总邮件时间
-     */
-    @Pattern(regexp = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$", message = "时间格式不正确，应为HH:mm")
-    private String dailySummaryTime;
-
-    /**
-     * 是否启用每日汇总邮件
-     */
-    @NotNull(message = "每日汇总邮件设置不能为空")
-    private Boolean dailySummaryEnabled;
-
-    /**
-     * 周末是否接收提醒
-     */
-    @NotNull(message = "周末提醒设置不能为空")
-    private Boolean weekendNotificationEnabled;
-
-    /**
-     * 免打扰开始时间
-     */
-    @Pattern(regexp = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$", message = "时间格式不正确，应为HH:mm")
-    private String quietHoursStart;
-
-    /**
-     * 免打扰结束时间
-     */
-    @Pattern(regexp = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$", message = "时间格式不正确，应为HH:mm")
-    private String quietHoursEnd;
-
-    /**
-     * 是否启用免打扰模式
-     */
-    @NotNull(message = "免打扰模式设置不能为空")
-    private Boolean quietHoursEnabled;
+    public static class PreferenceKeys {
+        // 通知相关
+        public static final String DEFAULT_REMINDER_TYPE = "defaultReminderType";
+        public static final String EMAIL_NOTIFICATION_ENABLED = "emailNotificationEnabled";
+        public static final String SMS_NOTIFICATION_ENABLED = "smsNotificationEnabled";
+        public static final String WECHAT_NOTIFICATION_ENABLED = "wechatNotificationEnabled";
+        
+        // 提醒设置
+        public static final String DEFAULT_ADVANCE_MINUTES = "defaultAdvanceMinutes";
+        public static final String SOUND_ENABLED = "soundEnabled";
+        public static final String VIBRATION_ENABLED = "vibrationEnabled";
+        
+        // 界面设置
+        public static final String THEME = "theme";
+        public static final String LANGUAGE = "language";
+        public static final String TIMEZONE = "timezone";
+        
+        // 时间设置
+        public static final String DAILY_SUMMARY_TIME = "dailySummaryTime";
+        public static final String DAILY_SUMMARY_ENABLED = "dailySummaryEnabled";
+        public static final String WEEKEND_NOTIFICATION_ENABLED = "weekendNotificationEnabled";
+        
+        // 免打扰设置
+        public static final String QUIET_HOURS_START = "quietHoursStart";
+        public static final String QUIET_HOURS_END = "quietHoursEnd";
+        public static final String QUIET_HOURS_ENABLED = "quietHoursEnabled";
+    }
 } 
