@@ -923,28 +923,53 @@ class WeChatUtils {
    */
   static async wechatLogin(data) {
     console.log('🔐 调用后台微信登录接口，数据:', JSON.stringify(data, null, 2));
-    
+
+    // #ifdef MP-WEIXIN
+    // 当云托管启用时，使用云托管专用登录接口
+    if (CLOUD_CONFIG.enabled && typeof wx !== 'undefined' && wx.cloud && wx.cloud.callContainer) {
+        console.log('🚀 使用云托管进行微信登录...');
+        return new Promise((resolve, reject) => {
+            wx.cloud.callContainer({
+                config: { env: CLOUD_CONFIG.env },
+                path: '/api/auth/wechat/cloud-login', // 新的云托管登录接口
+                method: 'POST',
+                header: {
+                    'X-WX-SERVICE': CLOUD_CONFIG.serviceName,
+                    'Content-Type': 'application/json'
+                },
+                // 在云托管模式下，我们不再发送code，只发送可选的userInfo
+                data: { userInfo: data.userInfo }, 
+                success: (res) => {
+                    console.log('✅ 云托管微信登录成功:', res);
+                    resolve(res.data);
+                },
+                fail: (err) => {
+                    console.error('❌ 云托管微信登录失败:', err);
+                    reject({ ...err, message: err.errMsg || '云托管登录请求失败' });
+                }
+            });
+        });
+    }
+    // #endif
+
+    // 在非云托管环境或非微信小程序环境，使用传统HTTP登录
+    console.log('📡 发送传统HTTP登录请求到后端...');
     if (!data || !data.code) {
-      console.error('❌ wechatLogin: 缺少必要的code参数:', data);
+      console.error('❌ wechatLogin: 传统模式下缺少必要的code参数:', data);
       throw new Error('微信登录数据无效：缺少code参数');
     }
-    
-    console.log('📡 发送微信登录请求到后端...');
-    
-    // 使用全局的`request`函数，它会自动处理云托管和URL
+
     try {
-      const result = await request({
-          url: '/auth/wechat/login',
-          method: 'POST',
-          data: data
-          // 注意：这里不需要手动添加Token，因为登录接口本身不应该需要携带Token
-      });
-      
-      console.log('✅ 后端微信登录响应:', JSON.stringify(result, null, 2));
-      return result;
+        const result = await request({
+            url: '/auth/wechat/login', // 旧的基于code的登录接口
+            method: 'POST',
+            data: data
+        });
+        console.log('✅ 后端微信登录响应:', JSON.stringify(result, null, 2));
+        return result;
     } catch (error) {
-      console.error('❌ 后端微信登录失败:', error);
-      throw error;
+        console.error('❌ 后端微信登录失败:', error);
+        throw error;
     }
   }
 
@@ -958,62 +983,55 @@ class WeChatUtils {
     WeChatUtils.showLoading('登录中...');
     
     try {
-      console.log('🚀 开始智能微信登录流程...');
-      
-      // 快速环境检查，减少日志输出
-      const isWxEnv = WeChatUtils.isWeChatMiniProgram() && typeof wx !== 'undefined';
-      if (!isWxEnv) {
-        throw new Error('当前环境不支持微信登录');
-      }
-      
-      console.log('📞 获取微信登录凭证...');
-      
-      // 并行执行：获取登录code和用户信息（如果需要）
-      const loginPromise = WeChatUtils.login({ timeout: 5000 }); // 缩短超时时间
-      const userInfoPromise = options.skipUserInfo ? Promise.resolve(null) : 
-        WeChatUtils.getUserProfile({ desc: '用于完善用户资料和提供个性化服务' })
-          .catch(error => {
-            console.warn('⚠️ 获取用户信息失败，继续登录流程:', error.message);
-            return null; // 失败时返回null，不阻断流程
-          });
-      
-      // 等待两个操作完成
-      const [loginResult, userInfo] = await Promise.all([loginPromise, userInfoPromise]);
-      
-      if (!loginResult?.code) {
-        console.error('❌ 未获取到微信登录凭证');
-        throw new Error('获取微信登录凭证失败');
-      }
-      
-      console.log('📱 获取凭证成功，code长度:', loginResult.code.length);
-      
-      // 构建登录数据
-      const wechatLoginData = { code: loginResult.code };
-      if (userInfo) {
-        console.log('✅ 用户信息已获取:', userInfo.nickName || '未知用户');
-        wechatLoginData.userInfo = userInfo;
-      }
-      
-      console.log('🔐 发送登录请求到后端...');
-      const response = await WeChatUtils.wechatLogin(wechatLoginData);
-      
-      console.log('✅ 登录完成:', response.isNewUser ? '新用户' : '老用户');
-      
-      // 隐藏加载弹窗
-      WeChatUtils.hideLoading();
-      
-      // 快速构建返回结果 - 不包含提示信息
-      const result = {
-        ...response
-      };
-      
-      if (response.isNewUser) {
-        result.needCompleteProfile = !userInfo;
-      } else {
-        result.userInfoUpdated = !!userInfo;
-      }
-      
-      return result;
+        console.log('🚀 开始智能微信登录流程...');
+        const isCloudEnabled = CLOUD_CONFIG.enabled && WeChatUtils.isWeChatMiniProgram() && typeof wx !== 'undefined' && wx.cloud;
+        console.log(`当前登录模式: ${isCloudEnabled ? '☁️ 云托管' : '🌐 HTTP'}`);
+
+        // 1. 获取用户信息（可选，并行执行）
+        const userInfoPromise = options.skipUserInfo ? Promise.resolve(null) :
+            WeChatUtils.getUserProfile({ desc: '用于完善用户资料' })
+            .catch(error => {
+                console.warn('⚠️ 获取用户信息失败，将继续无用户信息登录:', error.message);
+                return null; // 失败时返回null，不阻断流程
+            });
+            
+        // 2. 获取登录凭证
+        // 在云托管模式下，虽然后端不需要code，但前端调用wx.login()可以刷新session，是推荐做法
+        const loginPromise = WeChatUtils.login({ timeout: 5000 });
+
+        const [userInfo, loginResult] = await Promise.all([userInfoPromise, loginPromise]);
+
+        if (!isCloudEnabled && !loginResult?.code) {
+            throw new Error('获取微信登录凭证(code)失败');
+        }
+
+        // 3. 构建登录数据并调用后端
+        const wechatLoginData = {};
+        if (loginResult?.code) {
+            wechatLoginData.code = loginResult.code; // 仅在HTTP模式下需要
+        }
+        if (userInfo) {
+            console.log('✅ 用户信息已获取:', userInfo.nickName || '未知用户');
+            wechatLoginData.userInfo = userInfo;
+        }
+
+        console.log('🔐 发送登录请求到后端...');
+        const response = await WeChatUtils.wechatLogin(wechatLoginData);
+
+        console.log('✅ 登录完成:', response.isNewUser ? '新用户' : '老用户');
+
+        // 隐藏加载弹窗
+        WeChatUtils.hideLoading();
+
+        // 快速构建返回结果
+        const result = { ...response };
+        if (response.isNewUser) {
+            result.needCompleteProfile = !userInfo;
+        } else {
+            result.userInfoUpdated = !!userInfo;
+        }
+
+        return result;
     } catch (error) {
       console.error('❌ 智能微信登录失败:', error.message);
       
