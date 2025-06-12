@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 定义日志输出目录，支持环境变量覆盖 -->
-    <!-- Mac/Linux: 使用用户目录下的logs文件夹，Windows: 使用临时目录 -->
-    <property name="LOG_HOME" value="${LOG_PATH:-${user.home}/logs/reminder}"/>
-    
     <!-- 定义日志格式 -->
     <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"/>
     
@@ -13,23 +9,6 @@
             <pattern>${LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
         </encoder>
-    </appender>
-    
-    <!-- 按小时滚动的文件输出 - 所有日志 -->
-    <appender name="FILE_ALL" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/reminder-core.log</file>
-        <encoder>
-            <pattern>${LOG_PATTERN}</pattern>
-            <charset>UTF-8</charset>
-        </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- 按小时滚动 -->
-            <fileNamePattern>${LOG_HOME}/reminder-core.%d{yyyy-MM-dd-HH}.log</fileNamePattern>
-            <!-- 保存30天，每天24小时，共720个文件 -->
-            <maxHistory>720</maxHistory>
-            <!-- 总日志大小限制为10GB -->
-            <totalSizeCap>10GB</totalSizeCap>
-        </rollingPolicy>
     </appender>
     
     <!-- Spring框架日志 -->
@@ -44,7 +23,6 @@
     
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="FILE_ALL"/>
     </root>
     
 </configuration> 

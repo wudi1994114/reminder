@@ -111,3 +111,25 @@ reminder:
       years-after: 1
       # 是否在启动时异步预加载（true=异步，false=同步）
       async-preload: false
+
+# 微信小程序配置
+wechat:
+  miniprogram:
+    # 小程序AppID
+    appid: wx597f8aaca581205f
+    # 小程序AppSecret
+    secret: b70c1fd582a6f6d66e8dc1e2e436d023
+    # 微信API基础URL
+    api-base-url: https://api.weixin.qq.com
+    # 获取session_key的URL路径
+    jscode2session-url: /sns/jscode2session
+    # 连接超时时间（毫秒）
+    connect-timeout: 5000
+    # 读取超时时间（毫秒）
+    read-timeout: 10000
+  # 微信通知配置
+  notification:
+    # 订阅消息模板ID
+    template-id: VXTd9P8DUPpM0aM-nLSHSkDC9KTUolBNhkAHV7UkqxQ
+    # 默认跳转页面
+    page: index
