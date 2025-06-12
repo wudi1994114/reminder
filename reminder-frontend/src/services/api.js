@@ -131,7 +131,9 @@ export const getAllComplexReminders = () => apiClient.get('/reminders/complex');
 export const getComplexReminderById = (id) => apiClient.get(`/reminders/complex/${id}`);
 export const createComplexReminder = (reminder) => apiClient.post('/reminders/complex', reminder);
 export const updateComplexReminder = (id, reminder) => apiClient.put(`/reminders/complex/${id}`, reminder);
-export const deleteComplexReminder = (id) => apiClient.delete(`/reminders/complex/${id}`);
+export const deleteComplexReminder = (id) => {
+    return apiClient.delete(`/complex-reminders/${id}`);
+};
 
 /**
  * 获取指定年份范围的法定节假日
@@ -169,6 +171,15 @@ export const getSolarTermsByMonth = async (year, month) => {
     return await apiClient.get(`/solarterms`, {
         params: { year, month }
     });
+};
+
+// --- 用户偏好设置相关的API调用 ---
+export const getUserPreferences = () => {
+    return apiClient.get('/user/preferences');
+};
+
+export const updateUserPreferences = (preferences) => {
+    return apiClient.put('/user/preferences', preferences);
 };
 
 export default apiClient; 

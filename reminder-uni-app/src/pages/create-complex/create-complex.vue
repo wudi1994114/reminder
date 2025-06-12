@@ -227,7 +227,8 @@
 import { 
   createComplexReminder, 
   updateComplexReminder, 
-  getComplexReminderById 
+  getComplexReminderById,
+  smartRequestSubscribe
 } from '../../services/api';
 import { reminderState } from '../../services/store';
 import { DateFormatter } from '../../utils/dateFormat';
@@ -808,11 +809,57 @@ export default {
     },
     
     // 保存提醒
-    saveReminder() {
+    async saveReminder() {
       if (!this.validateForm()) {
         return;
       }
       
+      // 检查是否需要请求微信订阅权限
+      if (this.needWechatSubscribe()) {
+        try {
+          console.log('📱 需要请求微信订阅权限');
+          const subscribeResult = await smartRequestSubscribe({
+            showToast: false  // 不显示自动提示，由我们控制
+          });
+          
+          if (!subscribeResult.success || !subscribeResult.granted) {
+            console.log('⚠️ 微信订阅权限获取失败，无法使用微信提醒');
+            uni.showModal({
+              title: '无法使用微信提醒',
+              content: '需要微信订阅权限才能发送微信提醒。您可以选择其他提醒方式或重新授权。',
+              confirmText: '继续保存',
+              cancelText: '取消',
+              success: (res) => {
+                if (res.confirm) {
+                  // 用户选择继续保存，将提醒方式改为邮件
+                  this.reminderData.reminderType = 'EMAIL';
+                  this.reminderTypeIndex = 0;
+                  console.log('🔄 已将提醒方式改为邮件');
+                  // 继续保存流程
+                  this.proceedWithSave();
+                }
+              }
+            });
+            return;
+          }
+          console.log('✅ 微信订阅权限获取成功');
+        } catch (error) {
+          console.error('❌ 请求微信订阅权限失败:', error);
+          uni.showToast({
+            title: '无法获取微信权限，请重试',
+            icon: 'none',
+            duration: 3000
+          });
+          return;
+        }
+      }
+      
+      // 执行保存流程
+      this.proceedWithSave();
+    },
+
+    // 继续保存流程
+    proceedWithSave() {
       // 显示确认弹窗
       uni.showModal({
         title: '确认保存',
@@ -1441,13 +1488,44 @@ export default {
       this.updatePreview();
     },
     
+    // 检查是否需要请求微信订阅权限
+    needWechatSubscribe() {
+      // 只有微信小程序环境才需要检查
+      // #ifdef MP-WEIXIN
+      // 如果提醒方式不是微信，则不需要
+      if (this.reminderData.reminderType !== 'WECHAT_MINI') {
+        return false;
+      }
+      
+      // 检查登录类型
+      const loginType = uni.getStorageSync('loginType');
+      
+      // 如果是微信登录用户，无需重复请求订阅权限
+      if (loginType === 'wechat') {
+        console.log('🔍 用户已通过微信登录，无需重复请求订阅权限');
+        return false;
+      }
+      
+      console.log('🔍 非微信登录用户选择微信提醒，需要请求订阅权限');
+      return true;
+      // #endif
+      // #ifndef MP-WEIXIN
+      return false;
+      // #endif
+    },
+
     // 显示提醒方式选择器
     showReminderTypeSelector() {
       uni.showActionSheet({
         itemList: this.reminderTypeOptions,
         success: (res) => {
+          const selectedType = this.reminderTypeValues[res.tapIndex];
+          
+          // 直接设置提醒方式，不在选择时请求权限
           this.reminderTypeIndex = res.tapIndex;
-          this.reminderData.reminderType = this.reminderTypeValues[res.tapIndex];
+          this.reminderData.reminderType = selectedType;
+          
+          console.log('提醒方式已设置为:', selectedType);
         }
       });
     },

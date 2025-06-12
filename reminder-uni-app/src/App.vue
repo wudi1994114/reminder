@@ -1,11 +1,10 @@
 <script>
-import { getUserProfile } from './services/api';
-import { userState, saveUserInfo } from './services/store';
+import { UserService } from './services/userService';
 
 export default {
   onLaunch: function () {
     console.log('App Launch');
-    this.checkLogin();
+    this.initUserService();
   },
   onShow: function () {
     console.log('App Show');
@@ -14,33 +13,30 @@ export default {
     console.log('App Hide');
   },
   methods: {
-    async checkLogin() {
-      const token = uni.getStorageSync('accessToken');
-      
-      if (token) {
-        try {
-          // 获取用户信息
-          const userInfo = await getUserProfile();
-          if (userInfo) {
-            saveUserInfo(userInfo);
-          }
-        } catch (error) {
-          console.error('获取用户信息失败:', error);
-          // 清除无效的token
-          uni.removeStorageSync('accessToken');
-          userState.isAuthenticated = false;
-          userState.user = null;
-          
-          // 跳转到登录页面
+    async initUserService() {
+      try {
+        console.log('🚀 App: 初始化用户服务');
+        const success = await UserService.init();
+        
+        if (success) {
+          console.log('✅ App: 用户服务初始化成功，用户已登录');
+        } else {
+          console.log('📝 App: 用户未登录，跳转到登录页');
+          // 延迟跳转，确保应用完全启动
+          setTimeout(() => {
+            uni.reLaunch({
+              url: '/pages/login/login'
+            });
+          }, 100);
+        }
+      } catch (error) {
+        console.error('❌ App: 用户服务初始化失败:', error);
+        // 初始化失败，跳转到登录页
+        setTimeout(() => {
           uni.reLaunch({
             url: '/pages/login/login'
           });
-        }
-      } else {
-        // 无token时跳转到登录页
-        uni.reLaunch({
-          url: '/pages/login/login'
-        });
+        }, 100);
       }
     }
   }

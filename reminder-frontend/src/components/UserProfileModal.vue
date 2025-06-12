@@ -19,14 +19,41 @@ const emit = defineEmits(['close', 'save-profile']);
 // Local state for the form, initialized/updated via watcher
 const formData = ref({});
 
+// Validation rules
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phoneRegex = /^1[3-9]\d{9}$/;
+
 // Watch the currentUserData prop to reset the form when the modal opens/data changes
 watch(() => props.currentUserData, (newData) => {
     // Deep copy to avoid modifying the prop directly
     formData.value = JSON.parse(JSON.stringify(newData));
 }, { deep: true, immediate: true });
 
+// Validation function
+function validateForm() {
+  if (!formData.value.nickname || !formData.value.nickname.trim()) {
+    alert('昵称不能为空');
+    return false;
+  }
+
+  if (formData.value.email && !emailRegex.test(formData.value.email)) {
+    alert('请输入有效的邮箱地址');
+    return false;
+  }
+
+  if (formData.value.phone && !phoneRegex.test(formData.value.phone)) {
+    alert('请输入有效的手机号码');
+    return false;
+  }
+
+  return true;
+}
+
 // Submit handler
 function submitForm() {
+  if (!validateForm()) {
+    return;
+  }
   // Emit the current form data for saving
   emit('save-profile', formData.value);
 }
@@ -43,21 +70,21 @@ function closeModal() {
       <h2>编辑个人资料</h2>
       <form @submit.prevent="submitForm">
         <div class="form-group">
-          <label for="profileUsername">用户名:</label>
+          <label for="profileUsername">昵称:</label>
           <!-- Use nickname from currentUserData as username -->
-          <input type="text" id="profileUsername" v-model="formData.nickname"> 
+          <input type="text" id="profileUsername" v-model="formData.nickname" placeholder="请输入昵称"> 
         </div>
         <div class="form-group">
           <label for="profileAvatar">头像 URL:</label>
-          <input type="url" id="profileAvatar" v-model="formData.avatarUrl">
+          <input type="url" id="profileAvatar" v-model="formData.avatarUrl" placeholder="请输入头像URL">
         </div>
         <div class="form-group">
           <label for="profileEmail">邮箱:</label>
-          <input type="email" id="profileEmail" :value="formData.email" disabled>
+          <input type="email" id="profileEmail" v-model="formData.email" placeholder="请输入邮箱地址">
         </div>
         <div class="form-group">
           <label for="profilePhone">手机号:</label>
-          <input type="tel" id="profilePhone" v-model="formData.phone">
+          <input type="tel" id="profilePhone" v-model="formData.phone" placeholder="请输入手机号码">
         </div>
         <!-- Add other editable profile fields from currentUserData if needed -->
         <div class="modal-actions">

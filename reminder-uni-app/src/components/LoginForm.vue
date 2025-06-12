@@ -52,15 +52,16 @@
       <text class="link" @click="onForgotPassword">忘记密码?</text>
       <text class="link" @click="onRegister">注册账号</text>
     </view>
+    
+
   </view>
 </template>
 
 <script>
 import { ref, reactive, computed } from 'vue';
-import { login } from '../services/api';
+import { login, isWeChatMiniProgram, smartWechatLogin } from '../services/api';
 import { isValidEmail } from '../utils/helpers';
-import { userState, saveUserInfo } from '../services/store';
-import WeChatUtils from '../utils/wechat';
+import { UserService, userState } from '../services/userService';
 
 export default {
   emits: ['register', 'forgot-password', 'login-success'],
@@ -88,11 +89,17 @@ export default {
         loading.value = true;
         errorMsg.value = '';
         
+        // 添加调试日志
+        console.log('📝 LoginForm - form数据:', JSON.stringify(form, null, 2));
+        
         // 构建登录请求数据
         const loginData = {
           username: form.username,
           password: form.password
         };
+        
+        // 添加调试日志
+        console.log('📦 LoginForm - 构建的loginData:', JSON.stringify(loginData, null, 2));
         
         // 调用登录API
         const response = await login(loginData);
@@ -108,16 +115,21 @@ export default {
           user = response.user || response.userDetails || response.principal;
         }
         
-        // 保存Token
+        // 保存Token和用户信息
         if (token) {
-          uni.setStorageSync('accessToken', `Bearer ${token}`);
+          // 构造登录响应对象
+          const loginResponse = {
+            accessToken: token,
+            user: user
+          };
           
-          // 保存用户信息
-          // saveUserInfo 应该能处理 user 为 null 或 undefined 的情况
-          saveUserInfo(user); 
+          // 使用用户服务处理登录成功，标记为普通登录
+          const userInfo = await UserService.onLoginSuccess(loginResponse, 'normal');
+          
+          console.log('✅ LoginForm: 普通登录处理完成，用户信息:', userInfo);
           
           // 通知登录成功
-          emit('login-success', user); // 传递获取到的用户信息
+          emit('login-success', userInfo);
           
           // 跳转到首页
           uni.switchTab({
@@ -158,7 +170,7 @@ export default {
     };
 
     // 检查是否为微信小程序环境
-    const isWeChatMiniProgram = WeChatUtils.isWeChatMiniProgram();
+    const isWeChatEnv = isWeChatMiniProgram();
 
     // 微信登录处理
     const handleWechatLogin = async () => {
@@ -166,31 +178,44 @@ export default {
         wechatLoading.value = true;
         errorMsg.value = '';
 
-        console.log('开始微信登录...');
+        console.log('🚀 LoginForm: 开始微信登录...');
+        console.log('🔍 LoginForm: 环境检查:', {
+          isWeChatEnv: isWeChatEnv,
+          hasSmartWechatLogin: typeof smartWechatLogin === 'function'
+        });
 
         // 使用智能微信登录流程（自动判断是否需要获取用户信息）
-        const response = await WeChatUtils.smartWechatLogin();
+        const response = await smartWechatLogin();
 
-        console.log('微信登录完成，响应:', response);
+        console.log('✅ LoginForm: 微信登录完成，响应:', JSON.stringify(response, null, 2));
 
         if (response && response.accessToken) {
-          // 保存token和用户信息
-          uni.setStorageSync('accessToken', `Bearer ${response.accessToken}`);
+          // 使用用户服务处理登录成功，标记为微信登录
+          const userInfo = await UserService.onLoginSuccess(response, 'wechat');
           
-          const userInfo = {
-            id: response.userId,
-            username: response.nickname || '微信用户',
-            nickname: response.nickname,
-            avatar: response.avatarUrl,
-            loginType: 'wechat',
-            isNewUser: response.isNewUser
-          };
-          
-          saveUserInfo(userInfo);
+          console.log('✅ LoginForm: 微信登录处理完成，用户信息:', userInfo);
 
-          // 显示登录成功提示（使用返回的消息）
+          // 如果是新用户且需要完善资料，标记状态
+          if (response.isNewUser && response.needCompleteProfile) {
+            console.log('🆕 新用户需要完善资料，标记状态');
+            
+            // 在本地存储中标记需要完善资料
+            uni.setStorageSync('needCompleteProfile', {
+              isNewUser: true,
+              userInfo: {
+                nickname: response.nickname || '',
+                avatarUrl: response.avatarUrl || '',
+                email: response.email || '',
+                phone: response.phone || response.phoneNumber || ''
+              }
+            });
+          } else if (response.isNewUser) {
+            console.log('🎉 新用户信息已完整，无需额外完善');
+          }
+
+          // 显示登录成功提示
           uni.showToast({
-            title: response.message || (response.isNewUser ? '注册成功' : '登录成功'),
+            title: response.message || (response.needCompleteProfile ? '注册成功' : '登录成功'),
             icon: 'success',
             duration: 2000
           });
@@ -241,7 +266,7 @@ export default {
       wechatLoading,
       errorMsg,
       isValid,
-      isWeChatMiniProgram,
+      isWeChatMiniProgram: isWeChatEnv,
       validateForm,
       handleLogin,
       handleWechatLogin,

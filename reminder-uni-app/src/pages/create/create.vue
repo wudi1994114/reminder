@@ -73,7 +73,7 @@
 
 <script>
 import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick } from 'vue';
-import { createEvent, updateEvent, getSimpleReminderById } from '../../services/api';
+import { createEvent, updateEvent, getSimpleReminderById, smartRequestSubscribe } from '../../services/api';
 
 export default {
   onLoad(options) {
@@ -267,6 +267,52 @@ export default {
         return;
       }
       
+      // 检查是否需要请求微信订阅权限
+      if (needWechatSubscribe()) {
+        try {
+          console.log('📱 需要请求微信订阅权限');
+          const subscribeResult = await smartRequestSubscribe({
+            showToast: false  // 不显示自动提示，由我们控制
+          });
+          
+          if (!subscribeResult.success || !subscribeResult.granted) {
+            console.log('⚠️ 微信订阅权限获取失败，无法使用微信提醒');
+            uni.showModal({
+              title: '无法使用微信提醒',
+              content: '需要微信订阅权限才能发送微信提醒。您可以选择其他提醒方式或重新授权。',
+              confirmText: '继续保存',
+              cancelText: '取消',
+              success: (res) => {
+                if (res.confirm) {
+                  // 用户选择继续保存，将提醒方式改为邮件
+                  reminderForm.reminderType = 'EMAIL';
+                  reminderTypeIndex.value = 0;
+                  console.log('🔄 已将提醒方式改为邮件');
+                  // 继续保存流程
+                  performSave();
+                }
+              }
+            });
+            return;
+          }
+          console.log('✅ 微信订阅权限获取成功');
+        } catch (error) {
+          console.error('❌ 请求微信订阅权限失败:', error);
+          uni.showToast({
+            title: '无法获取微信权限，请重试',
+            icon: 'none',
+            duration: 3000
+          });
+          return;
+        }
+      }
+      
+      // 执行保存
+      await performSave();
+    };
+    
+    // 抽取保存逻辑为独立函数
+    const performSave = async () => {
       isSubmitting.value = true;
       try {
         let result;
@@ -299,34 +345,85 @@ export default {
             duration: 500
           });
           
-          console.log('保存成功，1.5秒后返回');
+          console.log('保存成功，0.5秒后返回');
           
           setTimeout(() => {
             console.log('创建页面: 准备返回日历页面');
-            uni.navigateBack();
-          }, 500);
+            // 检查页面栈，如果只有一个页面则跳转到首页，否则返回上一页
+            const pages = getCurrentPages();
+            if (pages.length <= 1) {
+              console.log('当前是第一个页面，跳转到首页');
+              uni.reLaunch({
+                url: '/pages/index/index'
+              });
+            } else {
+              console.log('返回上一页');
+              uni.navigateBack();
+            }
+          }, 1500);
         } else {
            // API已在内部处理错误提示，这里可以不重复提示
         }
       } catch (error) {
         console.error('保存失败:', error);
         // API已在内部处理错误提示
-      } finally {
+              } finally {
         isSubmitting.value = false;
       }
     };
     
     const cancel = () => {
-      uni.navigateBack();
+      // 检查页面栈，如果只有一个页面则跳转到首页，否则返回上一页
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        console.log('取消操作: 当前是第一个页面，跳转到首页');
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        console.log('取消操作: 返回上一页');
+        uni.navigateBack();
+      }
     };
     
+    // 检查是否需要请求微信订阅权限
+    const needWechatSubscribe = () => {
+      // 只有微信小程序环境才需要检查
+      // #ifdef MP-WEIXIN
+      // 如果提醒方式不是微信，则不需要
+      if (reminderForm.reminderType !== 'WECHAT_MINI') {
+        return false;
+      }
+      
+      // 检查登录类型
+      const loginType = uni.getStorageSync('loginType');
+      
+      // 如果是微信登录用户，无需重复请求订阅权限
+      if (loginType === 'wechat') {
+        console.log('🔍 用户已通过微信登录，无需重复请求订阅权限');
+        return false;
+      }
+      
+      console.log('🔍 非微信登录用户选择微信提醒，需要请求订阅权限');
+      return true;
+      // #endif
+      // #ifndef MP-WEIXIN
+      return false;
+      // #endif
+    };
+
     // 新增方法：显示提醒方式选择器
     const showReminderTypeSelector = () => {
       uni.showActionSheet({
         itemList: reminderTypeOptions,
         success: (res) => {
+          const selectedType = reminderTypeValues[res.tapIndex];
+          
+          // 直接设置提醒方式，不在选择时请求权限
           reminderTypeIndex.value = res.tapIndex;
-          reminderForm.reminderType = reminderTypeValues[res.tapIndex];
+          reminderForm.reminderType = selectedType;
+          
+          console.log('提醒方式已设置为:', selectedType);
         }
       });
     };
@@ -362,6 +459,8 @@ export default {
       getReminderTypeIcon,
       getReminderTypeText: getReminderTypeTextUpdated,
       saveReminder,
+      performSave,
+      needWechatSubscribe,
       cancel,
       showReminderTypeSelector
     };

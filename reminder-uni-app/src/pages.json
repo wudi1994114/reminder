@@ -5,6 +5,7 @@
 			"^login-form": "@/components/LoginForm.vue",
 			"^confirm-dialog": "@/components/ConfirmDialog.vue",
 			"^confirm-modal": "@/components/ConfirmModal.vue",
+			"^picker-modal": "@/components/PickerModal.vue",
 			"^cron-expression-picker": "@/components/CronExpressionPicker.vue",
 			"^datetime-picker": "@/components/datetime-picker/datetime-picker.vue",
 			"^trigger-preview": "@/components/trigger-preview/trigger-preview.vue",
@@ -71,6 +72,19 @@
 			"path": "pages/settings/about",
 			"style": {
 				"navigationBarTitleText": "关于应用"
+			}
+		},
+		{
+			"path": "pages/settings/notification",
+			"style": {
+				"navigationBarTitleText": "提醒设置",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/settings/test-preferences",
+			"style": {
+				"navigationBarTitleText": "API测试"
 			}
 		}
 	],

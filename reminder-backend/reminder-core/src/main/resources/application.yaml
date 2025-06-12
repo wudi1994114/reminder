@@ -82,8 +82,8 @@ logging:
 # Generate one using: `openssl rand -base64 64` or similar secure method.
 app:
   jwtSecret: VGhpcyBpcyBhIHZlcnkgc2VjdXJlLCBzdHJvbmcsIGFuZCBzZWNyZXQga2V5IHRoYXQgc2hvdWxkIGJlIG11Y2ggbG9uZ2VyIGFuZCBiZXR0ZXIgZm9yIHByb2R1Y3Rpb24hCg==
-  # JWT expiration time in milliseconds (e.g., 1 hour = 3600000, 1 day = 86400000)
-  jwtExpirationInMs: 86400000
+  # JWT expiration time in milliseconds (e.g., 1 hour = 3600000, 1 day = 86400000, 7 days = 604800000, 30 days = 2592000000)
+  jwtExpirationInMs: 2592000000
   # 前端应用URL，用于邮件中的链接
   frontend-url: http://123.57.175.66
 

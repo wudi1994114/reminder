@@ -2,11 +2,13 @@ package com.task.reminder.job;
 
 import com.common.reminder.constant.CacheKeyEnum;
 import com.common.reminder.dto.UserProfileDto;
+import com.common.reminder.dto.UserNotificationProfileDto;
 import com.common.reminder.model.ReminderExecutionHistory;
 import com.common.reminder.model.SimpleReminder;
 import com.task.reminder.repository.ReminderExecutionHistoryRepository;
 import com.task.reminder.sender.EmailSender;
-import com.task.reminder.sender.GmailSender;
+import com.task.reminder.sender.NotificationSender;
+import com.task.reminder.sender.NotificationSenderFactory;
 import com.task.reminder.service.UserCacheService;
 import com.common.reminder.utils.JacksonUtils;
 import com.task.reminder.utils.RedisUtils;
@@ -22,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -74,6 +77,9 @@ public class SendReminderJob implements Job {
     private EmailSender emailSender;
     
     @Autowired
+    private NotificationSenderFactory notificationSenderFactory;
+    
+    @Autowired
     private UserCacheService userCacheService;
     
     @Autowired
@@ -118,80 +124,7 @@ public class SendReminderJob implements Job {
                 if (reminderJson != null) {
                     // 为每个提醒创建异步任务，并提交到线程池执行
                     CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                        SimpleReminder reminder = null;
-                        UserProfileDto userProfile = null;
-                        String status = "FAILURE"; // 默认状态为失败
-                        String details = "";
-                        Long parsedReminderId = null; // 用于在 reminder 对象解析失败时，从字符串尝试获取的 ID
-
-                        try {
-                            // 尝试从字符串解析ID，以备后用
-                            try { parsedReminderId = Long.parseLong(reminderIdStr); } catch (NumberFormatException nfe) { /* ignore, will log later if needed */ }
-
-                            reminder = JacksonUtils.fromJson(reminderJson, SimpleReminder.class);
-                            if (reminder == null || reminder.getId() == null) {
-                                String errorMsg = "提醒数据解析失败或ID为空: " + reminderJson;
-                                log.error(errorMsg);
-                                details = errorMsg;
-                                saveHistory(null, null, "SIMPLE", parsedReminderId, null, null, "EMAIL", null, "FAILURE", details, reminderJson, parsedReminderId, OffsetDateTime.now());
-                                return;
-                            }
-                            // 如果 reminder 解析成功，优先使用 reminder.getId()
-                            parsedReminderId = reminder.getId(); 
-
-                            log.info("正在处理提醒 - ID:{}, 标题:{}, 目标用户ID:{}", 
-                                reminder.getId(), reminder.getTitle(), reminder.getToUserId());
-
-                            if (emailSender != null && userCacheService != null && reminder.getToUserId() != null) {
-                                try {
-                                    userProfile = userCacheService.getUserProfileById(reminder.getToUserId()); 
-                                } catch (Exception e) {
-                                    String errorMsg = "获取用户信息失败 (ID: " + reminder.getToUserId() + ") - 提醒ID: " + reminder.getId() + ", 错误: " + e.getMessage();
-                                    log.error(errorMsg);
-                                    details = errorMsg;
-                                }
-
-                                if (userProfile != null && userProfile.getEmail() != null && !userProfile.getEmail().isEmpty()) {
-                                    try {
-                                        String emailSubject = reminder.getTitle();
-                                        String emailBody = this.createHtmlContent(emailSubject, reminder.getDescription(), time);
-                                        emailSender.sendHtmlEmail(userProfile.getEmail(), emailSubject, emailBody);
-                                        status = "SUCCESS";
-                                        details = "邮件提醒已成功发送至 " + userProfile.getEmail();
-                                        log.info("邮件提醒已成功发送至 {} (用户ID: {}) - 提醒ID: {}", userProfile.getEmail(), reminder.getToUserId(), reminder.getId());
-                                    } catch (Exception mailEx) {
-                                        String errorMsg = "发送邮件提醒失败 - 提醒ID: " + reminder.getId() + ", 用户ID: " + reminder.getToUserId() + ", 邮箱: " + userProfile.getEmail() + ", 错误: " + mailEx.getMessage();
-                                        log.error(errorMsg);
-                                        details = errorMsg;
-                                    }
-                                } else {
-                                    if (userProfile == null && reminder.getToUserId() != null) { // 检查 toUserId 是否存在以避免 NPE
-                                        details = "未能获取到用户信息 (ID: " + reminder.getToUserId() + ")，无法发送邮件提醒";
-                                    } else if (reminder.getToUserId() == null) {
-                                        details = "提醒的接收用户ID (toUserId) 为空，无法发送邮件";
-                                    } else { // userProfile is not null, but email is null or empty
-                                        details = "用户邮箱为空 (ID: " + reminder.getToUserId() + ")，无法发送邮件提醒";
-                                    }
-                                    log.warn("{}, 提醒ID: {}",details, reminder.getId());
-                                }
-                            } else {
-                                String missingComponent = "";
-                                if (emailSender == null) missingComponent += "GmailSender未注入; ";
-                                if (userCacheService == null) missingComponent += "UserCacheService未注入; ";
-                                if (reminder.getToUserId() == null) missingComponent += "接收用户ID为空; ";
-                                details = "无法发送邮件提醒，前置条件不足: " + missingComponent.trim();
-                                log.warn("{}, 提醒ID: {}, 标题: {}", details, reminder.getId(), reminder.getTitle());
-                            }
-                        } catch (Exception e) { // Catch-all for other unexpected errors during processing
-                            String errorMsg = "发送提醒处理时发生未知错误 - 原始提醒ID字符串:" + reminderIdStr + ", 解析后ID(如成功):" + (parsedReminderId != null ? parsedReminderId : "N/A") + ", 错误: " + e.getMessage();
-                            log.error(errorMsg, e);
-                            details = errorMsg;
-                            // status 默认为 FAILURE
-                        } finally {
-                            // 确保 parsedReminderId 被正确传递，即使 reminder 对象是 null
-                            Long finalIdForHistory = (reminder != null && reminder.getId() != null) ? reminder.getId() : parsedReminderId;
-                            saveHistory(reminder, userProfile, "SIMPLE", finalIdForHistory, status, details, OffsetDateTime.now());
-                        }
+                        processReminder(reminderIdStr, reminderJson, time);
                     }, reminderExecutor);
                     
                     // 将异步任务添加到列表中，用于后续等待所有任务完成
@@ -250,6 +183,251 @@ public class SendReminderJob implements Job {
     @PreDestroy
     public void preDestroy() {
         shutdown();
+    }
+
+    /**
+     * 处理单个提醒的发送
+     * 
+     * @param reminderIdStr 提醒ID字符串
+     * @param reminderJson 提醒JSON数据
+     * @param time 当前时间字符串
+     */
+    private void processReminder(String reminderIdStr, String reminderJson, String time) {
+        SimpleReminder reminder = null;
+        UserNotificationProfileDto userProfile = null;
+        String status = "FAILURE"; // 默认状态为失败
+        String details = "";
+        String actualMethod = "UNKNOWN";
+        Long parsedReminderId = null; // 用于在 reminder 对象解析失败时，从字符串尝试获取的 ID
+
+        try {
+            // 尝试从字符串解析ID，以备后用
+            try { 
+                parsedReminderId = Long.parseLong(reminderIdStr); 
+            } catch (NumberFormatException nfe) { 
+                /* ignore, will log later if needed */ 
+            }
+
+            reminder = JacksonUtils.fromJson(reminderJson, SimpleReminder.class);
+            if (reminder == null || reminder.getId() == null) {
+                String errorMsg = "提醒数据解析失败或ID为空: " + reminderJson;
+                log.error(errorMsg);
+                details = errorMsg;
+                saveHistory(null, null, "SIMPLE", parsedReminderId, null, null, "UNKNOWN", null, "FAILURE", details, reminderJson, parsedReminderId, OffsetDateTime.now());
+                return;
+            }
+            // 如果 reminder 解析成功，优先使用 reminder.getId()
+            parsedReminderId = reminder.getId(); 
+
+            log.info("正在处理提醒 - ID:{}, 标题:{}, 目标用户ID:{}", 
+                reminder.getId(), reminder.getTitle(), reminder.getToUserId());
+
+            if (userCacheService != null && reminder.getToUserId() != null) {
+                try {
+                    userProfile = userCacheService.getUserNotificationProfileById(reminder.getToUserId()); 
+                } catch (Exception e) {
+                    String errorMsg = "获取用户通知配置失败 (ID: " + reminder.getToUserId() + ") - 提醒ID: " + reminder.getId() + ", 错误: " + e.getMessage();
+                    log.error(errorMsg);
+                    details = errorMsg;
+                }
+
+                if (userProfile != null) {
+                    // 根据提醒数据中的reminderType选择发送器
+                    String requiredSenderType = mapReminderTypeToSenderType(reminder.getReminderType());
+                    NotificationSender sender = notificationSenderFactory.getSender(requiredSenderType);
+                    
+                    if (sender != null) {
+                        // 检查用户是否有对应的接收方式
+                        String recipient = getRecipientForSender(sender, userProfile);
+                        if (recipient != null && sender.isValidRecipient(recipient)) {
+                            try {
+                                Object extraData = createExtraDataForSender(sender, reminder, time);
+                                
+                                boolean sendResult = sender.sendNotification(
+                                    recipient, 
+                                    reminder.getTitle(), 
+                                    reminder.getDescription(), 
+                                    extraData
+                                );
+                                
+                                if (sendResult) {
+                                    status = "SUCCESS";
+                                    actualMethod = sender.getSenderType();
+                                    details = String.format("%s通知已成功发送至 %s", 
+                                        sender.getSenderType(), maskRecipient(recipient));
+                                    log.info("{}通知已成功发送至 {} (用户ID: {}) - 提醒ID: {}", 
+                                        sender.getSenderType(), maskRecipient(recipient), reminder.getToUserId(), reminder.getId());
+                                } else {
+                                    actualMethod = sender.getSenderType();
+                                    details = String.format("发送%s通知失败 - 提醒ID: %d, 用户ID: %d, 接收者: %s", 
+                                        sender.getSenderType(), reminder.getId(), reminder.getToUserId(), maskRecipient(recipient));
+                                    log.error(details);
+                                }
+                            } catch (Exception sendEx) {
+                                actualMethod = sender.getSenderType();
+                                String errorMsg = String.format("发送%s通知异常 - 提醒ID: %d, 用户ID: %d, 错误: %s", 
+                                    sender.getSenderType(), reminder.getId(), reminder.getToUserId(), sendEx.getMessage());
+                                log.error(errorMsg);
+                                details = errorMsg;
+                            }
+                        } else {
+                            actualMethod = requiredSenderType;
+                            details = String.format("用户缺少%s通知所需的接收方式 - 用户ID: %d, 提醒类型: %s", 
+                                requiredSenderType, reminder.getToUserId(), reminder.getReminderType());
+                            log.warn("{}, 提醒ID: {}", details, reminder.getId());
+                        }
+                    } else {
+                        actualMethod = requiredSenderType;
+                        details = String.format("未找到%s类型的通知发送器 - 提醒ID: %d, 提醒类型: %s", 
+                            requiredSenderType, reminder.getId(), reminder.getReminderType());
+                        log.error(details);
+                    }
+                } else {
+                    if (reminder.getToUserId() != null) {
+                        details = "未能获取到用户通知配置 (ID: " + reminder.getToUserId() + ")，无法发送通知";
+                    } else {
+                        details = "提醒的接收用户ID (toUserId) 为空，无法发送通知";
+                    }
+                    log.warn("{}, 提醒ID: {}", details, reminder.getId());
+                }
+            } else {
+                String missingComponent = "";
+                if (userCacheService == null) missingComponent += "UserCacheService未注入; ";
+                if (reminder.getToUserId() == null) missingComponent += "接收用户ID为空; ";
+                details = "无法发送通知，前置条件不足: " + missingComponent.trim();
+                log.warn("{}, 提醒ID: {}, 标题: {}", details, reminder.getId(), reminder.getTitle());
+            }
+        } catch (Exception e) { // Catch-all for other unexpected errors during processing
+            String errorMsg = "发送提醒处理时发生未知错误 - 原始提醒ID字符串:" + reminderIdStr + 
+                ", 解析后ID(如成功):" + (parsedReminderId != null ? parsedReminderId : "N/A") + 
+                ", 错误: " + e.getMessage();
+            log.error(errorMsg, e);
+            details = errorMsg;
+            // status 默认为 FAILURE
+        } finally {
+            // 确保 parsedReminderId 被正确传递，即使 reminder 对象是 null
+            Long finalIdForHistory = (reminder != null && reminder.getId() != null) ? reminder.getId() : parsedReminderId;
+            saveHistoryWithMethod(reminder, userProfile, "SIMPLE", finalIdForHistory, actualMethod, status, details, OffsetDateTime.now());
+        }
+    }
+
+    /**
+     * 将ReminderType映射为发送器类型
+     */
+    private String mapReminderTypeToSenderType(com.common.reminder.model.ReminderType reminderType) {
+        if (reminderType == null) {
+            return "EMAIL"; // 默认使用邮件
+        }
+        
+        switch (reminderType) {
+            case EMAIL:
+                return "EMAIL";
+            case SMS:
+                return "SMS"; // 如果将来实现SMS发送器
+            case WECHAT_MINI:
+                return "WECHAT";
+            default:
+                log.warn("未知的提醒类型: {}, 使用默认邮件发送", reminderType);
+                return "EMAIL";
+        }
+    }
+
+    /**
+     * 根据发送器类型获取对应的接收者信息
+     */
+    private String getRecipientForSender(NotificationSender sender, UserNotificationProfileDto userProfile) {
+        switch (sender.getSenderType().toUpperCase()) {
+            case "EMAIL":
+                return userProfile.getEmail();
+            case "WECHAT":
+                return userProfile.getWechatOpenid();
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 根据发送器类型创建额外数据
+     */
+    private Object createExtraDataForSender(NotificationSender sender, SimpleReminder reminder, String time) {
+        switch (sender.getSenderType().toUpperCase()) {
+            case "EMAIL":
+                return createHtmlContent(reminder.getTitle(), reminder.getDescription(), time);
+            case "WECHAT":
+                // 为微信创建模板消息数据
+                Map<String, Object> wechatData = new HashMap<>();
+                wechatData.put("thing2", createWechatDataItem(reminder.getTitle()));
+                wechatData.put("thing11", createWechatDataItem(reminder.getDescription()));
+                wechatData.put("date4", createWechatDataItem(time));
+                return wechatData;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 创建微信模板消息数据项
+     */
+    private Map<String, String> createWechatDataItem(String value) {
+        Map<String, String> item = new HashMap<>();
+        item.put("value", value != null ? value : "");
+        return item;
+    }
+
+    /**
+     * 掩码接收者信息（用于日志）
+     */
+    private String maskRecipient(String recipient) {
+        if (recipient == null || recipient.length() <= 6) {
+            return recipient;
+        }
+        return recipient.substring(0, 3) + "***" + recipient.substring(recipient.length() - 3);
+    }
+
+    /**
+     * 保存执行历史（包含实际发送方法）
+     */
+    private void saveHistoryWithMethod(SimpleReminder reminder, UserNotificationProfileDto userProfile, 
+                                     String triggerType, Long triggerId, String actualMethod, 
+                                     String status, String details, OffsetDateTime executedAt) {
+        if (historyRepository == null) {
+            log.error("ReminderExecutionHistoryRepository 未注入，无法保存执行历史！提醒ID (如存在): {}", triggerId);
+            return;
+        }
+        try {
+            ReminderExecutionHistory history = new ReminderExecutionHistory();
+            history.setExecutedAt(executedAt);
+            history.setTriggeringReminderType(triggerType);
+            history.setStatus(status);
+            history.setDetails(details);
+            history.setActualReminderMethod(actualMethod != null ? actualMethod : "UNKNOWN");
+
+            if (reminder != null) {
+                history.setTriggeringReminderId(reminder.getId());
+                history.setFromUserId(reminder.getFromUserId()); 
+                history.setToUserId(reminder.getToUserId());
+                history.setTitle(reminder.getTitle());
+                history.setDescription(reminder.getDescription());
+                history.setScheduledEventTime(reminder.getEventTime());
+            } else if (triggerId != null) { 
+                 history.setTriggeringReminderId(triggerId);
+                 // Set defaults for other fields if reminder is null
+                 history.setFromUserId(-1L); 
+                 history.setToUserId(-1L); 
+                 // title, description, scheduledEventTime will be null by default if not set
+            } else {
+                // Case where both reminder and triggerId are null (should be rare after parsing logic improvement)
+                history.setTriggeringReminderId(-1L); 
+                history.setFromUserId(-1L);
+                history.setToUserId(-1L);
+            }
+            
+            historyRepository.save(history);
+            log.info("提醒执行历史已保存 - 提醒ID: {}, 方法: {}, 状态: {}", 
+                    history.getTriggeringReminderId(), actualMethod, status);
+        } catch (Exception e) {
+            log.error("保存提醒执行历史失败 - 提醒ID: {}, 错误: {}", triggerId, e.getMessage(), e);
+        }
     }
 
     // 抽取保存历史记录的逻辑为一个私有方法

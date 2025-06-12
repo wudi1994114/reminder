@@ -491,3 +491,32 @@ COMMENT ON COLUMN user_activity_logs.execution_time_ms IS '操作执行时间（
 COMMENT ON COLUMN user_activity_logs.details IS '操作的详细信息，JSON格式存储';
 
 COMMENT ON COLUMN user_activity_logs.created_at IS '日志记录创建时间';
+
+-- 创建用户偏好设置表 (user_preference) - 键值对存储模式
+DROP TABLE IF EXISTS user_preference CASCADE;
+
+CREATE TABLE user_preference (
+    id BIGSERIAL PRIMARY KEY, -- 偏好设置唯一标识符，自增
+    user_id BIGINT NOT NULL, -- 用户ID，关联app_user表
+    key VARCHAR(100) NOT NULL, -- 偏好设置键名
+    value TEXT, -- 偏好设置值，存储为字符串
+    property VARCHAR(500), -- 偏好设置属性/描述（可选）
+    create_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 创建时间
+    modify_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL -- 修改时间
+);
+
+-- 创建索引
+CREATE INDEX idx_user_preference_user_id ON user_preference (user_id);
+
+-- 添加唯一约束，确保同一用户的同一键名只有一条记录
+CREATE UNIQUE INDEX idx_user_preference_unique_user_key ON user_preference (user_id, key);
+
+-- 表和字段注释
+COMMENT ON TABLE user_preference IS '用户偏好设置表，采用键值对存储模式';
+COMMENT ON COLUMN user_preference.id IS '偏好设置的唯一标识符 (主键)';
+COMMENT ON COLUMN user_preference.user_id IS '关联的用户ID';
+COMMENT ON COLUMN user_preference.key IS '偏好设置键名，如defaultReminderType、theme等';
+COMMENT ON COLUMN user_preference.value IS '偏好设置值，以字符串形式存储';
+COMMENT ON COLUMN user_preference.property IS '偏好设置的描述或额外属性信息';
+COMMENT ON COLUMN user_preference.create_at IS '记录创建时间';
+COMMENT ON COLUMN user_preference.modify_at IS '记录最后修改时间';

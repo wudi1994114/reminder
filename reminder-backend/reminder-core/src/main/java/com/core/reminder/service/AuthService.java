@@ -152,6 +152,11 @@ public class AuthService {
             needUpdate = true;
         }
         
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            user.setEmail(request.getEmail());
+            needUpdate = true;
+        }
+        
         if (request.getPhoneNumber() != null && !request.getPhoneNumber().equals(user.getPhoneNumber())) {
             user.setPhoneNumber(request.getPhoneNumber());
             needUpdate = true;

@@ -7,7 +7,7 @@
       </view>
       <view class="action-buttons">
         <button class="action-btn primary-btn" @click="handleCreateNew">
-          <text class="btn-text">新建提醒</text>
+          <text class="btn-text">{{ createButtonText }}</text>
         </button>
       </view>
     </view>
@@ -92,6 +92,17 @@
       <!-- 底部间距，为固定按钮留出空间 -->
       <view class="bottom-spacer"></view>
     </scroll-view>
+    
+    <!-- 用户信息完善弹窗 -->
+    <UserInfoModal
+      :visible="showUserInfoModal"
+      :initialUserInfo="newUserInfo"
+      :required="true"
+      :maskClosable="false"
+      @success="onUserInfoCompleted"
+      @cancel="onUserInfoSkipped"
+      @close="closeUserInfoModal"
+    />
   </view>
 </template>
 
@@ -101,12 +112,14 @@ import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as 
 import { reminderState } from '../../services/store';
 import SimpleReminderCard from '../../components/SimpleReminderCard.vue';
 import ComplexReminderCard from '../../components/ComplexReminderCard.vue';
+import UserInfoModal from '../../components/UserInfoModal.vue';
 
 export default {
   name: 'IndexPage',
   components: {
     SimpleReminderCard,
-    ComplexReminderCard
+    ComplexReminderCard,
+    UserInfoModal
   },
   onTabItemTap() {
     this.loadCurrentTabData();
@@ -125,6 +138,10 @@ export default {
     const loading = ref(false);
     const activeTab = ref('simple'); // 'simple' 或 'complex'
     
+    // 用户信息完善弹窗相关
+    const showUserInfoModal = ref(false);
+    const newUserInfo = ref({});
+    
     // 使用共享状态管理的即将到来的提醒数据
     const simpleReminders = computed(() => {
       return reminderState.upcomingReminders || [];
@@ -133,6 +150,11 @@ export default {
     // 复杂提醒数据 - 改为使用全局状态管理
     const complexReminders = computed(() => {
       return reminderState.complexReminders || [];
+    });
+    
+    // 动态按钮文本
+    const createButtonText = computed(() => {
+      return activeTab.value === 'simple' ? '新建简单提醒' : '新建复杂提醒';
     });
     
     // 加载当前标签页数据
@@ -153,10 +175,11 @@ export default {
         
         const result = await getUpcomingReminders();
         
-        if (result) {
+        // 确保result是数组才设置状态，否则设置为空数组
+        if (Array.isArray(result)) {
           reminderState.upcomingReminders = result;
         } else {
-          // 确保upcomingReminders始终是数组
+          console.warn('API返回的数据不是数组:', result);
           reminderState.upcomingReminders = [];
         }
       } catch (error) {
@@ -183,10 +206,12 @@ export default {
         
         const result = await getAllComplexReminders();
         
-        if (result) {
+        // 确保result是数组才设置状态，否则设置为空数组
+        if (Array.isArray(result)) {
           // 更新全局状态
           reminderState.complexReminders = result;
         } else {
+          console.warn('API返回的数据不是数组:', result);
           reminderState.complexReminders = [];
         }
       } catch (error) {
@@ -330,9 +355,77 @@ export default {
     
 
     
+    // 检查是否需要显示用户信息完善弹窗
+    const checkNeedCompleteProfile = () => {
+      const needCompleteData = uni.getStorageSync('needCompleteProfile');
+      if (needCompleteData && needCompleteData.isNewUser) {
+        console.log('🆕 检测到新用户需要完善资料，显示弹窗');
+        
+        // 设置用户信息
+        newUserInfo.value = needCompleteData.userInfo || {};
+        
+        // 显示弹窗
+        showUserInfoModal.value = true;
+        
+        // 清除标记，避免重复显示
+        uni.removeStorageSync('needCompleteProfile');
+      }
+    };
+    
+    // 用户信息完善成功
+    const onUserInfoCompleted = (data) => {
+      console.log('✅ 用户信息完善成功:', data);
+      
+      // 显示成功提示
+      uni.showToast({
+        title: '资料完善成功！',
+        icon: 'success',
+        duration: 2000
+      });
+      
+      // 关闭弹窗
+      showUserInfoModal.value = false;
+    };
+    
+    // 用户跳过完善资料
+    const onUserInfoSkipped = () => {
+      console.log('⏭️ 用户跳过完善资料');
+      
+      // 显示提示
+      uni.showModal({
+        title: '提示',
+        content: '您可以稍后在个人中心完善资料，现在继续使用应用吗？',
+        confirmText: '继续使用',
+        cancelText: '完善资料',
+        success: (res) => {
+          if (res.confirm) {
+            // 用户选择继续使用
+            showUserInfoModal.value = false;
+            
+            uni.showToast({
+              title: '欢迎使用！',
+              icon: 'success',
+              duration: 2000
+            });
+          }
+          // 如果用户选择完善资料，则保持弹窗打开
+        }
+      });
+    };
+    
+    // 关闭用户信息弹窗
+    const closeUserInfoModal = () => {
+      showUserInfoModal.value = false;
+    };
+    
     // 页面加载时获取数据
     onMounted(() => {
       loadCurrentTabData();
+      
+      // 延迟检查是否需要显示用户信息完善弹窗
+      setTimeout(() => {
+        checkNeedCompleteProfile();
+      }, 500);
     });
     
     const handleCreateNew = () => {
@@ -348,6 +441,9 @@ export default {
       simpleReminders,
       complexReminders,
       loading,
+      showUserInfoModal,
+      newUserInfo,
+      createButtonText,
       switchTab,
       navigateToCreate,
       navigateToComplexCreate,
@@ -356,7 +452,10 @@ export default {
       editComplexReminder,
       deleteComplexReminder,
       loadCurrentTabData,
-      handleCreateNew
+      handleCreateNew,
+      onUserInfoCompleted,
+      onUserInfoSkipped,
+      closeUserInfoModal
     };
   }
 };
