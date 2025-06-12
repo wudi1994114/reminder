@@ -25,6 +25,44 @@ public class WechatAuthController {
     private WechatAuthService wechatAuthService;
 
     /**
+     * 新增：微信云托管登录接口
+     * @param openId 从微信云托管网关获取的 openid
+     * @param request 包含可选的用户信息
+     * @return 登录响应
+     */
+    @PostMapping("/cloud-login")
+    public ResponseEntity<?> wechatCloudLogin(
+            @RequestHeader("X-WX-OPENID") String openId,
+            @RequestBody(required = false) WechatLoginRequest request) {
+        try {
+            log.info("收到微信云托管登录请求，X-WX-OPENID: {}", openId);
+            
+            // 如果request为空，创建一个新的实例以传递openid
+            WechatLoginRequest loginRequest = (request != null) ? request : new WechatLoginRequest();
+            
+            WechatLoginResponse response = wechatAuthService.cloudLogin(openId, loginRequest.getUserInfo());
+            
+            log.info("微信云托管登录成功，用户ID: {}, 是否新用户: {}", 
+                    response.getUserId(), response.getIsNewUser());
+
+            if (response == null || response.getAccessToken() == null || response.getAccessToken().trim().isEmpty() || response.getUserId() == null) {
+                log.error("微信云托管登录服务返回无效响应");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("message", "云托管登录服务内部错误");
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("微信云托管登录失败", e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "微信云托管登录失败：" + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        }
+    }
+
+    /**
      * 微信小程序登录
      * @param request 登录请求
      * @return 登录响应
