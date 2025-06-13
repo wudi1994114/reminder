@@ -23,7 +23,7 @@
           <view class="user-avatar" @click="goToUserProfile">
             <image 
               class="avatar-image" 
-              :src="getUserAvatar()" 
+              :src="displayAvatarUrl" 
               mode="aspectFill"
               @error="onAvatarError"
             ></image>
@@ -115,7 +115,7 @@
 </template>
 
 <script>
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { UserService, userState } from '../../services/userService';
 
 export default {
@@ -132,6 +132,42 @@ export default {
       completedReminders: 0
     });
     const showLogoutConfirmDialog = ref(false);
+    const displayAvatarUrl = ref('/static/images/avatar.png');
+
+    // 解析头像URL（处理云文件ID）
+    const resolveAvatarUrl = async (sourceUrl) => {
+      if (!sourceUrl) {
+        return '/static/images/avatar.png';
+      }
+      
+      if (sourceUrl.startsWith('cloud://')) {
+        try {
+          // #ifdef MP-WEIXIN
+          const res = await wx.cloud.getTempFileURL({ fileList: [sourceUrl] });
+          if (res.fileList && res.fileList.length > 0 && res.fileList[0].tempFileURL) {
+            console.log('我的页面: 云文件ID转换为临时URL成功');
+            return res.fileList[0].tempFileURL;
+          }
+          // #endif
+        } catch (error) {
+          console.error('我的页面: 获取临时头像链接失败:', error);
+          return '/static/images/avatar.png';
+        }
+      }
+      
+      return sourceUrl;
+    };
+
+    // 监听用户头像变化并解析URL
+    watch(() => userState.user?.avatarUrl, async (newAvatarUrl) => {
+      if (userState.isAuthenticated && newAvatarUrl) {
+        console.log('我的页面: 检测到头像变化:', newAvatarUrl);
+        displayAvatarUrl.value = await resolveAvatarUrl(newAvatarUrl);
+      } else {
+        console.log('我的页面: 使用默认头像');
+        displayAvatarUrl.value = '/static/images/avatar.png';
+      }
+    }, { immediate: true });
 
     const checkUserSession = async () => {
       try {
@@ -200,19 +236,6 @@ export default {
       uni.navigateTo({ url: url });
     };
 
-    // 获取用户头像
-    const getUserAvatar = () => {
-      // 如果用户已登录且有头像，使用用户头像
-      if (userState.isAuthenticated && userState.user?.avatarUrl) {
-        console.log('我的页面: 使用用户头像:', userState.user.avatarUrl);
-        return userState.user.avatarUrl;
-      }
-      
-      // 否则使用默认头像
-      console.log('我的页面: 使用默认头像');
-      return '/static/images/avatar.png';
-    };
-
     // 头像加载失败处理
     const onAvatarError = (e) => {
       console.log('我的页面: 头像加载失败，使用默认头像');
@@ -232,7 +255,7 @@ export default {
       navTo,
       checkUserSession,
       fetchUserStats,
-      getUserAvatar,
+      displayAvatarUrl,
       onAvatarError
     };
   }
