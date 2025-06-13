@@ -1497,16 +1497,9 @@ export default {
         return false;
       }
       
-      // 检查登录类型
-      const loginType = uni.getStorageSync('loginType');
-      
-      // 如果是微信登录用户，无需重复请求订阅权限
-      if (loginType === 'wechat') {
-        console.log('🔍 用户已通过微信登录，无需重复请求订阅权限');
-        return false;
-      }
-      
-      console.log('🔍 非微信登录用户选择微信提醒，需要请求订阅权限');
+      // 微信订阅消息权限和登录权限是独立的
+      // 无论用户是否通过微信登录，都需要单独请求订阅权限
+      console.log('🔍 用户选择微信提醒，需要请求订阅权限');
       return true;
       // #endif
       // #ifndef MP-WEIXIN

@@ -1172,12 +1172,82 @@ class WeChatUtils {
   }
 
   /**
+   * 异步删除旧头像（后台静默执行，不影响主流程）
+   * @param {string} oldAvatarUrl - 旧头像URL
+   */
+  static deleteOldAvatarAsync(oldAvatarUrl) {
+    if (!oldAvatarUrl) return;
+    
+    // 使用 setTimeout 确保完全异步执行
+    setTimeout(() => {
+      try {
+        // 判断是否为云文件且不是默认头像
+        if (oldAvatarUrl.startsWith('cloud://') && 
+            !oldAvatarUrl.includes('thirdwx.qlogo.cn')) {
+          console.log('🗑️ 后台静默删除旧头像:', oldAvatarUrl);
+          // 完全异步删除，所有错误都被捕获
+          WeChatUtils.deleteCloudFile(oldAvatarUrl).catch(err => {
+            console.warn('⚠️ 后台删除旧头像失败（不影响任何流程）:', err);
+          });
+        } else {
+          console.log('ℹ️ 旧头像不是云文件或为默认头像，跳过删除:', oldAvatarUrl);
+        }
+      } catch (error) {
+        // 捕获所有可能的同步错误
+        console.warn('⚠️ 删除旧头像过程中发生错误（不影响任何流程）:', error);
+      }
+    }, 100); // 延迟100ms执行，确保主流程完全结束
+  }
+
+  /**
+   * 删除云存储文件
+   * @param {string} fileID - 云文件ID
+   * @returns {Promise<boolean>} 删除是否成功
+   */
+  static async deleteCloudFile(fileID) {
+    // #ifdef MP-WEIXIN
+    if (!fileID || !fileID.startsWith('cloud://')) {
+      console.log('⚠️ 无效的云文件ID，跳过删除:', fileID);
+      return false;
+    }
+
+    try {
+      console.log('🗑️ 开始删除云文件:', fileID);
+      const res = await wx.cloud.deleteFile({
+        fileList: [fileID]
+      });
+      
+      if (res.fileList && res.fileList.length > 0) {
+        const deleteResult = res.fileList[0];
+        if (deleteResult.status === 0) {
+          console.log('✅ 云文件删除成功:', fileID);
+          return true;
+        } else {
+          console.error('❌ 云文件删除失败:', deleteResult.errMsg);
+          return false;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ 删除云文件异常:', error);
+      return false;
+    }
+    // #endif
+    
+    // #ifndef MP-WEIXIN
+    console.log('⚠️ 非微信环境，无法删除云文件');
+    return false;
+    // #endif
+  }
+
+  /**
    * 上传头像到云存储并更新到后端（使用已选择的文件）
    * @param {string} userId - 用户ID
    * @param {string} tempFilePath - 已选择的临时文件路径
+   * @param {string} oldAvatarUrl - 旧头像URL（用于删除）
    * @returns {Promise<{success: boolean, avatarUrl?: string, error?: string}>}
    */
-  static async uploadAvatarWithFile(userId, tempFilePath) {
+  static async uploadAvatarWithFile(userId, tempFilePath, oldAvatarUrl = null) {
     // #ifdef MP-WEIXIN
     console.log('🔄 开始处理头像上传，文件路径:', tempFilePath);
     try {
@@ -1240,6 +1310,9 @@ class WeChatUtils {
       await updateProfile({ avatarUrl: newAvatarUrl });
       console.log('✅ 后端用户资料更新成功');
 
+      // 后台静默删除旧头像（完全不影响主流程）
+      WeChatUtils.deleteOldAvatarAsync(oldAvatarUrl);
+
       return { success: true, avatarUrl: newAvatarUrl };
 
     } catch (error) {
@@ -1291,5 +1364,7 @@ export const {
   requestSubscribeMessage, // 新增：请求订阅权限
   smartRequestSubscribe, // 新增：智能请求订阅权限
   uploadAvatar,
-  uploadAvatarWithFile // 新增：分离的上传处理函数
+  uploadAvatarWithFile, // 新增：分离的上传处理函数
+  deleteCloudFile, // 新增：删除云文件
+  deleteOldAvatarAsync // 新增：异步删除旧头像
 } = WeChatUtils;

@@ -145,13 +145,33 @@ export default {
     };
 
     // 更新成功处理
-    const onUpdateSuccess = (data) => {
+    const onUpdateSuccess = async (data) => {
       console.log('编辑资料页面: 用户信息更新成功:', data);
-      if (data.userInfo) {
-        // 直接更新共享的用户状态
-        Object.assign(userState.user, data.userInfo);
-        console.log('本地用户状态已更新');
+      
+      try {
+        // 重新获取用户资料，确保本地状态与服务器同步
+        console.log('🔄 重新获取用户资料...');
+        const success = await UserService.refreshUserProfile();
+        
+        if (success) {
+          console.log('✅ 用户资料已更新');
+        } else {
+          console.warn('⚠️ 重新获取用户资料失败，使用返回的数据更新本地状态');
+          // 如果重新获取失败，使用返回的数据更新本地状态
+          if (data.userInfo) {
+            Object.assign(userState.user, data.userInfo);
+            console.log('本地用户状态已更新');
+          }
+        }
+      } catch (error) {
+        console.error('❌ 重新获取用户资料出错:', error);
+        // 如果重新获取失败，使用返回的数据更新本地状态
+        if (data.userInfo) {
+          Object.assign(userState.user, data.userInfo);
+          console.log('本地用户状态已更新（降级处理）');
+        }
       }
+      
       setTimeout(() => {
         goBack();
       }, 1000);

@@ -128,6 +128,22 @@ export default {
           
           console.log('✅ LoginForm: 普通登录处理完成，用户信息:', userInfo);
           
+          // 检查是否为新用户（如果后端在登录响应中包含了这个信息）
+          if (response && response.isNewUser) {
+            console.log('🆕 检测到新用户，标记需要完善资料');
+            
+            // 在本地存储中标记需要完善资料
+            uni.setStorageSync('needCompleteProfile', {
+              isNewUser: true,
+              userInfo: {
+                nickname: response.nickname || userInfo.nickname || '',
+                avatarUrl: response.avatarUrl || userInfo.avatarUrl || '',
+                email: response.email || userInfo.email || '',
+                phone: response.phone || response.phoneNumber || userInfo.phone || ''
+              }
+            });
+          }
+          
           // 通知登录成功
           emit('login-success', userInfo);
           

@@ -14,10 +14,18 @@ wechat:
     connect-timeout: 5000
     # 读取超时时间（毫秒）
     read-timeout: 10000
+  
+  # 订阅消息配置
+  notification:
+    # 订阅消息模板ID（必填）
+    template-id: your_template_id_here
+    # 点击消息跳转的小程序页面路径（相对于小程序根目录）
+    page: pages/index/index
 
 # 日志配置
 logging:
   level:
     com.core.reminder.service.WechatApiService: DEBUG
     com.core.reminder.service.WechatAuthService: DEBUG
-    com.core.reminder.controller.WechatAuthController: DEBUG 
+    com.core.reminder.controller.WechatAuthController: DEBUG
+    com.task.reminder.sender.WechatNotificationSender: DEBUG 

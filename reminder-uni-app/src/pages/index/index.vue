@@ -113,6 +113,7 @@ import { reminderState } from '../../services/store';
 import SimpleReminderCard from '../../components/SimpleReminderCard.vue';
 import ComplexReminderCard from '../../components/ComplexReminderCard.vue';
 import UserInfoModal from '../../components/UserInfoModal.vue';
+import { UserService } from '../../services/userService';
 
 export default {
   name: 'IndexPage',
@@ -131,6 +132,13 @@ export default {
     // 调用setup中返回的方法来刷新数据
     if (this.loadCurrentTabData) {
       this.loadCurrentTabData();
+    }
+    
+    // 每次页面显示时也检查是否需要显示新用户弹窗
+    if (this.checkNeedCompleteProfile) {
+      setTimeout(() => {
+        this.checkNeedCompleteProfile();
+      }, 300);
     }
   },
   
@@ -357,9 +365,14 @@ export default {
     
     // 检查是否需要显示用户信息完善弹窗
     const checkNeedCompleteProfile = () => {
+      console.log('🔍 检查是否需要显示用户信息完善弹窗...');
+      
       const needCompleteData = uni.getStorageSync('needCompleteProfile');
+      console.log('📦 本地存储的needCompleteProfile数据:', needCompleteData);
+      
       if (needCompleteData && needCompleteData.isNewUser) {
         console.log('🆕 检测到新用户需要完善资料，显示弹窗');
+        console.log('📝 用户信息:', needCompleteData.userInfo);
         
         // 设置用户信息
         newUserInfo.value = needCompleteData.userInfo || {};
@@ -369,12 +382,30 @@ export default {
         
         // 清除标记，避免重复显示
         uni.removeStorageSync('needCompleteProfile');
+        console.log('✅ 已清除needCompleteProfile标记');
+      } else {
+        console.log('ℹ️ 无需显示用户信息完善弹窗');
       }
     };
     
     // 用户信息完善成功
-    const onUserInfoCompleted = (data) => {
+    const onUserInfoCompleted = async (data) => {
       console.log('✅ 用户信息完善成功:', data);
+      
+      try {
+        // 重新获取用户资料，确保本地状态与服务器同步
+        console.log('🔄 重新获取用户资料...');
+        const success = await UserService.refreshUserProfile();
+        
+        if (success) {
+          console.log('✅ 用户资料已更新');
+        } else {
+          console.warn('⚠️ 重新获取用户资料失败，但不影响主流程');
+        }
+      } catch (error) {
+        console.error('❌ 重新获取用户资料出错:', error);
+        // 不阻断主流程，只记录错误
+      }
       
       // 显示成功提示
       uni.showToast({
@@ -455,7 +486,8 @@ export default {
       handleCreateNew,
       onUserInfoCompleted,
       onUserInfoSkipped,
-      closeUserInfoModal
+      closeUserInfoModal,
+      checkNeedCompleteProfile
     };
   }
 };

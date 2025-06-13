@@ -2,17 +2,6 @@
   <view class="page-container">
     <!-- 顶部导航栏 -->
     <view class="header-section">
-      <view class="nav-container">
-        <view class="nav-spacer"></view>
-        <view class="title-container">
-          <text class="page-title">我的</text>
-        </view>
-        <view class="nav-actions">
-          <view class="settings-btn" @click="navTo('/pages/settings/about')">
-            <text class="settings-icon">⚙️</text>
-          </view>
-        </view>
-      </view>
     </view>
     
     <!-- 主要内容区域 -->
@@ -132,13 +121,13 @@ export default {
       completedReminders: 0
     });
     const showLogoutConfirmDialog = ref(false);
-    const displayAvatarUrl = ref('/static/images/avatar.png');
+          const displayAvatarUrl = ref('https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132');
 
     // 解析头像URL（处理云文件ID）
-    const resolveAvatarUrl = async (sourceUrl) => {
-      if (!sourceUrl) {
-        return '/static/images/avatar.png';
-      }
+          const resolveAvatarUrl = async (sourceUrl) => {
+        if (!sourceUrl) {
+          return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
+        }
       
       if (sourceUrl.startsWith('cloud://')) {
         try {
@@ -151,7 +140,7 @@ export default {
           // #endif
         } catch (error) {
           console.error('我的页面: 获取临时头像链接失败:', error);
-          return '/static/images/avatar.png';
+          return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
         }
       }
       
@@ -165,7 +154,7 @@ export default {
         displayAvatarUrl.value = await resolveAvatarUrl(newAvatarUrl);
       } else {
         console.log('我的页面: 使用默认头像');
-        displayAvatarUrl.value = '/static/images/avatar.png';
+        displayAvatarUrl.value = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
       }
     }, { immediate: true });
 
@@ -240,7 +229,7 @@ export default {
     const onAvatarError = (e) => {
       console.log('我的页面: 头像加载失败，使用默认头像');
       // 头像加载失败时，可以设置一个默认头像
-      e.target.src = '/static/images/avatar.png';
+      e.target.src = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
     };
     
     return {

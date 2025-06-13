@@ -1,62 +1,95 @@
 <template>
   <view class="datetime-picker">
-    <!-- 时间设置 -->
-    <view class="setting-item" @click="showDateTimePicker">
-      <text class="setting-label">{{ label }}</text>
-      <text class="setting-value">{{ getFormattedDateTime() }}</text>
+    <!-- 分离的日期时间设置 -->
+    <view class="datetime-container">
+      <!-- 日期设置 -->
+      <view class="date-time-section">
+        <view class="section-header">
+          <text class="section-label">{{ label }}</text>
+        </view>
+        
+        <view class="datetime-inputs">
+          <!-- 日期选择 -->
+          <view class="input-item date-input" @click="showDatePicker">
+            <text class="input-label">日期</text>
+            <text class="input-value">{{ getFormattedDate() }}</text>
+          </view>
+          
+          <!-- 时间选择 -->
+          <view class="input-item time-input" @click="showTimePicker">
+            <text class="input-label">时间</text>
+            <text class="input-value">{{ getFormattedTime() }}</text>
+          </view>
+        </view>
+        
+        <!-- 温和的时间提示 -->
+        <view v-if="showTimeWarning" class="time-warning">
+          <text class="warning-text">💡 建议提前2分钟以上设置提醒，这样能确保及时通知到您</text>
+        </view>
+      </view>
     </view>
     
-    <!-- 日期时间选择器弹窗 -->
-    <view v-if="showPicker" class="picker-overlay" @click="hidePicker">
+    <!-- 日期选择器弹窗 -->
+    <view v-if="showDatePickerModal" class="picker-overlay" @click="hideDatePicker">
       <view class="picker-modal" @click.stop>
         <view class="picker-header">
-          <text class="picker-cancel" @click="hidePicker">取消</text>
-          <text class="picker-title">选择时间</text>
-          <text class="picker-confirm" @click="confirmPicker">确定</text>
+          <text class="picker-cancel" @click="hideDatePicker">取消</text>
+          <text class="picker-title">选择日期</text>
+          <text class="picker-confirm" @click.stop="confirmDatePicker">确定</text>
         </view>
         
         <picker-view 
           class="picker-view" 
-          :value="pickerValue" 
-          @change="onPickerChange"
+          :value="datePickerValue" 
+          @change="onDatePickerChange"
         >
           <!-- 年份 -->
-          <picker-view-column v-if="showColumn('year')">
+          <picker-view-column>
             <view v-for="(year, index) in years" :key="index" class="picker-item">
               {{ year }}年
             </view>
           </picker-view-column>
           
           <!-- 月份 -->
-          <picker-view-column v-if="showColumn('month')">
+          <picker-view-column>
             <view v-for="(month, index) in months" :key="index" class="picker-item">
               {{ month }}月
             </view>
           </picker-view-column>
           
           <!-- 日期 -->
-          <picker-view-column v-if="showColumn('day')">
+          <picker-view-column>
             <view v-for="(day, index) in days" :key="index" class="picker-item">
               {{ day }}日
             </view>
           </picker-view-column>
-          
-          <!-- 周几 -->
-          <picker-view-column v-if="showColumn('weekday')">
-            <view v-for="(weekday, index) in weekdays" :key="index" class="picker-item">
-              {{ weekday }}
-            </view>
-          </picker-view-column>
-          
+        </picker-view>
+      </view>
+    </view>
+    
+    <!-- 时间选择器弹窗 -->
+    <view v-if="showTimePickerModal" class="picker-overlay" @click="hideTimePicker">
+      <view class="picker-modal" @click.stop>
+        <view class="picker-header">
+          <text class="picker-cancel" @click="hideTimePicker">取消</text>
+          <text class="picker-title">选择时间</text>
+          <text class="picker-confirm" @click.stop="confirmTimePicker">确定</text>
+        </view>
+        
+        <picker-view 
+          class="picker-view" 
+          :value="timePickerValue" 
+          @change="onTimePickerChange"
+        >
           <!-- 小时 -->
-          <picker-view-column v-if="showColumn('hour')">
+          <picker-view-column>
             <view v-for="(hour, index) in hours" :key="index" class="picker-item">
               {{ String(hour).padStart(2, '0') }}时
             </view>
           </picker-view-column>
           
           <!-- 分钟 -->
-          <picker-view-column v-if="showColumn('minute')">
+          <picker-view-column>
             <view v-for="(minute, index) in minutes" :key="index" class="picker-item">
               {{ String(minute).padStart(2, '0') }}分
             </view>
@@ -109,8 +142,11 @@ export default {
   setup(props, { emit }) {
     const reminderDate = ref('');
     const reminderTime = ref('');
-    const showPicker = ref(false);
-    const pickerValue = ref([]); // 动态长度数组
+    const showDatePickerModal = ref(false);
+    const showTimePickerModal = ref(false);
+    const datePickerValue = ref([]);
+    const timePickerValue = ref([]);
+    const showTimeWarning = ref(false);
     
     // 生成选择器数据
     const currentYear = new Date().getFullYear();
@@ -119,23 +155,32 @@ export default {
     const days = ref([]);
     const hours = ref(Array.from({ length: 24 }, (_, i) => i));
     const minutes = ref(Array.from({ length: 60 }, (_, i) => i));
-    const weekdays = ref(['周日', '周一', '周二', '周三', '周四', '周五', '周六']);
     
-    // 根据mode和columns确定显示的列
-    const displayColumns = computed(() => {
-      if (props.mode === 'date') {
-        return ['year', 'month', 'day'];
-      } else if (props.mode === 'time') {
-        return ['hour', 'minute'];
-      } else if (props.mode === 'datetime') {
-        return props.columns;
+    // 获取默认时间（当前时间+2分钟）- 每次调用都实时获取
+    const getDefaultDateTime = () => {
+      const now = new Date(); // 每次调用都获取最新的当前时间
+      now.setMinutes(now.getMinutes() + 2); // 加2分钟
+      return {
+        date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      };
+    };
+    
+    // 检查时间是否过短
+    const checkTimeValidity = () => {
+      if (!reminderDate.value || !reminderTime.value) {
+        showTimeWarning.value = false;
+        return true;
       }
-      return props.columns;
-    });
-    
-    // 检查是否显示某列
-    const showColumn = (column) => {
-      return displayColumns.value.includes(column);
+      
+      const selectedDateTime = new Date(`${reminderDate.value}T${reminderTime.value}:00`);
+      const currentTime = new Date(); // 实时获取当前时间
+      const minTime = new Date(currentTime.getTime()); // 创建当前时间的副本
+      minTime.setMinutes(minTime.getMinutes() + 2); // 最小提前2分钟
+      
+      const isValid = selectedDateTime >= minTime;
+      showTimeWarning.value = !isValid;
+      return isValid;
     };
     
     // 初始化日期时间
@@ -146,79 +191,36 @@ export default {
         autoSetDefault: props.autoSetDefault 
       });
       
-      // 初始化日期 - 优先使用props，否则设置默认值
+      // 初始化日期
       if (props.initialDate) {
         reminderDate.value = props.initialDate;
         console.log('datetime-picker: 使用传入的初始日期:', props.initialDate);
       } else if (props.autoSetDefault && !reminderDate.value) {
-        // 只有在autoSetDefault=true且当前没有值时才设置默认值
-        const today = new Date();
-        reminderDate.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const defaultDateTime = getDefaultDateTime();
+        reminderDate.value = defaultDateTime.date;
         console.log('datetime-picker: 使用默认日期:', reminderDate.value);
-      } else {
-        console.log('datetime-picker: 保持现有日期值:', reminderDate.value);
       }
       
-      // 初始化时间 - 优先使用props，否则设置默认值
+      // 初始化时间
       if (props.initialTime) {
         reminderTime.value = props.initialTime;
         console.log('datetime-picker: 使用传入的初始时间:', props.initialTime);
       } else if (props.autoSetDefault && !reminderTime.value) {
-        // 只有在autoSetDefault=true且当前没有值时才设置默认值
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
-        now.setMinutes(0);
-        now.setSeconds(0);
-        reminderTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        console.log('datetime-picker: 使用默认时间:', reminderTime.value);
-      } else {
-        console.log('datetime-picker: 保持现有时间值:', reminderTime.value);
+        const defaultDateTime = getDefaultDateTime();
+        reminderTime.value = defaultDateTime.time;
+        console.log('datetime-picker: 使用默认时间（当前时间+2分钟）:', reminderTime.value);
       }
       
       console.log('datetime-picker: 初始化完成，最终值:', { date: reminderDate.value, time: reminderTime.value });
+      
+      // 检查时间有效性
+      checkTimeValidity();
       
       // 初始化后触发一次change事件
       updateEventTime();
     };
     
-    onMounted(() => {
-      initializeDateTime();
-    });
-    
-    // 监听props变化 - 支持动态更新
-    watch(() => props.initialDate, (newDate, oldDate) => {
-      console.log('datetime-picker: initialDate watch 触发:', { newDate, oldDate, current: reminderDate.value });
-      if (newDate && newDate !== reminderDate.value) {
-        console.log('datetime-picker: 更新日期从', reminderDate.value, '到', newDate);
-        reminderDate.value = newDate;
-        updateEventTime();
-      }
-    });
-    
-    watch(() => props.initialTime, (newTime, oldTime) => {
-      console.log('datetime-picker: initialTime watch 触发:', { newTime, oldTime, current: reminderTime.value });
-      if (newTime && newTime !== reminderTime.value) {
-        console.log('datetime-picker: 更新时间从', reminderTime.value, '到', newTime);
-        reminderTime.value = newTime;
-        updateEventTime();
-      }
-    });
-    
-    // 日期变化处理
-    const onDateChange = (e) => {
-      reminderDate.value = e.detail.value;
-      updateEventTime();
-      emit('dateChange', reminderDate.value);
-    };
-    
-    // 时间变化处理
-    const onTimeChange = (e) => {
-      reminderTime.value = e.detail.value;
-      updateEventTime();
-      emit('timeChange', reminderTime.value);
-    };
-    
-    // 更新完整的事件时间
+    // 更新事件时间
     const updateEventTime = () => {
       if (reminderDate.value && reminderTime.value) {
         const eventTime = `${reminderDate.value} ${reminderTime.value}:00`;
@@ -227,63 +229,9 @@ export default {
           time: reminderTime.value,
           eventTime: eventTime
         });
+        emit('dateChange', reminderDate.value);
+        emit('timeChange', reminderTime.value);
       }
-    };
-    
-    // 显示日期时间选择器
-    const showDateTimePicker = () => {
-      initPickerValue();
-      showPicker.value = true;
-    };
-    
-    // 初始化picker值
-    const initPickerValue = () => {
-      let targetDate;
-      if (reminderDate.value && reminderTime.value) {
-        targetDate = new Date(`${reminderDate.value}T${reminderTime.value}:00`);
-      } else {
-        targetDate = new Date();
-        targetDate.setHours(targetDate.getHours() + 1);
-        targetDate.setMinutes(0);
-      }
-      
-      const year = targetDate.getFullYear();
-      const month = targetDate.getMonth() + 1;
-      const day = targetDate.getDate();
-      const hour = targetDate.getHours();
-      const minute = targetDate.getMinutes();
-      
-      // 更新days数组
-      if (showColumn('day')) {
-        updateDays(year, month);
-      }
-      
-      // 根据显示的列构建picker值数组
-      const values = [];
-      displayColumns.value.forEach(column => {
-        switch (column) {
-          case 'year':
-            values.push(years.value.indexOf(year));
-            break;
-          case 'month':
-            values.push(months.value.indexOf(month));
-            break;
-          case 'day':
-            values.push(Math.min(day - 1, days.value.length - 1));
-            break;
-          case 'weekday':
-            values.push(targetDate.getDay()); // 0-6，对应周日到周六
-            break;
-          case 'hour':
-            values.push(hours.value.indexOf(hour));
-            break;
-          case 'minute':
-            values.push(minutes.value.indexOf(minute));
-            break;
-        }
-      });
-      
-      pickerValue.value = values;
     };
     
     // 更新天数
@@ -292,151 +240,193 @@ export default {
       days.value = Array.from({ length: daysInMonth }, (_, i) => i + 1);
     };
     
-    // picker值变化
-    const onPickerChange = (e) => {
+    // 显示日期选择器
+    const showDatePicker = () => {
+      console.log('📅 显示日期选择器');
+      initDatePickerValue();
+      showDatePickerModal.value = true;
+    };
+    
+    // 显示时间选择器
+    const showTimePicker = () => {
+      console.log('🕐 显示时间选择器');
+      initTimePickerValue();
+      showTimePickerModal.value = true;
+    };
+    
+    // 初始化日期选择器值
+    const initDatePickerValue = () => {
+      let targetDate;
+      if (reminderDate.value) {
+        targetDate = new Date(`${reminderDate.value}T12:00:00`);
+      } else {
+        targetDate = new Date();
+      }
+      
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const day = targetDate.getDate();
+      
+      // 更新days数组
+      updateDays(year, month);
+      
+      // 设置picker值
+      datePickerValue.value = [
+        years.value.indexOf(year),
+        months.value.indexOf(month),
+        Math.min(day - 1, days.value.length - 1)
+      ];
+    };
+    
+    // 初始化时间选择器值
+    const initTimePickerValue = () => {
+      let targetTime;
+      if (reminderTime.value) {
+        const [hour, minute] = reminderTime.value.split(':');
+        targetTime = { hour: parseInt(hour), minute: parseInt(minute) };
+      } else {
+        const defaultDateTime = getDefaultDateTime();
+        const [hour, minute] = defaultDateTime.time.split(':');
+        targetTime = { hour: parseInt(hour), minute: parseInt(minute) };
+      }
+      
+      timePickerValue.value = [
+        hours.value.indexOf(targetTime.hour),
+        minutes.value.indexOf(targetTime.minute)
+      ];
+    };
+    
+    // 日期选择器变化
+    const onDatePickerChange = (e) => {
       const newValues = e.detail.value;
       
-      // 解析当前选中的值
-      const selectedValues = {};
-      displayColumns.value.forEach((column, index) => {
-        switch (column) {
-          case 'year':
-            selectedValues.year = years.value[newValues[index]];
-            selectedValues.yearIndex = newValues[index];
-            break;
-          case 'month':
-            selectedValues.month = months.value[newValues[index]];
-            selectedValues.monthIndex = newValues[index];
-            break;
-          case 'day':
-            selectedValues.dayIndex = newValues[index];
-            break;
-          case 'weekday':
-            selectedValues.weekday = newValues[index]; // 0-6
-            selectedValues.weekdayIndex = newValues[index];
-            break;
-          case 'hour':
-            selectedValues.hourIndex = newValues[index];
-            break;
-          case 'minute':
-            selectedValues.minuteIndex = newValues[index];
-            break;
-        }
-      });
-      
       // 当年份或月份变化时，更新天数
-      if (showColumn('year') && showColumn('month') && showColumn('day')) {
-        const yearIndex = displayColumns.value.indexOf('year');
-        const monthIndex = displayColumns.value.indexOf('month');
-        const dayIndex = displayColumns.value.indexOf('day');
+      if (newValues[0] !== datePickerValue.value[0] || newValues[1] !== datePickerValue.value[1]) {
+        const selectedYear = years.value[newValues[0]];
+        const selectedMonth = months.value[newValues[1]];
+        updateDays(selectedYear, selectedMonth);
         
-        if (yearIndex !== -1 && monthIndex !== -1 && dayIndex !== -1) {
-          if (newValues[yearIndex] !== pickerValue.value[yearIndex] || 
-              newValues[monthIndex] !== pickerValue.value[monthIndex]) {
-            updateDays(selectedValues.year, selectedValues.month);
-            
-            // 如果当前选中的日期超出了新月份的天数，调整到最后一天
-            const adjustedDayIndex = Math.min(selectedValues.dayIndex, days.value.length - 1);
-            newValues[dayIndex] = adjustedDayIndex;
-          }
-        }
+        // 如果当前选中的日期超出了新月份的天数，调整到最后一天
+        const adjustedDayIndex = Math.min(newValues[2], days.value.length - 1);
+        newValues[2] = adjustedDayIndex;
       }
       
-      pickerValue.value = newValues;
+      datePickerValue.value = newValues;
     };
     
-    // 确认选择
-    const confirmPicker = () => {
-      // 解析选中的值
-      const selectedValues = {};
-      displayColumns.value.forEach((column, index) => {
-        switch (column) {
-          case 'year':
-            selectedValues.year = years.value[pickerValue.value[index]];
-            break;
-          case 'month':
-            selectedValues.month = months.value[pickerValue.value[index]];
-            break;
-          case 'day':
-            selectedValues.day = days.value[pickerValue.value[index]];
-            break;
-          case 'weekday':
-            selectedValues.weekday = pickerValue.value[index]; // 0-6
-            break;
-          case 'hour':
-            selectedValues.hour = hours.value[pickerValue.value[index]];
-            break;
-          case 'minute':
-            selectedValues.minute = minutes.value[pickerValue.value[index]];
-            break;
+    // 时间选择器变化
+    const onTimePickerChange = (e) => {
+      timePickerValue.value = e.detail.value;
+    };
+    
+    // 确认日期选择
+    const confirmDatePicker = () => {
+      const [yearIndex, monthIndex, dayIndex] = datePickerValue.value;
+      const year = years.value[yearIndex];
+      const month = months.value[monthIndex];
+      const day = days.value[dayIndex];
+      
+      let selectedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      console.log('📅 用户选择的日期:', selectedDate);
+      
+      // 如果有时间，检查完整的日期时间是否过短
+      if (reminderTime.value) {
+        const selectedDateTime = new Date(`${selectedDate}T${reminderTime.value}:00`);
+        const currentTime = new Date(); // 实时获取当前时间
+        const minTime = new Date(currentTime.getTime()); // 创建当前时间的副本
+        minTime.setMinutes(minTime.getMinutes() + 2); // 加2分钟
+        
+        if (selectedDateTime < minTime) {
+          // 如果选择的日期时间过短，自动调整为当前时间+2分钟
+          console.log('⚠️ 选择的日期时间过短，自动调整为当前时间+2分钟');
+          
+          selectedDate = `${minTime.getFullYear()}-${String(minTime.getMonth() + 1).padStart(2, '0')}-${String(minTime.getDate()).padStart(2, '0')}`;
+          const adjustedTime = `${String(minTime.getHours()).padStart(2, '0')}:${String(minTime.getMinutes()).padStart(2, '0')}`;
+          
+          reminderTime.value = adjustedTime;
+          console.log('📅 调整后的日期:', selectedDate);
+          console.log('🕐 调整后的时间:', adjustedTime);
+          
+          // 显示友好提示
+          uni.showToast({
+            title: '已自动调整为2分钟后',
+            icon: 'none',
+            duration: 2000
+          });
         }
-      });
-      
-      // 根据模式更新日期和时间
-      if (props.mode === 'date' || (props.mode === 'datetime' && showColumn('year') && showColumn('month') && showColumn('day'))) {
-        const year = selectedValues.year || new Date().getFullYear();
-        const month = selectedValues.month || (new Date().getMonth() + 1);
-        const day = selectedValues.day || new Date().getDate();
-        reminderDate.value = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        emit('dateChange', reminderDate.value);
       }
       
-      if (props.mode === 'time' || (props.mode === 'datetime' && showColumn('hour') && showColumn('minute'))) {
-        const hour = selectedValues.hour !== undefined ? selectedValues.hour : new Date().getHours();
-        const minute = selectedValues.minute !== undefined ? selectedValues.minute : 0;
-        reminderTime.value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        emit('timeChange', reminderTime.value);
-      }
+      reminderDate.value = selectedDate;
+      console.log('📅 日期确认:', reminderDate.value);
       
-      // 处理特殊情况：只有部分列的组合
-      if (showColumn('month') && showColumn('day') && !showColumn('year')) {
-        // 月日组合，使用当前年份
-        const year = new Date().getFullYear();
-        const month = selectedValues.month || (new Date().getMonth() + 1);
-        const day = selectedValues.day || new Date().getDate();
-        reminderDate.value = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        emit('dateChange', reminderDate.value);
-      } else if (showColumn('day') && !showColumn('month') && !showColumn('year')) {
-        // 只有日，使用当前年月
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
-        const day = selectedValues.day || now.getDate();
-        reminderDate.value = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        emit('dateChange', reminderDate.value);
-      }
-      
-      // 发送weekday变化事件
-      if (showColumn('weekday')) {
-        emit('weekdayChange', selectedValues.weekday);
-      }
-      
+      showDatePickerModal.value = false;
+      checkTimeValidity();
       updateEventTime();
-      
-      showPicker.value = false;
     };
     
-    // 隐藏选择器
-    const hidePicker = () => {
-      showPicker.value = false;
+    // 确认时间选择
+    const confirmTimePicker = () => {
+      const [hourIndex, minuteIndex] = timePickerValue.value;
+      const hour = hours.value[hourIndex];
+      const minute = minutes.value[minuteIndex];
+      
+      let selectedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      console.log('🕐 用户选择的时间:', selectedTime);
+      
+      // 实时检查选择的时间是否过短
+      const selectedDateTime = new Date(`${reminderDate.value}T${selectedTime}:00`);
+      const currentTime = new Date(); // 实时获取当前时间
+      const minTime = new Date(currentTime.getTime()); // 创建当前时间的副本
+      minTime.setMinutes(minTime.getMinutes() + 2); // 加2分钟
+      
+      if (selectedDateTime < minTime) {
+        // 如果选择的时间过短，自动调整为当前时间+2分钟
+        console.log('⚠️ 选择时间过短，自动调整为当前时间+2分钟');
+        
+        // 检查是否需要跨天
+        if (minTime.toDateString() !== currentTime.toDateString()) {
+          // 如果跨天了，同时更新日期
+          const newDate = `${minTime.getFullYear()}-${String(minTime.getMonth() + 1).padStart(2, '0')}-${String(minTime.getDate()).padStart(2, '0')}`;
+          reminderDate.value = newDate;
+          console.log('📅 时间跨天，同时更新日期为:', newDate);
+        }
+        
+        selectedTime = `${String(minTime.getHours()).padStart(2, '0')}:${String(minTime.getMinutes()).padStart(2, '0')}`;
+        console.log('🕐 调整后的时间:', selectedTime);
+        
+        // 显示友好提示
+        uni.showToast({
+          title: '已自动调整为2分钟后',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+      
+      reminderTime.value = selectedTime;
+      console.log('🕐 时间确认:', reminderTime.value);
+      
+      showTimePickerModal.value = false;
+      checkTimeValidity();
+      updateEventTime();
     };
     
-    // 格式化显示日期时间
-    const getFormattedDateTime = () => {
-      if (!reminderDate.value || !reminderTime.value) {
-        return '选择时间';
+    // 隐藏日期选择器
+    const hideDatePicker = () => {
+      showDatePickerModal.value = false;
+    };
+    
+    // 隐藏时间选择器
+    const hideTimePicker = () => {
+      showTimePickerModal.value = false;
+    };
+    
+    // 格式化显示日期
+    const getFormattedDate = () => {
+      if (!reminderDate.value) {
+        return '选择日期';
       }
       
-      // 使用iOS兼容的日期格式创建Date对象
-      const dateTimeStr = `${reminderDate.value}T${reminderTime.value}:00`;
-      const date = new Date(dateTimeStr);
-      
-      // 检查日期是否有效
-      if (isNaN(date.getTime())) {
-        console.error('无效的日期格式:', dateTimeStr);
-        return '选择时间';
-      }
-      
+      const date = new Date(`${reminderDate.value}T12:00:00`);
       const now = new Date();
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -445,45 +435,63 @@ export default {
       const isToday = date.toDateString() === now.toDateString();
       const isTomorrow = date.toDateString() === tomorrow.toDateString();
       
-      let dateStr = '';
       if (isToday) {
-        dateStr = '今天';
+        return '今天';
       } else if (isTomorrow) {
-        dateStr = '明天';
+        return '明天';
       } else {
         // 格式化为中文日期格式
         const months = ['1月', '2月', '3月', '4月', '5月', '6月', 
                        '7月', '8月', '9月', '10月', '11月', '12月'];
-        dateStr = `${months[date.getMonth()]}${date.getDate()}日`;
+        return `${months[date.getMonth()]}${date.getDate()}日`;
       }
-      
-      // 格式化时间为中文格式
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
-      let timeStr = '';
-      
-      if (hours < 12) {
-        const displayHour = hours === 0 ? 12 : hours;
-        timeStr = `上午${displayHour}时${String(minutes).padStart(2, '0')}分`;
-      } else {
-        const displayHour = hours === 12 ? 12 : hours - 12;
-        timeStr = `下午${displayHour}时${String(minutes).padStart(2, '0')}分`;
-      }
-      
-      return `${dateStr} ${timeStr}`;
     };
+    
+    // 格式化显示时间
+    const getFormattedTime = () => {
+      if (!reminderTime.value) {
+        return '选择时间';
+      }
+      
+      const [hour, minute] = reminderTime.value.split(':');
+      const h = parseInt(hour);
+      const m = parseInt(minute);
+      
+      if (h < 12) {
+        const displayHour = h === 0 ? 12 : h;
+        return `上午${displayHour}:${String(m).padStart(2, '0')}`;
+      } else {
+        const displayHour = h === 12 ? 12 : h - 12;
+        return `下午${displayHour}:${String(m).padStart(2, '0')}`;
+      }
+    };
+    
+    // 监听props变化
+    watch(() => props.initialDate, (newDate) => {
+      if (newDate && newDate !== reminderDate.value) {
+        reminderDate.value = newDate;
+        checkTimeValidity();
+        updateEventTime();
+      }
+    });
+    
+    watch(() => props.initialTime, (newTime) => {
+      if (newTime && newTime !== reminderTime.value) {
+        reminderTime.value = newTime;
+        checkTimeValidity();
+        updateEventTime();
+      }
+    });
+    
+    onMounted(() => {
+      initializeDateTime();
+    });
     
     // 暴露方法供父组件调用
     const setDateTime = (date, time) => {
-      console.log('datetime-picker: setDateTime 被调用:', { date, time });
-      if (date) {
-        reminderDate.value = date;
-        console.log('datetime-picker: 设置日期为:', date);
-      }
-      if (time) {
-        reminderTime.value = time;
-        console.log('datetime-picker: 设置时间为:', time);
-      }
+      if (date) reminderDate.value = date;
+      if (time) reminderTime.value = time;
+      checkTimeValidity();
       updateEventTime();
     };
     
@@ -494,27 +502,30 @@ export default {
         eventTime: reminderDate.value && reminderTime.value ? `${reminderDate.value} ${reminderTime.value}:00` : ''
       };
     };
-    
+
     return {
       reminderDate,
       reminderTime,
-      showPicker,
-      pickerValue,
+      showDatePickerModal,
+      showTimePickerModal,
+      datePickerValue,
+      timePickerValue,
+      showTimeWarning,
       years,
       months,
       days,
       hours,
       minutes,
-      weekdays,
-      displayColumns,
-      showColumn,
-      onDateChange,
-      onTimeChange,
-      showDateTimePicker,
-      onPickerChange,
-      confirmPicker,
-      hidePicker,
-      getFormattedDateTime,
+      showDatePicker,
+      showTimePicker,
+      onDatePickerChange,
+      onTimePickerChange,
+      confirmDatePicker,
+      confirmTimePicker,
+      hideDatePicker,
+      hideTimePicker,
+      getFormattedDate,
+      getFormattedTime,
       setDateTime,
       getDateTime
     };
@@ -527,39 +538,83 @@ export default {
   width: 100%;
 }
 
-/* 设置项样式 */
-.setting-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 32rpx;
+/* 日期时间容器 */
+.datetime-container {
+  width: 100%;
   background-color: #fcfbf8;
-  padding: 32rpx;
-  min-height: 112rpx;
-  cursor: pointer;
+  border-radius: 16rpx;
+  overflow: hidden;
 }
 
-.setting-item:active {
-  background-color: #f4efe7;
+.date-time-section {
+  padding: 24rpx;
 }
 
-.setting-label {
-  font-size: 32rpx;
+.section-header {
+  margin-bottom: 20rpx;
+}
+
+.section-label {
+  font-size: 28rpx;
   font-weight: 600;
   color: #1c170d;
   line-height: 1.4;
-  flex: 1;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
-.setting-value {
-  font-size: 32rpx;
-  font-weight: 400;
+/* 日期时间输入区域 */
+.datetime-inputs {
+  display: flex;
+  gap: 16rpx;
+}
+
+.input-item {
+  flex: 1;
+  background-color: #f4efe7;
+  border-radius: 12rpx;
+  padding: 20rpx 16rpx;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 120rpx;
+}
+
+.input-item:active {
+  background-color: #f0e8d8;
+  transform: translateY(-2rpx);
+  box-shadow: 0 4rpx 16rpx rgba(247, 189, 74, 0.2);
+}
+
+.input-label {
+  font-size: 24rpx;
+  color: #9d8148;
+  margin-bottom: 8rpx;
+  font-weight: 500;
+}
+
+.input-value {
+  font-size: 26rpx;
   color: #1c170d;
-  line-height: 1.4;
-  flex-shrink: 0;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* 时间警告提示 */
+.time-warning {
+  margin-top: 16rpx;
+  padding: 12rpx 16rpx;
+  background-color: #fff3cd;
+  border-radius: 8rpx;
+  border-left: 4rpx solid #ffc107;
+}
+
+.warning-text {
+  font-size: 24rpx;
+  color: #856404;
+  line-height: 1.5;
 }
 
 /* 选择器弹窗样式 */
@@ -593,6 +648,13 @@ export default {
 .picker-cancel {
   font-size: 32rpx;
   color: #999999;
+  cursor: pointer;
+  padding: 8rpx 16rpx;
+}
+
+.picker-cancel:active {
+  background-color: rgba(153, 153, 153, 0.1);
+  border-radius: 8rpx;
 }
 
 .picker-title {
@@ -605,6 +667,16 @@ export default {
   font-size: 32rpx;
   color: #f7bd4a;
   font-weight: 600;
+  padding: 8rpx 16rpx;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.picker-confirm:active {
+  background-color: rgba(247, 189, 74, 0.1);
+  border-radius: 8rpx;
 }
 
 .picker-view {
@@ -623,14 +695,38 @@ export default {
 
 /* 响应式适配 */
 @media (max-width: 750rpx) {
-  .setting-item {
-    padding: 24rpx;
-    min-height: 96rpx;
+  .date-time-section {
+    padding: 20rpx;
   }
   
-  .setting-label,
-  .setting-value {
-    font-size: 28rpx;
+  .section-label {
+    font-size: 26rpx;
+  }
+  
+  .datetime-inputs {
+    gap: 12rpx;
+  }
+  
+  .input-item {
+    padding: 16rpx 12rpx;
+    min-height: 100rpx;
+  }
+  
+  .input-label {
+    font-size: 22rpx;
+  }
+  
+  .input-value {
+    font-size: 24rpx;
+  }
+  
+  .time-warning {
+    margin-top: 12rpx;
+    padding: 10rpx 12rpx;
+  }
+  
+  .warning-text {
+    font-size: 22rpx;
   }
   
   .picker-view {
