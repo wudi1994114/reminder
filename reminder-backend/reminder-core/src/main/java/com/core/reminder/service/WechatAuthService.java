@@ -153,40 +153,12 @@ public class WechatAuthService {
         // 设置默认密码（微信用户不需要密码）
         appUser.setPassword("WECHAT_USER_NO_PASSWORD");
         
-        // 🎯 重点处理微信用户信息存储到AppUser表
-        if (request.getUserInfo() != null) {
-            WechatLoginRequest.WechatUserInfo userInfo = request.getUserInfo();
-            
-            // 处理昵称
-            String nickname = userInfo.getNickName();
-            if (nickname != null && !nickname.trim().isEmpty()) {
-                appUser.setNickname(nickname);
-                log.info("👤 [AppUser存储] 设置用户昵称: {}", nickname);
-            } else {
-                appUser.setNickname("微信用户");
-                log.info("👤 [AppUser存储] 使用默认昵称: 微信用户");
-            }
-            
-            // 处理头像
-            String avatarUrl = userInfo.getAvatarUrl();
-            if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
-                appUser.setAvatarUrl(avatarUrl);
-                log.info("🖼️ [AppUser存储] 设置用户头像: {}", avatarUrl);
-            } else {
-                log.info("🖼️ [AppUser存储] 未获取到用户头像");
-            }
-            
-            // 如果有性别信息，可以存储到AppUser的gender字段
-            if (userInfo.getGender() != null) {
-                String genderStr = convertGenderToString(userInfo.getGender());
-                appUser.setGender(genderStr);
-                log.info("⚤ [AppUser存储] 设置用户性别: {}", genderStr);
-            }
-            
-        } else {
-            appUser.setNickname("微信用户");
-            log.info("👤 [AppUser存储] 未获取到微信用户信息，使用默认昵称: 微信用户");
-        }
+        // 使用默认的用户信息，不依赖前端传递
+        appUser.setNickname("微信用户");
+        appUser.setAvatarUrl("https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132");
+        
+        log.info("👤 [AppUser存储] 新用户使用默认昵称: 微信用户");
+        log.info("🖼️ [AppUser存储] 新用户使用默认头像");
         
         // 设置默认邮箱（微信用户可能没有邮箱）
         appUser.setEmail(username + "@wechat.local");
@@ -563,14 +535,14 @@ public class WechatAuthService {
             } else {
                 // 新用户
                 isNewUser = true;
-                // 用userInfo创建一个临时的WechatLoginRequest对象以复用方法
+                // 创建新用户，不使用前端传递的用户信息
                 WechatLoginRequest tempRequest = new WechatLoginRequest();
-                tempRequest.setUserInfo(userInfo);
+                // 不设置userInfo，使用默认信息
 
                 appUser = createAppUser(tempRequest);
                 wechatUser = createWechatUserForCloud(appUser.getId(), openid, tempRequest);
 
-                log.info("新微信用户通过云托管注册成功，openid: {}, 用户ID: {}", openid, appUser.getId());
+                log.info("新微信用户通过云托管注册成功，openid: {}, 用户ID: {} - 使用默认资料", openid, appUser.getId());
             }
 
             // 生成JWT token
