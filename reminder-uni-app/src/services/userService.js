@@ -2,7 +2,7 @@
  * 统一用户服务
  * 负责用户信息的获取、缓存和管理
  *
- * 修改版：严格遵循缓存策略，仅在登录和更新时请求新数据。
+ * 修改版：严格遵循缓存策略，并在初始化时能利用有效token恢复会话。
  */
 import { reactive } from 'vue';
 import { request } from './api';
@@ -30,9 +30,10 @@ class UserService {
 
   /**
    * 初始化用户服务
-   * 应用启动时调用。此方法只会尝试从有效缓存中恢复用户状态，不会发起网络请求。
+   * 应用启动时调用。此方法会尝试从缓存恢复，如果缓存无效但token存在，则会尝试从网络恢复会话。
+   * @returns {Promise<void>}
    */
-  static init() {
+  static async init() { // <--- 修改点 1: 将方法改为 async
     console.log('🚀 UserService: 初始化用户服务');
 
     try {
@@ -40,21 +41,23 @@ class UserService {
       const token = uni.getStorageSync('accessToken');
       if (!token) {
         console.log('📝 UserService: 没有token，无需初始化');
-        // 为确保状态一致，主动清理一次
         this.clearUserInfo();
         return;
       }
 
       // 尝试从缓存加载用户信息
-      // loadFromCache 内部会处理过期逻辑
       const cachedUser = this.loadFromCache();
       if (cachedUser) {
         console.log('✅ UserService: 从有效缓存中恢复用户信息成功');
         this.setUserInfo(cachedUser);
       } else {
-        console.log('📝 UserService: 无有效缓存，等待用户操作（如登录）');
-        // 缓存无效或过期，不清空token，但保持未登录状态
-        // 让路由守卫或页面逻辑判断 isAuthenticated 来决定是否跳转到登录页
+        // --- 核心修改点 2: 当缓存无效但Token存在时，尝试从服务器刷新用户信息 ---
+        console.log('📝 UserService: 无有效缓存，但存在Token，尝试从服务器恢复会话...');
+        // 这个网络请求会自动处理token失效（401/403）的情况
+        await this.fetchUserProfile();
+        // fetchUserProfile 内部会更新 userState，这里无需再做操作。
+        // 如果 fetch 成功，isAuthenticated 会变为 true。
+        // 如果 fetch 失败（例如token过期），内部的 clearUserInfo 会被调用，状态依然是安全的未登录状态。
       }
     } catch (error) {
       console.error('❌ UserService: 初始化失败:', error);
@@ -161,7 +164,7 @@ class UserService {
       console.log('✅ UserService: Token已保存');
     }
 
-    // 2. 保存登录类型，用于后续判断是否需要微信订阅权限
+    // 保存登录类型
     uni.setStorageSync('loginType', loginType);
     console.log('✅ UserService: 登录类型已保存:', loginType);
 
@@ -174,8 +177,6 @@ class UserService {
       return userState.user;
     } else {
       console.error('❌ UserService: 登录成功但获取用户信息失败');
-      // 即使获取失败，token也存了，但 isAuthenticated 仍为 false
-      // 这种情况需要业务侧决定如何处理，例如提示用户刷新或重新登录
       throw new Error('登录成功但获取用户信息失败');
     }
   }
@@ -264,7 +265,6 @@ class UserService {
       // 检查缓存是否过期
       if (now - parsed.timestamp > CACHE_CONFIG.CACHE_DURATION) {
         console.log('⏰ UserService: 缓存已过期');
-        // 清理过期的缓存
         uni.removeStorageSync(CACHE_CONFIG.STORAGE_KEY);
         return null;
       }
@@ -273,7 +273,6 @@ class UserService {
 
     } catch (error) {
       console.error('❌ UserService: 加载缓存失败:', error);
-      // 加载失败也清理掉损坏的缓存
       uni.removeStorageSync(CACHE_CONFIG.STORAGE_KEY);
       return null;
     }

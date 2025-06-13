@@ -144,19 +144,20 @@ export default {
       }
     };
 
-    // 更新成功处理 (此部分无变化)
+    // 更新成功处理
     const onUpdateSuccess = (data) => {
       console.log('编辑资料页面: 用户信息更新成功:', data);
       if (data.userInfo) {
-        const userToSave = { ...userState.user, ...data.userInfo };
-        saveUserInfo(userToSave);
+        // 直接更新共享的用户状态
+        Object.assign(userState.user, data.userInfo);
+        console.log('本地用户状态已更新');
       }
       setTimeout(() => {
         goBack();
       }, 1000);
     };
 
-    // 取消处理 (此部分无变化)
+    // 取消处理
     const onUpdateCancel = () => {
       console.log('编辑资料页面: 用户取消编辑资料');
       goBack();

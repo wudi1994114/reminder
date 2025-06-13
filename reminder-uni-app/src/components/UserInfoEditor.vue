@@ -3,18 +3,14 @@
     <view class="editor-content">
       <view class="avatar-section">
         <text class="label">头像</text>
-        <button 
-          class="avatar-button" 
-          open-type="chooseAvatar" 
-          @chooseavatar="onChooseAvatar"
-        >
+        <button class="avatar-button" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
           <image 
             class="avatar-image" 
-            :src="avatarUrl || '/static/images/default-avatar.png'"
+            :src="displayAvatarUrl"
             mode="aspectFill"
           ></image>
           <view class="avatar-overlay">
-            <text class="avatar-text">点击选择</text>
+            <text class="avatar-text">点击更换</text>
           </view>
         </button>
       </view>
@@ -79,7 +75,9 @@
 </template>
 
 <script>
-import { updateUserInfoFromComponent } from '../services/api';
+import { ref, watch, onMounted, computed } from 'vue';
+import { updateUserInfoFromComponent, uploadAvatarWithFile } from '../services/api';
+import { userState } from '../services/userService';
 
 export default {
   name: 'UserInfoEditor',
@@ -104,171 +102,212 @@ export default {
   
   emits: ['success', 'cancel'],
   
-  data() {
-    return {
-      avatarUrl: '',
-      nickname: '',
-      email: '',
-      phone: '',
-      saving: false,
-      emailError: '',
-      phoneError: ''
-    };
-  },
-  
-  computed: {
-    canSave() {
-      const hasValidNickname = this.nickname.trim().length >= 2;
-      const hasValidEmail = !this.email || this.isValidEmail(this.email);
-      const hasValidPhone = !this.phone || this.isValidPhone(this.phone);
+  setup(props, { emit }) {
+    const avatarUrl = ref('');
+    const displayAvatarUrl = ref('/static/images/default-avatar.png');
+    const nickname = ref('');
+    const email = ref('');
+    const phone = ref('');
+    const saving = ref(false);
+    const emailError = ref('');
+    const phoneError = ref('');
+
+    const defaultAvatar = '/static/images/default-avatar.png';
+
+    const canSave = computed(() => {
+      const hasValidNickname = nickname.value.trim().length >= 2;
+      const hasValidEmail = !email.value || isValidEmail(email.value);
+      const hasValidPhone = !phone.value || isValidPhone(phone.value);
       return hasValidNickname && hasValidEmail && hasValidPhone;
-    }
-  },
-  
-  mounted() {
-    this.initializeUserData();
-  },
-  
-  watch: {
-    initialUserInfo: {
-      handler(newVal) {
-        if (newVal && Object.keys(newVal).length > 0) {
-          console.log('UserInfoEditor: 检测到初始用户信息变化:', newVal);
-          this.initializeUserData();
+    });
+    
+    const resolveAvatarUrl = async (sourceUrl) => {
+      if (!sourceUrl) {
+        return defaultAvatar;
+      }
+      if (sourceUrl.startsWith('cloud://')) {
+        try {
+          const res = await wx.cloud.getTempFileURL({ fileList: [sourceUrl] });
+          if (res.fileList && res.fileList.length > 0 && res.fileList[0].tempFileURL) {
+            return res.fileList[0].tempFileURL;
+          }
+        } catch (error) {
+          console.error('获取临时头像链接失败:', error);
+          return defaultAvatar;
         }
-      },
-      deep: true,
-      immediate: true
-    }
-  },
-  
-  methods: {
-    initializeUserData() {
-      console.log('UserInfoEditor: 初始化用户数据:', this.initialUserInfo);
-      if (this.initialUserInfo && Object.keys(this.initialUserInfo).length > 0) {
-        if (this.initialUserInfo.avatarUrl) {
-          this.avatarUrl = this.initialUserInfo.avatarUrl;
-          console.log('UserInfoEditor: 设置头像:', this.initialUserInfo.avatarUrl);
-        }
-        if (this.initialUserInfo.nickname) {
-          this.nickname = this.initialUserInfo.nickname;
-          console.log('UserInfoEditor: 设置昵称:', this.initialUserInfo.nickname);
-        }
-        console.log('UserInfoEditor: 邮箱字段检查 - 原始值:', this.initialUserInfo.email, '类型:', typeof this.initialUserInfo.email);
-        if (this.initialUserInfo.email && this.initialUserInfo.email.trim() !== '') {
-          this.email = this.initialUserInfo.email;
-          console.log('UserInfoEditor: 设置邮箱:', this.initialUserInfo.email);
-        } else {
-          console.log('UserInfoEditor: 邮箱为空，不设置');
-        }
-        console.log('UserInfoEditor: 手机号字段检查 - 原始值:', this.initialUserInfo.phone, '类型:', typeof this.initialUserInfo.phone);
-        if (this.initialUserInfo.phone && this.initialUserInfo.phone.trim() !== '') {
-          this.phone = this.initialUserInfo.phone;
-          console.log('UserInfoEditor: 设置手机号:', this.initialUserInfo.phone);
-        } else {
-          console.log('UserInfoEditor: 手机号为空，不设置');
+      }
+      return sourceUrl;
+    };
+
+    const initializeUserData = async () => {
+      if (props.initialUserInfo && Object.keys(props.initialUserInfo).length > 0) {
+        const info = props.initialUserInfo;
+        avatarUrl.value = info.avatarUrl || '';
+        displayAvatarUrl.value = await resolveAvatarUrl(info.avatarUrl) || defaultAvatar;
+        nickname.value = info.nickname || '';
+        email.value = info.email && !info.email.includes('@wechat.local') ? info.email : '';
+        phone.value = info.phone || '';
+      }
+    };
+
+    // 处理微信头像选择
+    const onChooseAvatar = async (e) => {
+      console.log('微信头像选择事件触发:', e);
+      
+      const wechatAvatarUrl = e.detail.avatarUrl;
+      if (wechatAvatarUrl) {
+        console.log('获取到微信头像URL:', wechatAvatarUrl);
+        
+        try {
+          // 获取用户ID
+          const userId = userState.user?.id;
+          if (!userId) {
+            console.error('无法获取用户ID，无法上传头像');
+            return;
+          }
+
+          // 下载微信头像并上传到我们的云存储
+          console.log('开始下载并上传微信头像...');
+          
+          // 1. 下载微信头像到本地临时文件
+          const downloadRes = await new Promise((resolve, reject) => {
+            uni.downloadFile({
+              url: wechatAvatarUrl,
+              success: resolve,
+              fail: reject
+            });
+          });
+
+          console.log('微信头像下载成功:', downloadRes.tempFilePath);
+
+          // 2. 上传到我们的云存储
+          const uploadResult = await uploadAvatarWithFile(userId, downloadRes.tempFilePath);
+          
+          if (uploadResult.success && uploadResult.avatarUrl) {
+            // 使用上传后的URL
+            avatarUrl.value = uploadResult.avatarUrl;
+            
+            // 解析并显示头像
+            if (uploadResult.avatarUrl.startsWith('cloud://')) {
+              displayAvatarUrl.value = await resolveAvatarUrl(uploadResult.avatarUrl);
+            } else {
+              displayAvatarUrl.value = uploadResult.avatarUrl;
+            }
+            
+            console.log('✅ 微信头像上传完成，新URL:', uploadResult.avatarUrl);
+          } else {
+            console.error('头像上传失败:', uploadResult.error);
+            // 失败时仍然尝试使用原始URL
+            avatarUrl.value = wechatAvatarUrl;
+            displayAvatarUrl.value = wechatAvatarUrl;
+          }
+          
+        } catch (error) {
+          console.error('处理微信头像失败:', error);
+          // 出错时仍然尝试使用原始URL
+          avatarUrl.value = wechatAvatarUrl;
+          displayAvatarUrl.value = wechatAvatarUrl;
         }
       } else {
-        console.log('UserInfoEditor: 初始用户信息为空或无效');
+        console.warn('未获取到有效的头像URL');
       }
-    },
-    onChooseAvatar(e) {
-      const { avatarUrl } = e.detail;
-      this.avatarUrl = avatarUrl;
-      console.log('选择的头像:', avatarUrl);
-    },
-    onNicknameInput(e) {
-      this.nickname = e.detail.value;
-    },
-    onEmailInput(e) {
-      this.email = e.detail.value;
-      this.validateEmail();
-    },
-    onPhoneInput(e) {
-      this.phone = e.detail.value;
-      this.validatePhone();
-    },
-    validateEmail() {
-      if (this.email && !this.isValidEmail(this.email)) {
-        this.emailError = '请输入正确的邮箱格式';
-      } else {
-        this.emailError = '';
-      }
-    },
-    validatePhone() {
-      if (this.phone && !this.isValidPhone(this.phone)) {
-        this.phoneError = '请输入正确的手机号格式';
-      } else {
-        this.phoneError = '';
-      }
-    },
-    isValidEmail(email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    },
-    isValidPhone(phone) {
-      const phoneRegex = /^1[3-9]\d{9}$/;
-      return phoneRegex.test(phone);
-    },
-    async saveUserInfo() {
-      if (!this.canSave) {
-        uni.showToast({
-          title: '昵称至少需要2个字符',
-          icon: 'none'
-        });
+    };
+    
+    const onNicknameInput = (e) => {
+      nickname.value = e.detail.value;
+    };
+    
+    const onEmailInput = (e) => {
+      email.value = e.detail.value;
+      validateEmail();
+    };
+
+    const onPhoneInput = (e) => {
+      phone.value = e.detail.value;
+      validatePhone();
+    };
+
+    const isValidEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    const isValidPhone = (val) => /^1[3-9]\d{9}$/.test(val);
+
+    const validateEmail = () => {
+      emailError.value = email.value && !isValidEmail(email.value) ? '请输入正确的邮箱格式' : '';
+    };
+
+    const validatePhone = () => {
+      phoneError.value = phone.value && !isValidPhone(phone.value) ? '请输入正确的手机号格式' : '';
+    };
+
+    const saveUserInfo = async () => {
+      if (!canSave.value) {
+        uni.showToast({ title: '请检查输入项', icon: 'none' });
         return;
       }
       try {
-        this.saving = true;
+        saving.value = true;
         const userInfo = {
-          nickName: this.nickname.trim(),
-          avatarUrl: this.avatarUrl
+          nickName: nickname.value.trim(),
+          avatarUrl: avatarUrl.value
         };
-        if (this.email && this.isValidEmail(this.email)) {
-          userInfo.email = this.email.trim();
+        if (email.value && isValidEmail(email.value)) {
+          userInfo.email = email.value.trim();
         }
-        if (this.phone && this.isValidPhone(this.phone)) {
-          userInfo.phone = this.phone.trim();
+        if (phone.value && isValidPhone(phone.value)) {
+          userInfo.phone = phone.value.trim();
         }
-        console.log('保存用户信息:', userInfo);
+        
         const result = await updateUserInfoFromComponent(userInfo);
         if (result.success) {
-          uni.showToast({
-            title: '保存成功',
-            icon: 'success'
-          });
-          this.$emit('success', {
-            userInfo: result.data,
-            originalData: userInfo
-          });
+          uni.showToast({ title: '保存成功', icon: 'success' });
+          emit('success', { userInfo: result.data, originalData: userInfo });
         } else {
           throw new Error(result.message || '保存失败');
         }
       } catch (error) {
         console.error('保存用户信息失败:', error);
-        uni.showToast({
-          title: error.message || '保存失败，请重试',
-          icon: 'none'
-        });
+        uni.showToast({ title: error.message || '保存失败，请重试', icon: 'none' });
       } finally {
-        this.saving = false;
+        saving.value = false;
       }
-    },
-    cancel() {
-      if (this.required) {
+    };
+
+    const cancel = () => {
+      if (props.required) {
         uni.showModal({
           title: '提示',
           content: '完善资料后可以获得更好的使用体验，确定要跳过吗？',
           success: (res) => {
             if (res.confirm) {
-              this.$emit('cancel');
+              emit('cancel');
             }
           }
         });
       } else {
-        this.$emit('cancel');
+        emit('cancel');
       }
-    }
+    };
+
+    watch(() => props.initialUserInfo, initializeUserData, { deep: true, immediate: true });
+    
+    onMounted(initializeUserData);
+
+    return {
+      avatarUrl,
+      displayAvatarUrl,
+      nickname,
+      email,
+      phone,
+      saving,
+      emailError,
+      phoneError,
+      canSave,
+      onChooseAvatar,
+      onNicknameInput,
+      onEmailInput,
+      onPhoneInput,
+      saveUserInfo,
+      cancel
+    };
   }
 };
 </script>
@@ -347,17 +386,14 @@ export default {
   height: 160rpx;
   border-radius: 80rpx;
   overflow: hidden;
+  cursor: pointer;
   border: none;
   padding: 0;
-  background: #f0f0f0;
-  transition: all 0.3s ease;
-  margin: 0 auto;
-  box-shadow: 0 4rpx 20rpx rgba(28, 23, 13, 0.1);
+  background: none;
 }
 
-.avatar-button:active {
-  transform: scale(0.96);
-  box-shadow: 0 2rpx 12rpx rgba(28, 23, 13, 0.15);
+.avatar-button::after {
+  border: none;
 }
 
 .avatar-image {

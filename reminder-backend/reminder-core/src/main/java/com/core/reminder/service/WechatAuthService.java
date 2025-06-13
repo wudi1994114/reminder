@@ -83,15 +83,15 @@ public class WechatAuthService {
             boolean isNewUser = false;
 
             if (existingWechatUser.isPresent()) {
-                // 已存在的微信用户，更新登录信息
+                // 已存在的微信用户 - 纯登录，不更新用户资料
                 wechatUser = existingWechatUser.get();
                 appUser = appUserRepository.findById(wechatUser.getAppUserId())
                         .orElseThrow(() -> new RuntimeException("关联的系统用户不存在"));
                 
-                // 更新微信用户信息
-                updateWechatUser(wechatUser, apiResponse, request);
+                // 只更新登录相关信息，不更新用户资料
+                updateWechatUserLoginInfo(wechatUser, apiResponse);
                 
-                log.info("微信用户登录成功，openid: {}, 用户ID: {}", apiResponse.getOpenid(), appUser.getId());
+                log.info("微信用户登录成功，openid: {}, 用户ID: {} - 保护现有用户资料", apiResponse.getOpenid(), appUser.getId());
             } else {
                 // 新用户，创建系统用户和微信用户
                 isNewUser = true;
@@ -248,7 +248,37 @@ public class WechatAuthService {
     }
 
     /**
-     * 更新微信用户信息
+     * 只更新登录相关信息，不更新用户资料
+     */
+    @LogActivity(action = ActivityAction.LOGIN, resourceType = ResourceType.SOCIAL_ACCOUNT, 
+                description = "更新微信用户登录信息", async = true, logParams = false)
+    private void updateWechatUserLoginInfo(WechatUser wechatUser, WechatApiResponse apiResponse) {
+        // 更新session_key和登录时间
+        wechatUser.setSessionKey(apiResponse.getSessionKey());
+        wechatUser.setLastLoginTime(OffsetDateTime.now());
+        
+        // 更新unionid（如果有）
+        if (apiResponse.getUnionid() != null && !apiResponse.getUnionid().isEmpty()) {
+            if (!apiResponse.getUnionid().equals(wechatUser.getUnionid())) {
+                log.info("🔄 更新unionid：从 [{}] 更新为 [{}]", wechatUser.getUnionid(), apiResponse.getUnionid());
+                wechatUser.setUnionid(apiResponse.getUnionid());
+            } else {
+                log.debug("✅ unionid无变化：{}", apiResponse.getUnionid());
+            }
+        } else {
+            if (wechatUser.getUnionid() != null) {
+                log.warn("⚠️ 注意：之前有unionid [{}]，但本次登录未获取到unionid", wechatUser.getUnionid());
+            } else {
+                log.debug("ℹ️ unionid保持为空");
+            }
+        }
+        
+        wechatUserRepository.save(wechatUser);
+        log.info("✅ 登录信息更新完成，不修改用户资料");
+    }
+
+    /**
+     * 更新微信用户信息（已废弃 - 仅用于注册时）
      */
     @LogActivity(action = ActivityAction.PROFILE_UPDATE, resourceType = ResourceType.SOCIAL_ACCOUNT, 
                 description = "更新微信用户信息", async = true, logParams = false)
@@ -520,17 +550,16 @@ public class WechatAuthService {
             boolean isNewUser = false;
 
             if (existingWechatUser.isPresent()) {
-                // 已存在的微信用户
+                // 已存在的微信用户 - 纯登录，不更新用户资料
                 wechatUser = existingWechatUser.get();
                 appUser = appUserRepository.findById(wechatUser.getAppUserId())
                         .orElseThrow(() -> new RuntimeException("关联的系统用户不存在，ID: " + wechatUser.getAppUserId()));
 
-                // 如果前端传递了新的用户信息，则更新
-                if (userInfo != null) {
-                    updateWechatUserAndAppUser(wechatUser, appUser, userInfo);
-                }
+                // 只更新登录时间，不更新用户资料
+                wechatUser.setLastLoginTime(OffsetDateTime.now());
+                wechatUserRepository.save(wechatUser);
 
-                log.info("云托管用户登录成功，openid: {}, 用户ID: {}", openid, appUser.getId());
+                log.info("云托管用户登录成功，openid: {}, 用户ID: {} - 保护现有用户资料", openid, appUser.getId());
             } else {
                 // 新用户
                 isNewUser = true;
@@ -612,15 +641,29 @@ public class WechatAuthService {
             wechatUserUpdated = true;
         }
 
-        // 更新 AppUser
+        // 更新 AppUser - 但不覆盖自定义头像
         if (userInfo.getNickName() != null && !userInfo.getNickName().equals(appUser.getNickname())) {
             appUser.setNickname(userInfo.getNickName());
             appUserUpdated = true;
         }
+        
+        // 头像更新逻辑：只有在用户没有自定义头像时才使用微信头像
         if (userInfo.getAvatarUrl() != null && !userInfo.getAvatarUrl().equals(appUser.getAvatarUrl())) {
-            appUser.setAvatarUrl(userInfo.getAvatarUrl());
-            appUserUpdated = true;
+            // 检查当前头像是否是自定义头像（云存储头像）
+            boolean hasCustomAvatar = appUser.getAvatarUrl() != null && 
+                                    (appUser.getAvatarUrl().startsWith("cloud://") || 
+                                     appUser.getAvatarUrl().contains("tcb-api.tencentcloudapi.com"));
+            
+            if (!hasCustomAvatar) {
+                // 只有在没有自定义头像时才更新为微信头像
+                log.info("🔄 [云托管登录] 更新头像为微信头像: {}", userInfo.getAvatarUrl());
+                appUser.setAvatarUrl(userInfo.getAvatarUrl());
+                appUserUpdated = true;
+            } else {
+                log.info("🛡️ [云托管登录] 保护自定义头像，跳过微信头像更新");
+            }
         }
+        
         if (userInfo.getGender() != null) {
             String genderStr = convertGenderToString(userInfo.getGender());
             if (appUser.getGender() == null || !appUser.getGender().equals(genderStr)) {

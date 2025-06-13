@@ -23,6 +23,11 @@ public class WechatConfig {
     private String secret = "b70c1fd582a6f6d66e8dc1e2e436d023";
 
     /**
+     * 微信云开发环境ID
+     */
+    private String cloudEnv = "prod-3gel427g5936cfa7";
+
+    /**
      * 微信API基础URL
      */
     private String apiBaseUrl = "https://api.weixin.qq.com";

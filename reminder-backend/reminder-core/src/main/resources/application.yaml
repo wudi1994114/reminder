@@ -119,6 +119,8 @@ wechat:
     appid: wx597f8aaca581205f
     # 小程序AppSecret
     secret: b70c1fd582a6f6d66e8dc1e2e436d023
+    # 微信云开发环境ID
+    cloud-env: prod-3gel427g5936cfa7
     # 微信API基础URL
     api-base-url: https://api.weixin.qq.com
     # 获取session_key的URL路径
@@ -133,3 +135,10 @@ wechat:
     template-id: VXTd9P8DUPpM0aM-nLSHSkDC9KTUolBNhkAHV7UkqxQ
     # 默认跳转页面
     page: index
+
+# 文件存储配置
+storage:
+  # 上传文件存储的根目录（可以是绝对路径，如 /var/uploads/reminder）
+  location: "uploads"
+  # 公共访问URL路径
+  public-path: "/files"

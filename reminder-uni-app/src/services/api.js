@@ -1185,6 +1185,90 @@ class WeChatUtils {
       return { success: false, granted: false, error: error.message };
     }
   }
+
+  /**
+   * 上传头像到云存储并更新到后端（使用已选择的文件）
+   * @param {string} userId - 用户ID
+   * @param {string} tempFilePath - 已选择的临时文件路径
+   * @returns {Promise<{success: boolean, avatarUrl?: string, error?: string}>}
+   */
+  static async uploadAvatarWithFile(userId, tempFilePath) {
+    // #ifdef MP-WEIXIN
+    console.log('🔄 开始处理头像上传，文件路径:', tempFilePath);
+    try {
+      const isCloudEnabled = CLOUD_CONFIG.enabled && WeChatUtils.isWeChatMiniProgram() && typeof wx !== 'undefined' && wx.cloud;
+      let newAvatarUrl;
+
+      if (isCloudEnabled) {
+        // 云托管上传逻辑
+        console.log('☁️ 使用云托管上传...');
+        const extension = tempFilePath.substring(tempFilePath.lastIndexOf('.'));
+        const cloudPath = `mp_avatar/${userId}_${Date.now()}${extension}`;
+        
+        console.log('☁️ 上传到云路径:', cloudPath);
+
+        const uploadRes = await wx.cloud.uploadFile({
+          cloudPath: cloudPath,
+          filePath: tempFilePath,
+        });
+
+        newAvatarUrl = uploadRes.fileID;
+        console.log('✅ 云托管上传成功，FileID:', newAvatarUrl);
+
+      } else {
+        // 传统后端上传逻辑
+        console.log('🌐 使用传统HTTP上传...');
+        const uploadUrl = `${API_URL}/files/upload`;
+        
+        const token = uni.getStorageSync('accessToken');
+        if (!token) {
+          throw new Error("用户未登录，无法上传文件");
+        }
+
+        const uploadRes = await new Promise((resolve, reject) => {
+          uni.uploadFile({
+            url: uploadUrl,
+            filePath: tempFilePath,
+            name: 'file',
+            header: {
+              'Authorization': `Bearer ${token}`
+            },
+            success: (res) => {
+              if (res.statusCode === 200) {
+                resolve(JSON.parse(res.data));
+              } else {
+                reject(new Error(`文件上传失败: ${res.statusCode}`));
+              }
+            },
+            fail: (err) => {
+              reject(new Error(`网络请求失败: ${err.errMsg}`));
+            }
+          });
+        });
+        
+        newAvatarUrl = uploadRes.url;
+        console.log('✅ 后端上传成功，URL:', newAvatarUrl);
+      }
+
+      // 将新的 URL/FileID 更新到后端
+      console.log('🔄 更新用户资料...');
+      await updateProfile({ avatarUrl: newAvatarUrl });
+      console.log('✅ 后端用户资料更新成功');
+
+      return { success: true, avatarUrl: newAvatarUrl };
+
+    } catch (error) {
+      console.error('❌ 头像上传处理失败:', error);
+      const errMsg = error.errMsg || error.message || '';
+      return { success: false, error: errMsg || '未知错误' };
+    }
+    // #endif
+
+    // #ifndef MP-WEIXIN
+    console.warn('⚠️ uploadAvatarWithFile 功能仅在微信小程序中受支持');
+    return Promise.resolve({ success: false, error: '当前环境不支持上传头像' });
+    // #endif
+  }
 }
 
 // 导出工具类
@@ -1220,5 +1304,7 @@ export const {
   getVersionInfo,
   updateUserProfile,
   requestSubscribeMessage, // 新增：请求订阅权限
-  smartRequestSubscribe // 新增：智能请求订阅权限
+  smartRequestSubscribe, // 新增：智能请求订阅权限
+  uploadAvatar,
+  uploadAvatarWithFile // 新增：分离的上传处理函数
 } = WeChatUtils;
