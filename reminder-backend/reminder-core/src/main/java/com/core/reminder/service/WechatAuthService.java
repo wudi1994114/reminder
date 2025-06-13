@@ -161,7 +161,7 @@ public class WechatAuthService {
         log.info("🖼️ [AppUser存储] 新用户使用默认头像");
         
         // 设置默认邮箱（微信用户可能没有邮箱）
-        appUser.setEmail(username + "@wechat.local");
+        appUser.setEmail("");
         
         AppUser savedUser = appUserRepository.save(appUser);
         log.info("✅ [AppUser存储] 用户创建成功 - ID: {}, 昵称: {}, 头像: {}", 
