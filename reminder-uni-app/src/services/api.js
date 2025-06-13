@@ -987,48 +987,33 @@ class WeChatUtils {
         const isCloudEnabled = CLOUD_CONFIG.enabled && WeChatUtils.isWeChatMiniProgram() && typeof wx !== 'undefined' && wx.cloud;
         console.log(`当前登录模式: ${isCloudEnabled ? '☁️ 云托管' : '🌐 HTTP'}`);
 
-        // 1. 获取用户信息（可选，并行执行）
-        const userInfoPromise = options.skipUserInfo ? Promise.resolve(null) :
-            WeChatUtils.getUserProfile({ desc: '用于完善用户资料' })
-            .catch(error => {
-                console.warn('⚠️ 获取用户信息失败，将继续无用户信息登录:', error.message);
-                return null; // 失败时返回null，不阻断流程
-            });
-            
-        // 2. 获取登录凭证
+        // 1. 获取登录凭证（纯登录，不获取用户信息）
         // 在云托管模式下，虽然后端不需要code，但前端调用wx.login()可以刷新session，是推荐做法
-        const loginPromise = WeChatUtils.login({ timeout: 5000 });
-
-        const [userInfo, loginResult] = await Promise.all([userInfoPromise, loginPromise]);
+        const loginResult = await WeChatUtils.login({ timeout: 5000 });
 
         if (!isCloudEnabled && !loginResult?.code) {
             throw new Error('获取微信登录凭证(code)失败');
         }
 
-        // 3. 构建登录数据并调用后端
+        // 2. 构建登录数据（不包含用户信息）
         const wechatLoginData = {};
         if (loginResult?.code) {
             wechatLoginData.code = loginResult.code; // 仅在HTTP模式下需要
         }
-        if (userInfo) {
-            console.log('✅ 用户信息已获取:', userInfo.nickName || '未知用户');
-            wechatLoginData.userInfo = userInfo;
-        }
+        // 不再发送用户信息，让后端使用默认信息
 
         console.log('🔐 发送登录请求到后端...');
         const response = await WeChatUtils.wechatLogin(wechatLoginData);
 
-        console.log('✅ 登录完成:', response.isNewUser ? '新用户' : '老用户');
+        console.log('✅ 登录完成:', response.isNewUser ? '新用户（使用默认资料）' : '老用户（保护现有资料）');
 
         // 隐藏加载弹窗
         WeChatUtils.hideLoading();
 
-        // 快速构建返回结果
+        // 返回登录结果
         const result = { ...response };
         if (response.isNewUser) {
-            result.needCompleteProfile = !userInfo;
-        } else {
-            result.userInfoUpdated = !!userInfo;
+            result.needCompleteProfile = true; // 新用户需要完善资料
         }
 
         return result;
