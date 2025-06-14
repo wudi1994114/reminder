@@ -44,7 +44,6 @@
       @click="handleWechatLogin"
       v-if="isWeChatMiniProgram"
     >
-      <text class="wechat-icon">🏮</text>
       <text class="wechat-text">{{ wechatLoading ? '微信登录中...' : '微信快捷登录' }}</text>
     </button>
     
