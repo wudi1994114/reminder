@@ -7,7 +7,7 @@
           <text class="icon-arrow">✕</text>
         </view>
       </view>
-      <view class="nav-title">{{ isEdit ? '编辑高级提醒' : '创建高级提醒' }}</view>
+      <view class="nav-title"></view>
       <view class="nav-right"></view>
     </view>
     
@@ -258,7 +258,7 @@ export default {
       },
       
       // 提醒方式选项
-      reminderTypeOptions: ['邮件提醒', '短信提醒'],
+      reminderTypeOptions: ['邮件', '短信'],
       reminderTypeValues: ['EMAIL', 'SMS'],
       reminderTypeIndex: 0,
       

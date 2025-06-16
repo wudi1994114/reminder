@@ -5,7 +5,6 @@ import com.common.reminder.constant.ResourceType;
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
-import com.core.reminder.constant.CacheKeyEnum;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
 import com.core.reminder.utils.CacheUtils;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.time.LocalDate;
-import java.util.concurrent.TimeUnit;
 import java.util.Set;
 import java.util.HashSet;
 

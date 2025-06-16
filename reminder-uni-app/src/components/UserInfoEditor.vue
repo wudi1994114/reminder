@@ -163,6 +163,12 @@ export default {
         try {
           // 获取用户ID
           const userId = userState.user?.id;
+          console.log('当前用户状态:', {
+            isAuthenticated: userState.isAuthenticated,
+            userId: userId,
+            user: userState.user
+          });
+          
           if (!userId) {
             console.error('无法获取用户ID，无法上传头像');
             uni.showToast({ title: '请先登录', icon: 'none' });
@@ -174,22 +180,54 @@ export default {
 
           // 下载微信头像并上传到我们的云存储
           console.log('开始下载并上传微信头像...');
+          console.log('调用 downloadFile 参数:', { url: wechatAvatarUrl });
           
-          // 1. 下载微信头像到本地临时文件
-          const downloadRes = await new Promise((resolve, reject) => {
-            uni.downloadFile({
-              url: wechatAvatarUrl,
-              success: resolve,
-              fail: reject
+          let tempFilePath;
+          
+          // 检查是否为本地文件路径
+          if (wechatAvatarUrl.startsWith('wxfile://') || wechatAvatarUrl.startsWith('file://')) {
+            // 本地文件，直接使用
+            console.log('检测到本地文件路径，直接使用:', wechatAvatarUrl);
+            tempFilePath = wechatAvatarUrl;
+          } else {
+            // 网络URL，需要下载
+            console.log('检测到网络URL，开始下载:', wechatAvatarUrl);
+            const downloadRes = await new Promise((resolve, reject) => {
+              uni.downloadFile({
+                url: wechatAvatarUrl,
+                success: (res) => {
+                  console.log('downloadFile 成功响应:', res);
+                  resolve(res);
+                },
+                fail: (err) => {
+                  console.error('downloadFile 失败:', err);
+                  reject(err);
+                }
+              });
             });
-          });
-
-          console.log('微信头像下载成功:', downloadRes.tempFilePath);
+            
+            console.log('微信头像下载成功:', downloadRes.tempFilePath);
+            console.log('下载文件详情:', {
+              tempFilePath: downloadRes.tempFilePath,
+              statusCode: downloadRes.statusCode,
+              header: downloadRes.header
+            });
+            tempFilePath = downloadRes.tempFilePath;
+          }
+          
+          console.log('准备上传的文件路径:', tempFilePath);
 
           // 2. 上传到我们的云存储（传递当前头像URL用于删除）
           const currentAvatarUrl = avatarUrl.value; // 保存当前头像URL
           console.log('🔄 准备上传新头像，当前头像URL:', currentAvatarUrl);
-          const uploadResult = await uploadAvatarWithFile(userId, downloadRes.tempFilePath, currentAvatarUrl);
+          console.log('调用 uploadAvatarWithFile 参数:', {
+            userId: userId,
+            tempFilePath: tempFilePath,
+            currentAvatarUrl: currentAvatarUrl
+          });
+          
+          const uploadResult = await uploadAvatarWithFile(userId, tempFilePath, currentAvatarUrl);
+          console.log('uploadAvatarWithFile 响应:', uploadResult);
           
           uni.hideLoading();
           
@@ -219,8 +257,28 @@ export default {
         } catch (error) {
           uni.hideLoading();
           console.error('处理微信头像失败:', error);
+          console.error('错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            errMsg: error.errMsg,
+            fullError: error
+          });
+          
+          // 提供更详细的错误信息
+          let errorMessage = '未知错误';
+          if (error.message) {
+            errorMessage = error.message;
+          } else if (error.errMsg) {
+            errorMessage = error.errMsg;
+          } else if (typeof error === 'string') {
+            errorMessage = error;
+          } else if (error.toString && error.toString() !== '[object Object]') {
+            errorMessage = error.toString();
+          }
+          
           uni.showToast({ 
-            title: `头像处理失败: ${error.message || '未知错误'}`, 
+            title: `头像处理失败: ${errorMessage}`, 
             icon: 'none',
             duration: 3000
           });

@@ -7,7 +7,7 @@
           <text class="back-icon">×</text>
         </button>
         <view class="title-container">
-          <text class="page-title">提醒详情</text>
+          <text class="page-title"></text>
         </view>
       </view>
     </view>
@@ -89,6 +89,7 @@ import { ref, onMounted, getCurrentInstance } from 'vue';
 import { getSimpleReminderById } from '../../services/api';
 import { formatDetail } from '../../utils/dateFormat';
 import cronstrue from 'cronstrue/i18n';
+import { requireAuth } from '../../utils/auth';
 
 export default {
   setup() {
@@ -104,6 +105,23 @@ export default {
     };
     
     onMounted(async () => {
+      // 首先检查登录状态
+      const isAuthenticated = await requireAuth();
+      
+      if (!isAuthenticated) {
+        // 用户未登录且拒绝登录，返回上一页
+        console.log('用户未登录，返回上一页');
+        uni.navigateBack({
+          fail: () => {
+            // 如果没有上一页，跳转到首页
+            uni.switchTab({
+              url: '/pages/index/index'
+            });
+          }
+        });
+        return;
+      }
+      
       // 直接获取页面参数
       const options = getCurrentPageOptions();
       const id = options.id || '';
@@ -198,10 +216,10 @@ export default {
     
     const getReminderTypeText = (type) => {
       switch (type) {
-        case 'EMAIL': return '通知';
+        case 'EMAIL': return '邮件';
         case 'SMS': return '短信';
         case 'WECHAT_MINI': return '微信';
-        default: return '通知';
+        default: return '邮件';
       }
     };
     

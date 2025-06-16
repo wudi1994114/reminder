@@ -22,8 +22,13 @@
             <text class="user-email" v-if="userState.user?.email">{{ userState.user?.email }}</text>
             <text class="user-id" v-else-if="userState.user?.id">ID: {{ userState.user?.id }}</text>
           </view>
-          <button class="login-btn" v-if="!userState.isAuthenticated" @click="goToLogin">
-            <text class="btn-text">登录/注册</text>
+          <button 
+            class="wechat-login-btn" 
+            v-if="!userState.isAuthenticated" 
+            open-type="getUserInfo"
+            @getuserinfo="handleWechatLogin"
+          >
+            <text class="wechat-login-text">微信一键登录</text>
           </button>
         </view>
         
@@ -70,7 +75,7 @@
               <text class="menu-arrow">›</text>
             </view>
             <view class="menu-divider"></view>
-            <view class="menu-item" @click="navTo('/pages/settings/about')">
+            <view class="menu-item" @click="navToAbout">
               <view class="menu-icon">
                 <text class="icon-text">ℹ️</text>
               </view>
@@ -100,15 +105,31 @@
       @confirm="handleLogout"
       @cancel="cancelLogout"
     />
+    
+    <!-- 全局登录弹窗 -->
+    <GlobalLoginModal />
   </view>
 </template>
 
 <script>
-import { ref, reactive, computed, watch } from 'vue';
+import { ref, reactive, computed, watch, onUnmounted } from 'vue';
 import { UserService, userState } from '../../services/userService';
+import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '../../utils/auth';
+import { wechatLogin } from '../../services/api';
+import GlobalLoginModal from '../../components/GlobalLoginModal.vue';
 
 export default {
+  components: {
+    GlobalLoginModal
+  },
   onShow() {
+    console.log('个人中心页面显示，检查登录状态');
+    
+    // 检查登录状态并清空数据
+    if (!checkAuthAndClearData('个人中心页面-onShow')) {
+      return;
+    }
+    
     this.checkUserSession();
     if (userState.isAuthenticated) {
       this.fetchUserStats();
@@ -121,14 +142,14 @@ export default {
       completedReminders: 0
     });
     const showLogoutConfirmDialog = ref(false);
-          const displayAvatarUrl = ref('https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132');
+    const displayAvatarUrl = ref('https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132');
 
     // 解析头像URL（处理云文件ID）
-          const resolveAvatarUrl = async (sourceUrl) => {
-        if (!sourceUrl) {
-          return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
-        }
-      
+    const resolveAvatarUrl = async (sourceUrl) => {
+      if (!sourceUrl) {
+        return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
+      }
+    
       if (sourceUrl.startsWith('cloud://')) {
         try {
           // #ifdef MP-WEIXIN
@@ -183,68 +204,173 @@ export default {
     };
 
     const handleLogout = () => {
-      UserService.logout();
+      logout();
       showLogoutConfirmDialog.value = false;
-      uni.showToast({
-        title: '已退出登录',
-        icon: 'success',
-        duration: 1500
-      });
-      uni.reLaunch({ url: '/pages/login/login' });
     };
 
     const cancelLogout = () => {
       showLogoutConfirmDialog.value = false;
     };
 
-    const goToLogin = () => {
-      uni.navigateTo({ url: '/pages/login/login' });
-    };
-
-    const goToUserProfile = () => {
-      if(userState.isAuthenticated){
-        uni.navigateTo({ url: '/pages/profile/edit' });
-      } else {
-        goToLogin();
-      }
-    };
-    
-    const navTo = (url) => {
-      if (!userState.isAuthenticated) {
-          uni.showModal({
-              title: '请先登录',
-              content: '该功能需要登录后才能使用',
-              success: (res) => {
-                  if (res.confirm) {
-                      goToLogin();
-                  }
-              }
+    const handleWechatLogin = async (e) => {
+      console.log('个人中心页面：微信一键登录触发', e);
+      
+      try {
+        // 显示加载提示
+        uni.showLoading({
+          title: '登录中...',
+          mask: true
+        });
+        
+        // 获取用户信息
+        const userInfo = e.detail.userInfo;
+        if (!userInfo) {
+          uni.hideLoading();
+          uni.showToast({
+            title: '登录已取消',
+            icon: 'none'
           });
           return;
+        }
+        
+        console.log('个人中心：获取到用户信息:', userInfo);
+        
+        // 调用微信登录获取code
+        const loginRes = await new Promise((resolve, reject) => {
+          uni.login({
+            provider: 'weixin',
+            success: resolve,
+            fail: reject
+          });
+        });
+        
+        console.log('个人中心：微信登录成功:', loginRes);
+        
+        // 构建登录请求数据
+        const loginData = {
+          code: loginRes.code
+        };
+        
+        console.log('🔐 个人中心：发送登录数据到后端:', loginData);
+        
+        // 调用真正的微信登录API
+        const response = await wechatLogin(loginData);
+        
+        console.log('✅ 个人中心：微信登录API响应:', response);
+        
+        if (response && response.accessToken) {
+          // 使用UserService处理登录成功
+          await UserService.onLoginSuccess(response, 'wechat');
+          
+          console.log('✅ 个人中心：登录处理完成，用户状态已更新');
+          
+          uni.hideLoading();
+          uni.showToast({
+            title: '登录成功',
+            icon: 'success'
+          });
+          
+          // 刷新页面数据
+          setTimeout(() => {
+            checkUserSession();
+            if (userState.isAuthenticated) {
+              fetchUserStats();
+            }
+            
+            // 发送全局事件，通知其他页面刷新数据
+            uni.$emit('userLoginSuccess');
+          }, 1000);
+        } else {
+          throw new Error('登录响应格式错误');
+        }
+        
+      } catch (error) {
+        console.error('个人中心：微信登录失败:', error);
+        uni.hideLoading();
+        
+        let errorMessage = '登录失败';
+        if (error.message) {
+          if (error.message.includes('用户拒绝')) {
+            errorMessage = '用户取消了授权';
+          } else if (error.message.includes('网络')) {
+            errorMessage = '网络连接失败';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        uni.showToast({
+          title: errorMessage,
+          icon: 'none'
+        });
       }
-      uni.navigateTo({ url: url });
     };
 
-    // 头像加载失败处理
-    const onAvatarError = (e) => {
+    const goToUserProfile = async () => {
+      const isAuthenticated = await requireAuth();
+      
+      if (isAuthenticated) {
+        uni.navigateTo({
+          url: '/pages/profile/edit'
+        });
+      }
+    };
+
+    const navTo = async (url) => {
+      const isAuthenticated = await requireAuth();
+      
+      if (isAuthenticated) {
+        uni.navigateTo({ url });
+      }
+    };
+
+    const navToAbout = () => {
+      // 关于应用不需要登录验证，直接跳转
+      uni.navigateTo({ url: '/pages/settings/about' });
+    };
+
+    const onAvatarError = () => {
       console.log('我的页面: 头像加载失败，使用默认头像');
-      // 头像加载失败时，可以设置一个默认头像
-      e.target.src = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
+      displayAvatarUrl.value = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
     };
     
+    // 监听用户登出事件，清理Mine页面数据
+    uni.$on('userLogout', () => {
+      console.log('Mine页面：收到用户登出事件，清理所有数据');
+      
+      // 重置统计数据
+      stats.totalReminders = 0;
+      stats.pendingReminders = 0;
+      stats.completedReminders = 0;
+      
+      // 重置头像为默认头像
+      displayAvatarUrl.value = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
+      
+      // 关闭任何打开的对话框
+      showLogoutConfirmDialog.value = false;
+      
+      console.log('✅ Mine页面：数据清理完成');
+    });
+    
+    // 组件销毁时清理事件监听器
+    onUnmounted(() => {
+      uni.$off('userLogout');
+    });
+
     return {
       userState,
       stats,
       showLogoutConfirmDialog,
+      displayAvatarUrl,
+      checkUserSession,
+      fetchUserStats,
       confirmLogout,
       handleLogout,
       cancelLogout,
-      goToLogin,
+      handleWechatLogin,
       goToUserProfile,
       navTo,
-      checkUserSession,
-      fetchUserStats,
-      displayAvatarUrl,
+      navToAbout,
       onAvatarError
     };
   }
@@ -375,7 +501,7 @@ export default {
   line-height: 1.4;
 }
 
-.login-btn {
+.wechat-login-btn {
   background-color: #f7bd4a;
   border-radius: 40rpx;
   padding: 20rpx 40rpx;
@@ -383,7 +509,7 @@ export default {
   box-shadow: 0 3rpx 12rpx rgba(247, 189, 74, 0.3);
 }
 
-.btn-text {
+.wechat-login-text {
   font-size: 28rpx;
   font-weight: 600;
   color: #1c170d;

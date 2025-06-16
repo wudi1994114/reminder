@@ -72,8 +72,9 @@
 </template>
 
 <script>
-import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick } from 'vue';
+import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick, watch } from 'vue';
 import { createEvent, updateEvent, getSimpleReminderById, smartRequestSubscribe } from '../../services/api';
+import { requireAuth } from '../../utils/auth';
 
 export default {
   onLoad(options) {
@@ -90,12 +91,13 @@ export default {
     // 1. 定义响应式数据
     const isEdit = ref(false);
     const isDataReady = ref(false); // 用于控制组件渲染时机
+    const originalReminderType = ref(null); // 1. 新增：用于追踪原始的提醒方式
     const reminderForm = reactive({
       id: null,
       title: '',
       description: '',
       eventTime: '',
-      reminderType: 'EMAIL',
+      reminderType: 'WECHAT_MINI',
       status: 'PENDING'
     });
     
@@ -150,18 +152,29 @@ export default {
         console.log('创建页面: 设置传入的日期:', initialDate);
       }
       
-      console.log('创建页面: 最终的初始值:', {
-        reminderDate: reminderDate.value,
-        reminderTime: reminderTime.value,
-        isEdit: isEdit.value
-      });
-      
-      return { id, mode, initialDate, options };
+      return { id }; // 2. 精简返回值
     };
     
     // 5. 在onMounted中统一处理
     onMounted(async () => {
-      const { id, mode, initialDate, options } = processPageOptions();
+      // 首先检查登录状态
+      const isAuthenticated = await requireAuth();
+      
+      if (!isAuthenticated) {
+        // 用户未登录且拒绝登录，返回上一页
+        console.log('用户未登录，返回上一页');
+        uni.navigateBack({
+          fail: () => {
+            // 如果没有上一页，跳转到首页
+            uni.switchTab({
+              url: '/pages/index/index'
+            });
+          }
+        });
+        return;
+      }
+      
+      const { id } = processPageOptions();
       
       if (isEdit.value && id) {
         // 编辑模式：加载现有数据
@@ -175,6 +188,7 @@ export default {
             reminderForm.eventTime = result.eventTime;
             reminderForm.status = result.status;
             reminderForm.reminderType = result.reminderType || 'EMAIL';
+            originalReminderType.value = reminderForm.reminderType; // 3. 记录原始类型
             
             // 解析日期时间
             if (result.eventTime) {
@@ -211,6 +225,11 @@ export default {
       } else {
         // 创建模式：使用初始值
         console.log('创建页面: 创建模式，使用初始值');
+        originalReminderType.value = reminderForm.reminderType; // 4. 创建模式也记录初始值
+        
+        // 设置提醒方式索引以匹配默认的提醒类型
+        const typeIndex = reminderTypeValues.indexOf(reminderForm.reminderType);
+        reminderTypeIndex.value = typeIndex >= 0 ? typeIndex : 0;
       }
       
       // 更新事件时间
@@ -274,20 +293,36 @@ export default {
           });
           
           if (!subscribeResult.success || !subscribeResult.granted) {
-            console.log('⚠️ 微信订阅权限获取失败，无法使用微信提醒');
+            console.log('⚠️ 微信订阅权限获取失败，引导用户去设置');
             uni.showModal({
-              title: '无法使用微信提醒',
-              content: '需要微信订阅权限才能发送微信提醒。您可以选择其他提醒方式或重新授权。',
-              confirmText: '继续保存',
+              title: '微信提醒需要授权',
+              content: '检测到您未开启微信订阅消息权限，是否前往设置页面进行授权？',
+              confirmText: '去设置',
               cancelText: '取消',
               success: (res) => {
                 if (res.confirm) {
-                  // 用户选择继续保存，将提醒方式改为邮件
-                  reminderForm.reminderType = 'EMAIL';
-                  reminderTypeIndex.value = 0;
-                  console.log('🔄 已将提醒方式改为邮件');
-                  // 继续保存流程
-                  performSave();
+                  // 用户选择去设置
+                  uni.openSetting({
+                    success: (settingRes) => {
+                      if (settingRes.authSetting['scope.subscribeMessage']) {
+                        uni.showToast({
+                          title: '授权成功，请重新保存',
+                          icon: 'success'
+                        });
+                      } else {
+                        uni.showToast({
+                          title: '您未授权微信提醒',
+                          icon: 'none'
+                        });
+                      }
+                    }
+                  });
+                } else {
+                  // 用户选择取消，停留在当前页面
+                  uni.showToast({
+                    title: '已取消保存，可选择其他提醒方式',
+                    icon: 'none'
+                  });
                 }
               }
             });
@@ -393,11 +428,22 @@ export default {
         return false;
       }
       
-      // 微信订阅消息权限和登录权限是独立的
-      // 无论用户是否通过微信登录，都需要单独请求订阅权限
-      console.log('🔍 用户选择微信提醒，需要请求订阅权限');
-      return true;
+      // 如果是创建新提醒，且选择了微信提醒，则需要授权
+      if (!isEdit.value) {
+        console.log('🔍 [创建模式] 用户选择微信提醒，需要请求订阅权限');
+        return true;
+      }
+      
+      // 如果是编辑模式，只有当提醒方式从非微信改为微信时，才需要授权
+      if (isEdit.value && originalReminderType.value !== 'WECHAT_MINI') {
+        console.log('🔍 [编辑模式] 用户从其他方式改为微信提醒，需要请求订阅权限');
+        return true;
+      }
+      
+      console.log('🤔 [编辑模式] 提醒方式未更改或已是微信提醒，无需重复请求授权');
+      return false;
       // #endif
+      
       // #ifndef MP-WEIXIN
       return false;
       // #endif
@@ -410,7 +456,6 @@ export default {
         success: (res) => {
           const selectedType = reminderTypeValues[res.tapIndex];
           
-          // 直接设置提醒方式，不在选择时请求权限
           reminderTypeIndex.value = res.tapIndex;
           reminderForm.reminderType = selectedType;
           

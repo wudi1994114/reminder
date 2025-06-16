@@ -1,7 +1,15 @@
 <script>
+import { onMounted } from 'vue';
 import { UserService } from './services/userService';
 
 export default {
+  setup() {
+    onMounted(() => {
+      console.log('🚀 App: onMounted - 全局应用挂载');
+    });
+    
+    return {};
+  },
   onLaunch: function () {
     console.log('App Launch');
     this.initUserService();
@@ -16,27 +24,15 @@ export default {
     async initUserService() {
       try {
         console.log('🚀 App: 初始化用户服务');
-        const success = await UserService.init();
+        await UserService.init();
         
-        if (success) {
+        if (UserService.getUserState().isAuthenticated) {
           console.log('✅ App: 用户服务初始化成功，用户已登录');
         } else {
-          console.log('📝 App: 用户未登录，跳转到登录页');
-          // 延迟跳转，确保应用完全启动
-          setTimeout(() => {
-            uni.reLaunch({
-              url: '/pages/login/login'
-            });
-          }, 100);
+          console.log('📝 App: 用户未登录，等待用户操作时弹出登录框');
         }
       } catch (error) {
         console.error('❌ App: 用户服务初始化失败:', error);
-        // 初始化失败，跳转到登录页
-        setTimeout(() => {
-          uni.reLaunch({
-            url: '/pages/login/login'
-          });
-        }, 100);
       }
     }
   }
@@ -80,55 +76,71 @@ button::after {
 /* 卡片通用样式 */
 .card {
   background-color: #ffffff;
-  border-radius: 10rpx;
+  border-radius: 16rpx;
   padding: 30rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
 }
 
-/* 表单通用样式 */
-.form-group {
-  margin-bottom: 30rpx;
+/* 列表通用样式 */
+.list-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
-.label {
-  display: block;
-  font-size: 28rpx;
-  color: #666666;
-  margin-bottom: 10rpx;
+.list-item:last-child {
+  border-bottom: none;
 }
 
-.input {
-  width: 100%;
-  height: 80rpx;
-  background-color: #f5f5f5;
-  border-radius: 8rpx;
-  padding: 0 20rpx;
-  font-size: 28rpx;
+/* 文本通用样式 */
+.text-primary {
+  color: #1c170d;
 }
 
-/* 按钮通用样式 */
-.btn {
-  height: 80rpx;
-  line-height: 80rpx;
-  text-align: center;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-}
-
-.btn-primary {
-  background-color: #3cc51f;
-  color: #ffffff;
-}
-
-.btn-default {
-  background-color: #f0f0f0;
+.text-secondary {
   color: #666666;
 }
 
-/* 错误提示样式 */
-.error-msg {
+.text-muted {
+  color: #999999;
+}
+
+.text-success {
+  color: #52c41a;
+}
+
+.text-warning {
+  color: #faad14;
+}
+
+.text-error {
   color: #ff4d4f;
-  font-size: 24rpx;
-  margin-top: 10rpx;
+}
+
+/* 间距通用样式 */
+.mb-small {
+  margin-bottom: 16rpx;
+}
+
+.mb-medium {
+  margin-bottom: 24rpx;
+}
+
+.mb-large {
+  margin-bottom: 32rpx;
+}
+
+.mt-small {
+  margin-top: 16rpx;
+}
+
+.mt-medium {
+  margin-top: 24rpx;
+}
+
+.mt-large {
+  margin-top: 32rpx;
 }
 </style>

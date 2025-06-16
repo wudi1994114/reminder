@@ -31,7 +31,7 @@ export default {
   emits: ['click'],
   setup(props, { emit }) {
     const handleClick = () => {
-      emit('click', props.reminder.id);
+      emit('click', props.reminder);
     };
     
     const getStatusClass = (status) => {

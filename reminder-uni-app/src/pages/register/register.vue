@@ -213,29 +213,18 @@ export default {
         // 调用注册API
         const result = await register(registerData);
         
-        console.log('✅ 注册成功，响应:', result);
+        console.log('注册成功，响应数据:', result);
         
-        // 标记新用户需要完善资料
-        uni.setStorageSync('needCompleteProfile', {
-          isNewUser: true,
-          userInfo: {
-            nickname: form.nickname || '',
-            avatarUrl: '',
-            email: form.email || '',
-            phone: ''
-          }
-        });
-        
-        // 显示注册成功提示
+        // 显示成功提示
         uni.showToast({
-          title: '注册成功！请登录后完善资料',
+          title: '注册成功',
           icon: 'success',
           duration: 2000
         });
         
-        // 延迟跳转到登录页
+        // 延迟跳转到登录页面
         setTimeout(() => {
-          uni.redirectTo({
+          uni.navigateTo({
             url: '/pages/login/login'
           });
         }, 2000);

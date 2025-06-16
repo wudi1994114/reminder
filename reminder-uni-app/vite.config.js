@@ -76,8 +76,17 @@ export default defineConfig({
             return 'components-dialog';
           }
           
-          if (id.includes('/components/LoginForm')) {
-            return 'components-form';
+          // Conditional inclusion logic
+          if (process.env.NODE_ENV === 'development') {
+            if (id.includes('/components/datetime-picker')) {
+              console.log('Including datetime-picker in development');
+              return true;
+            }
+          } else {
+            if (id.includes('/components/datetime-picker')) {
+              console.log('Excluding datetime-picker in production');
+              return false;
+            }
           }
           
           return null;

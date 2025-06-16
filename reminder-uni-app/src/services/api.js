@@ -1013,9 +1013,15 @@ class WeChatUtils {
         // 返回登录结果
         const result = { ...response };
         if (response.isNewUser) {
-            result.needCompleteProfile = true; // 新用户需要完善资料
+            console.log('🆕 新用户登录');
+            result.isNewUser = true;
+            result.message = '欢迎使用提醒助手！';
+        } else {
+            console.log('👤 老用户登录');
+            result.message = '欢迎回来！';
         }
-
+        
+        console.log('✅ 微信登录处理完成');
         return result;
     } catch (error) {
       console.error('❌ 智能微信登录失败:', error.message);
@@ -1317,8 +1323,30 @@ class WeChatUtils {
 
     } catch (error) {
       console.error('❌ 头像上传处理失败:', error);
-      const errMsg = error.errMsg || error.message || '';
-      return { success: false, error: errMsg || '未知错误' };
+      console.error('头像上传错误详情:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        errMsg: error.errMsg,
+        userId: userId,
+        tempFilePath: tempFilePath,
+        oldAvatarUrl: oldAvatarUrl,
+        fullError: error
+      });
+      
+      // 提供更详细的错误信息
+      let errorMessage = '未知错误';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.errMsg) {
+        errorMessage = error.errMsg;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.toString && error.toString() !== '[object Object]') {
+        errorMessage = error.toString();
+      }
+      
+      return { success: false, error: errorMessage };
     }
     // #endif
 

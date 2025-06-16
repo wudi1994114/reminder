@@ -174,6 +174,11 @@ class UserService {
 
     if (success) {
       console.log('✅ UserService: 登录流程完成，用户信息已更新');
+      
+      // 直接发送登录成功事件，避免循环依赖
+      uni.$emit('userLoginSuccess', userState.user);
+      console.log('🎉 UserService: 已发送用户登录成功事件');
+      
       return userState.user;
     } else {
       console.error('❌ UserService: 登录成功但获取用户信息失败');
