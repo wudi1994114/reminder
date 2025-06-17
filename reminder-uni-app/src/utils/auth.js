@@ -3,7 +3,8 @@
  * 提供统一的登录检查和一键登录弹窗功能
  */
 import { reactive } from 'vue';
-import { userState } from '../services/userService';
+import { userState, UserService } from '../services/userService';
+import { reminderState } from '../store/index';
 
 // 响应式的全局认证状态
 export const globalAuthState = reactive({
@@ -155,22 +156,54 @@ export function clearAllUserData() {
     uni.removeStorageSync('accessToken');
     uni.removeStorageSync('refreshToken');
     
-    // 清理用户状态
-    userActions.clearUserInfo();
+    // 安全地清理用户状态
+    try {
+      if (UserService && typeof UserService.clearUserInfo === 'function') {
+        UserService.clearUserInfo();
+        console.log('✅ 用户状态已清理');
+      } else {
+        console.warn('⚠️ UserService.clearUserInfo 不可用，跳过用户状态清理');
+      }
+    } catch (userError) {
+      console.error('❌ 清理用户状态时出错:', userError);
+    }
     
-    // 清理提醒数据状态
-    reminderState.upcomingReminders = [];
-    reminderState.complexReminders = [];
-    reminderState.loading = false;
+    // 安全地清理提醒数据状态
+    try {
+      if (reminderState && typeof reminderState === 'object') {
+        reminderState.upcomingReminders = [];
+        reminderState.complexReminders = [];
+        reminderState.loading = false;
+        console.log('✅ 提醒数据状态已清理');
+      } else {
+        console.warn('⚠️ reminderState 不可用，跳过提醒数据清理');
+      }
+    } catch (reminderError) {
+      console.error('❌ 清理提醒数据时出错:', reminderError);
+    }
     
     console.log('✅ 所有用户数据清理完成');
     
-    // 发送全局事件，通知其他页面清理数据
-    uni.$emit('userLogout');
+    // 安全地发送全局事件
+    try {
+      uni.$emit('userLogout');
+      console.log('✅ 用户登出事件已发送');
+    } catch (eventError) {
+      console.error('❌ 发送登出事件时出错:', eventError);
+    }
     
     return true;
   } catch (error) {
     console.error('❌ 清理用户数据时出错:', error);
+    // 即使出错也要尝试清理基本数据
+    try {
+      uni.removeStorageSync('user');
+      uni.removeStorageSync('accessToken');
+      uni.removeStorageSync('refreshToken');
+      console.log('✅ 至少清理了基本存储数据');
+    } catch (fallbackError) {
+      console.error('❌ 连基本数据清理都失败了:', fallbackError);
+    }
     return false;
   }
 }
@@ -181,16 +214,41 @@ export function clearAllUserData() {
  * @returns {boolean} 是否已登录
  */
 export function checkAuthAndClearData(pageName = '未知页面') {
-  console.log(`🔍 [${pageName}] 检查登录状态`);
-  
-  if (!isAuthenticated()) {
-    console.log(`❌ [${pageName}] 用户未登录，清空所有数据`);
-    clearAllUserData();
+  try {
+    console.log(`🔍 [${pageName}] 检查登录状态`);
+    
+    // 安全检查登录状态
+    let authenticated = false;
+    try {
+      authenticated = isAuthenticated();
+    } catch (authError) {
+      console.error(`❌ [${pageName}] 检查登录状态时出错:`, authError);
+      authenticated = false;
+    }
+    
+    if (!authenticated) {
+      console.log(`❌ [${pageName}] 用户未登录，尝试清空所有数据`);
+      try {
+        const clearResult = clearAllUserData();
+        if (clearResult) {
+          console.log(`✅ [${pageName}] 数据清理成功`);
+        } else {
+          console.warn(`⚠️ [${pageName}] 数据清理部分失败，但继续执行`);
+        }
+      } catch (clearError) {
+        console.error(`❌ [${pageName}] 清理数据时出错:`, clearError);
+        // 即使清理失败，也要继续执行，避免页面卡死
+      }
+      return false;
+    }
+    
+    console.log(`✅ [${pageName}] 用户已登录，可以加载数据`);
+    return true;
+  } catch (error) {
+    console.error(`❌ [${pageName}] checkAuthAndClearData 执行时发生未知错误:`, error);
+    // 发生任何错误都返回 false，确保页面不会因为认证检查失败而崩溃
     return false;
   }
-  
-  console.log(`✅ [${pageName}] 用户已登录，可以加载数据`);
-  return true;
 }
 
 /**

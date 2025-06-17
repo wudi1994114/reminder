@@ -73,8 +73,11 @@
 
 <script>
 import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick, watch } from 'vue';
-import { createEvent, updateEvent, getSimpleReminderById, smartRequestSubscribe } from '../../services/api';
-import { requireAuth } from '../../utils/auth';
+import { createEvent, updateEvent, getSimpleReminderById, smartRequestSubscribe } from '@/services/api';
+import { requireAuth } from '@/utils/auth';
+import { FeatureControl, isProductionVersion } from '@/config/version';
+import UnifiedTimePicker from '@/components/unified-time-picker/unified-time-picker.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
   onLoad(options) {
@@ -91,13 +94,14 @@ export default {
     // 1. 定义响应式数据
     const isEdit = ref(false);
     const isDataReady = ref(false); // 用于控制组件渲染时机
-    const originalReminderType = ref(null); // 1. 新增：用于追踪原始的提醒方式
+    const originalReminderType = ref(null); // 用于追踪原始的提醒方式
+    
     const reminderForm = reactive({
       id: null,
       title: '',
       description: '',
       eventTime: '',
-      reminderType: 'WECHAT_MINI',
+      reminderType: '', // 将在 onMounted 中初始化
       status: 'PENDING'
     });
     
@@ -114,8 +118,8 @@ export default {
     const dateTimePickerRef = ref(null);
     
     // 3. 提醒方式相关
-    const reminderTypeOptions = ['邮件', '短信', '微信'];
-    const reminderTypeValues = ['EMAIL', 'SMS', 'WECHAT_MINI'];
+    const reminderTypeOptions = ref([]);
+    const reminderTypeValues = ref([]);
     const reminderTypeIndex = ref(0);
     
     // 4. 统一的参数处理函数
@@ -174,6 +178,8 @@ export default {
         return;
       }
       
+      initReminderTypes(); // 初始化提醒选项
+
       const { id } = processPageOptions();
       
       if (isEdit.value && id) {
@@ -213,7 +219,7 @@ export default {
             }
             
             // 设置提醒方式索引
-            const typeIndex = reminderTypeValues.indexOf(reminderForm.reminderType);
+            const typeIndex = reminderTypeValues.value.indexOf(reminderForm.reminderType);
             reminderTypeIndex.value = typeIndex >= 0 ? typeIndex : 0;
           }
         } catch (error) {
@@ -228,7 +234,7 @@ export default {
         originalReminderType.value = reminderForm.reminderType; // 4. 创建模式也记录初始值
         
         // 设置提醒方式索引以匹配默认的提醒类型
-        const typeIndex = reminderTypeValues.indexOf(reminderForm.reminderType);
+        const typeIndex = reminderTypeValues.value.indexOf(reminderForm.reminderType);
         reminderTypeIndex.value = typeIndex >= 0 ? typeIndex : 0;
       }
       
@@ -264,16 +270,14 @@ export default {
     };
     
     const getReminderTypeText = (type) => {
-      switch (type) {
-        case 'EMAIL': return '邮件提醒';
-        case 'SMS': return '短信提醒';
-        case 'WECHAT_MINI': return '微信小程序提醒';
-        default: return '邮件提醒';
-      }
+      const typeMap = {
+        'EMAIL': '邮件',
+        'SMS': '短信',
+        'WECHAT_MINI': '微信'
+      };
+      return typeMap[type] || '邮件';
     };
-    
 
-    
     const saveReminder = async () => {
       if (!reminderForm.title) {
         uni.showToast({ title: '请输入提醒标题', icon: 'none' });
@@ -452,9 +456,9 @@ export default {
     // 新增方法：显示提醒方式选择器
     const showReminderTypeSelector = () => {
       uni.showActionSheet({
-        itemList: reminderTypeOptions,
+        itemList: reminderTypeOptions.value,
         success: (res) => {
-          const selectedType = reminderTypeValues[res.tapIndex];
+          const selectedType = reminderTypeValues.value[res.tapIndex];
           
           reminderTypeIndex.value = res.tapIndex;
           reminderForm.reminderType = selectedType;
@@ -464,20 +468,30 @@ export default {
       });
     };
     
+    const initReminderTypes = () => {
+      let options = [];
+      let values = [];
 
-    
-
-    
-
-    
-    // 更新getReminderTypeText方法以支持中文
-    const getReminderTypeTextUpdated = (type) => {
-      switch (type) {
-        case 'EMAIL': return '邮件';
-        case 'SMS': return '短信';
-        case 'WECHAT_MINI': return '微信';
-        default: return '邮件';
+      if (isProductionVersion()) {
+        // 正式环境
+        options = ['微信', '邮件', '手机'];
+        values = ['WECHAT_MINI', 'EMAIL', 'SMS'];
+        // 默认微信
+        reminderForm.reminderType = 'WECHAT_MINI';
+      } else {
+        // 开发和测试环境
+        options = ['微信'];
+        values = ['WECHAT_MINI'];
+        reminderForm.reminderType = 'WECHAT_MINI';
       }
+
+      reminderTypeOptions.value = options;
+      reminderTypeValues.value = values;
+      
+      // 只有在 reminderForm.reminderType 之前有值的情况下（比如编辑模式），才进行查找
+      // 否则，在创建模式下，它应该就是默认值，索引就是0
+      const defaultIndex = values.indexOf(reminderForm.reminderType);
+      reminderTypeIndex.value = defaultIndex !== -1 ? defaultIndex : 0;
     };
 
     return {
@@ -493,7 +507,7 @@ export default {
       onDateTimeChange,
       onReminderTypeChange,
       getReminderTypeIcon,
-      getReminderTypeText: getReminderTypeTextUpdated,
+      getReminderTypeText,
       saveReminder,
       performSave,
       needWechatSubscribe,

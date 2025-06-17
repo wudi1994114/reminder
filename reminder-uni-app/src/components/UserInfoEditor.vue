@@ -33,7 +33,8 @@
         <text class="char-count">{{ nickname.length }}/20</text>
       </view>
       
-      <view class="email-section">
+      <!-- 邮箱部分 - 版本控制：开发版本完全隐藏 -->
+      <view v-if="FeatureControl.showEmailFeatures()" class="email-section">
         <text class="label">邮箱</text>
         <input 
           class="email-input" 
@@ -47,7 +48,8 @@
         <text class="notification-hint">💡 只有填写了邮箱才能通过邮件渠道接收通知</text>
       </view>
       
-      <view class="phone-section">
+      <!-- 手机号部分 - 版本控制：开发版本完全隐藏 -->
+      <view v-if="FeatureControl.showPhoneFeatures()" class="phone-section">
         <text class="label">手机号</text>
         <input 
           class="phone-input" 
@@ -71,7 +73,6 @@
       >
         {{ saving ? '保存中...' : '保存' }}
       </button>
-      <button class="cancel-button" @click="cancel">稍后再说</button>
     </view>
   </view>
 </template>
@@ -80,6 +81,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { updateUserInfoFromComponent, uploadAvatarWithFile } from '../services/api';
 import { userState } from '../services/userService';
+import { FeatureControl } from '../config/version';
 
 export default {
   name: 'UserInfoEditor',
@@ -378,6 +380,7 @@ export default {
       emailError,
       phoneError,
       canSave,
+      FeatureControl,
       onChooseAvatar,
       onNicknameInput,
       onEmailInput,

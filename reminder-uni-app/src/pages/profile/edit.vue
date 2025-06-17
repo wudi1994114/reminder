@@ -32,8 +32,9 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue';
-import { UserService, userState } from '../../services/userService';
-import UserInfoEditor from '../../components/UserInfoEditor.vue';
+import { UserService, userState } from '@/services/userService';
+import { FeatureControl } from '@/config/version';
+import UserInfoEditor from '@/components/UserInfoEditor.vue';
 
 export default {
   components: {
@@ -60,29 +61,21 @@ export default {
         };
         initialUserInfo.value = userInfo;
         
-        // --- 修改：根据缺失信息生成更具体的提示 ---
+        // --- 修改：根据版本控制和缺失信息生成提示 ---
         const missingInfo = [];
-        if (!userInfo.email) {
+        
+        // 只有在线上版本才检查邮箱和手机号
+        if (FeatureControl.showEmailFeatures() && !userInfo.email) {
           missingInfo.push('邮箱');
         }
-        if (!userInfo.phone) {
+        if (FeatureControl.showPhoneFeatures() && !userInfo.phone) {
           missingInfo.push('手机号');
         }
 
-        if (missingInfo.length === 2) {
-          // 两者都缺失
-          promptMessage.value = '建议补充手机号和邮箱，确保能通过这两个重要渠道接收服务通知。';
-        } else if (missingInfo.length === 1) {
-          if (missingInfo[0] === '邮箱') {
-            // 只缺失邮箱
-            promptMessage.value = '补充邮箱后，您将能通过邮件接收订单回执和服务通知。';
-          } else {
-            // 只缺失手机号
-            promptMessage.value = '补充手机号后，您将能通过短信接收紧急安全提醒或登录验证。';
-          }
+        if (missingInfo.length > 0) {
+            promptMessage.value = `建议补充${missingInfo.join('和')}，以便接收提醒通知。`;
         } else {
-          // 信息完整
-          promptMessage.value = '';
+            promptMessage.value = '';
         }
         // --- 结束修改 ---
 
@@ -106,7 +99,7 @@ export default {
             content: '请先登录',
             showCancel: false,
             success: () => {
-              uni.reLaunch({ url: '/pages/login/login' });
+              uni.switchTab({ url: '/pages/index/index' });
             }
           });
           return;

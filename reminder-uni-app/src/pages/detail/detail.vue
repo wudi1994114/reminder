@@ -77,24 +77,37 @@
       <button class="action-button edit-btn" @click="editReminder">
         <text class="button-text">编辑</text>
       </button>
-      <button class="action-button cancel-btn" @click="goBack">
-        <text class="button-text">取消</text>
+      <button class="action-button delete-btn" @click="handleDelete">
+        <text class="button-text">删除</text>
       </button>
     </view>
+    <!-- 确认对话框 -->
+    <confirm-dialog
+      :show="showConfirmDialog"
+      title="确认删除"
+      message="确定要删除这个提醒吗？此操作无法撤销。"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </view>
 </template>
 
 <script>
 import { ref, onMounted, getCurrentInstance } from 'vue';
-import { getSimpleReminderById } from '../../services/api';
-import { formatDetail } from '../../utils/dateFormat';
+import { getSimpleReminderById, deleteEvent } from '@/services/api';
+import { DateFormatter } from '@/utils/dateFormat';
 import cronstrue from 'cronstrue/i18n';
-import { requireAuth } from '../../utils/auth';
+import { requireAuth } from '@/utils/auth';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
+  components: {
+    ConfirmDialog
+  },
   setup() {
     const reminder = ref({});
     const loading = ref(true);
+    const showConfirmDialog = ref(false);
     const reminderId = ref('');
     
     // 在setup中直接获取页面参数
@@ -184,7 +197,7 @@ export default {
     
     const formatDisplayTime = (timeString) => {
       if (!timeString) return '-';
-      return formatDetail(timeString);
+      return DateFormatter.formatDetail(timeString);
     };
 
     const cronExpressionToText = (cronExpression) => {
@@ -223,16 +236,44 @@ export default {
       }
     };
     
+    const handleDelete = () => {
+      showConfirmDialog.value = true;
+    };
+
+    const cancelDelete = () => {
+      showConfirmDialog.value = false;
+    };
+
+    const confirmDelete = async () => {
+      showConfirmDialog.value = false;
+      if (!reminder.value.id) return;
+      try {
+        await deleteEvent(reminder.value.id);
+        uni.showToast({
+          title: '删除成功',
+          icon: 'success'
+        });
+        uni.navigateBack();
+      } catch (error) {
+        console.error('删除提醒失败:', error);
+        uni.showToast({ title: '删除失败', icon: 'none' });
+      }
+    };
+    
     return {
       reminder,
       loading,
+      showConfirmDialog,
       goBack,
       editReminder,
       formatDisplayTime,
       cronExpressionToText,
       getStatusClass,
       getStatusText,
-      getReminderTypeText
+      getReminderTypeText,
+      handleDelete,
+      confirmDelete,
+      cancelDelete
     };
   }
 };
@@ -528,14 +569,9 @@ export default {
   font-weight: 600;
 }
 
-.cancel-btn {
-  background-color: #f5f5f5;
-  color: #9d8148;
-}
-
-.edit-btn {
-  background-color: #f7bd4a;
-  color: #1c170d;
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
 }
 
 .button-text {

@@ -121,8 +121,8 @@ const request = (options) => {
                             content: '请重新登录',
                             showCancel: false,
                             success: () => {
-                                uni.reLaunch({
-                                    url: '/pages/login/login'
+                                uni.switchTab({
+                                    url: '/pages/index/index'
                                 });
                             }
                         });

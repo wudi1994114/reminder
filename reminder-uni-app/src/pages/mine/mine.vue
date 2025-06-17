@@ -19,7 +19,7 @@
           </view>
           <view class="user-info">
             <text class="username">{{ userState.user?.nickname || userState.user?.username || '未登录' }}</text>
-            <text class="user-email" v-if="userState.user?.email">{{ userState.user?.email }}</text>
+            <text class="user-email" v-if="FeatureControl.showEmailFeatures() && userState.user?.email">{{ userState.user?.email }}</text>
             <text class="user-id" v-else-if="userState.user?.id">ID: {{ userState.user?.id }}</text>
           </view>
           <button 
@@ -113,14 +113,17 @@
 
 <script>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue';
-import { UserService, userState } from '../../services/userService';
-import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '../../utils/auth';
-import { wechatLogin } from '../../services/api';
-import GlobalLoginModal from '../../components/GlobalLoginModal.vue';
+import { UserService, userState } from '@/services/userService';
+import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '@/utils/auth';
+import { wechatLogin } from '@/services/api';
+import { FeatureControl } from '@/config/version';
+import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
   components: {
-    GlobalLoginModal
+    GlobalLoginModal,
+    ConfirmDialog
   },
   onShow() {
     console.log('个人中心页面显示，检查登录状态');
@@ -362,6 +365,7 @@ export default {
       stats,
       showLogoutConfirmDialog,
       displayAvatarUrl,
+      FeatureControl,
       checkUserSession,
       fetchUserStats,
       confirmLogout,

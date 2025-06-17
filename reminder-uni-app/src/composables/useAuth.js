@@ -74,9 +74,9 @@ export function useAuth() {
             userActions.clearUserInfo();
             showNotification('已退出登录', 'info');
             
-            // 跳转到登录页
-            uni.reLaunch({
-                url: '/pages/login/login'
+            // 如果没有上一页，直接跳转到登录页
+            uni.switchTab({
+                url: '/pages/index/index'
             });
         }
     };
@@ -138,8 +138,9 @@ export function useAuth() {
                 content: '请先登录',
                 showCancel: false,
                 success: () => {
-                    uni.navigateTo({
-                        url: '/pages/login/login'
+                    // 跳转到登录页面
+                    uni.switchTab({
+                        url: '/pages/index/index'
                     });
                 }
             });

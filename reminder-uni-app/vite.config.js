@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
 import { resolve } from 'path'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,7 +11,7 @@ export default defineConfig({
   // 路径别名配置
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, 'src'),
       '@api': resolve(__dirname, 'src/api'),
       '@store': resolve(__dirname, 'src/store'),
       '@utils': resolve(__dirname, 'src/utils'),
@@ -130,7 +131,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "@/styles/variables.scss";`
+        
       }
     }
   },

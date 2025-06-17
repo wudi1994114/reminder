@@ -122,20 +122,22 @@
 
 <script>
 import { ref, computed, nextTick, onUnmounted } from 'vue';
-import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi, wechatLogin } from '../../services/api';
-import { reminderState } from '../../services/store';
-import SimpleReminderCard from '../../components/SimpleReminderCard.vue';
-import ComplexReminderCard from '../../components/ComplexReminderCard.vue';
-import { UserService, userState } from '../../services/userService';
-import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '../../utils/auth';
-import GlobalLoginModal from '../../components/GlobalLoginModal.vue';
+import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi, wechatLogin } from '@/services/api';
+import { reminderState, reminderActions } from '@/store/modules/reminder';
+import { UserService, userState } from '@/services/userService';
+import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
+import SimpleReminderCard from '@/components/SimpleReminderCard.vue';
+import ComplexReminderCard from '@/components/ComplexReminderCard.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
   name: 'IndexPage',
   components: {
     SimpleReminderCard,
     ComplexReminderCard,
-    GlobalLoginModal
+    GlobalLoginModal,
+    ConfirmDialog
   },
   onTabItemTap() {
     // 标签页切换时的逻辑，暂时移除直接调用
@@ -184,6 +186,14 @@ export default {
         return '点击右上角"+"创建你的第一个复杂提醒吧！';
       }
     });
+
+    // 创建按钮文字
+    const createButtonText = computed(() => {
+      return activeTab.value === 'simple' ? '新建简单提醒' : '新建复杂提醒';
+    });
+
+    // loading别名，方便模板使用
+    const loading = computed(() => isLoading.value);
 
     // 标签页切换
     const switchTab = (tab) => {
@@ -316,9 +326,9 @@ export default {
       });
     };
 
-    const navigateToComplexCreate = () => {
+    const goTocreateComplex = () => {
       uni.navigateTo({
-        url: '/pages/complex-create/create'
+        url: '/pages/create-complex/create-complex'
       });
     };
 
@@ -328,9 +338,10 @@ export default {
       });
     };
 
-    const navigateToComplexEdit = (reminderId) => {
+    const editComplexReminder = (reminderId) => {
+      console.log('首页: 编辑复杂提醒, ID:', reminderId);
       uni.navigateTo({
-        url: `/pages/complex-create/create?id=${reminderId}`
+        url: `/pages/create-complex/create-complex?id=${reminderId}`
       });
     };
     
@@ -340,7 +351,7 @@ export default {
         if (activeTab.value === 'simple') {
           navigateToCreate();
         } else {
-          navigateToComplexCreate();
+          goTocreateComplex();
         }
       }
     };
@@ -433,6 +444,18 @@ export default {
       uni.$off('userLoginSuccess');
     });
 
+    const goToDetail = (reminder) => {
+      uni.navigateTo({
+        url: `/pages/detail/detail?id=${reminder.id}`
+      });
+    };
+
+    const goToComplexDetail = (reminder) => {
+      uni.navigateTo({
+        url: `/pages/create-complex/create-complex?id=${reminder.id}`
+      });
+    };
+
     return {
       // 响应式数据
       activeTab,
@@ -448,6 +471,8 @@ export default {
       hasNoData,
       emptyStateText,
       emptyStateDesc,
+      createButtonText,
+      loading,
       
       // 方法
       switchTab,
@@ -457,12 +482,14 @@ export default {
       refreshData,
       deleteComplexReminder,
       navigateToCreate,
-      navigateToComplexCreate,
+      goTocreateComplex,
       navigateToEdit,
-      navigateToComplexEdit,
+      editComplexReminder,
       handleCreateNew,
       closeLoginModal,
-      handleWechatLogin
+      handleWechatLogin,
+      goToDetail,
+      goToComplexDetail
     };
   }
 };

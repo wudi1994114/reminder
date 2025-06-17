@@ -86,12 +86,11 @@
 
 <script>
 import { ref, computed, onMounted, watch, shallowRef, onUnmounted } from 'vue';
-import { getAllSimpleReminders, getHolidaysByYearRange } from '../../services/api';
-import { formatTime } from '../../utils/dateFormat';
-import { getLunarInfo } from '../../utils/lunarManager';
-import performanceMonitor from '../../utils/performanceMonitor';
-import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '../../utils/auth';
-import GlobalLoginModal from '../../components/GlobalLoginModal.vue';
+import { getAllSimpleReminders, getHolidaysByYearRange } from '@/services/api';
+import { formatTime } from '@/utils/dateFormat';
+import { getLunarInfo } from '@/utils/lunarManager';
+import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 
 export default {
   components: {

@@ -229,1598 +229,369 @@ import {
   updateComplexReminder, 
   getComplexReminderById,
   smartRequestSubscribe
-} from '../../services/api';
-import { reminderState } from '../../services/store';
-import { DateFormatter } from '../../utils/dateFormat';
+} from '@/services/api';
+import { reminderState } from '@/services/store';
+import { DateFormatter } from '@/utils/dateFormat';
+import { isProductionVersion } from '@/config/version';
+import { requireAuth } from '@/utils/auth';
+import { cronstrue } from 'cronstrue/i18n';
 
 export default {
   data() {
     return {
       isEdit: false,
       isSubmitting: false,
-      activeTab: 'simple', // 'simple' 或 'advanced' - 默认简单模式，编辑时会在onLoad中修改为高级模式
-      showCronExpression: false, // 控制Cron表达式展开
-      showCronPicker: false, // 控制Cron选择器显示
-      isTextOverflow: false, // 控制跑马灯效果
-      scrollDistance: '-50%', // 滚动距离
-      scrollTop: 0, // 滚动位置
+      activeTab: 'simple', 
+      showCronPicker: false, 
+      isTextOverflow: false, 
+      scrollDistance: '-50%',
+      scrollTop: 0,
       
-      // 提醒数据
-      reminderData: {
-        id: null,
-        title: '',
-        description: '',
-        reminderType: 'EMAIL',
-        cronExpression: '0 8 * * *', // 默认每天8点
-        validFrom: '',
-        validUntil: '',
-        maxExecutions: null
-      },
-      
-      // 提醒方式选项
-      reminderTypeOptions: ['邮件', '短信'],
-      reminderTypeValues: ['EMAIL', 'SMS'],
+      reminderTypeOptions: [],
+      reminderTypeValues: [],
       reminderTypeIndex: 0,
-      
-      // 自定义时间选择器显示状态
-      showCustomPickers: false,
-      
-      // 简单模式的日期时间设置
-      reminderDate: '',
-      reminderTime: '',
-      simpleDate: '',
-      simpleTime: '',
-      
-      // 重复选项
-      repeatOptions: ['每天', '每周', '每月'],
+      originalReminderType: null,
+
+      repeatOptions: ['每日', '每周', '每月', '每年', '自定义'],
+      repeatValues: ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'CUSTOM'],
       repeatIndex: 0,
       
-      // 时间选择器选项
-      hourOptions: Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')),
-      minuteOptions: Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')),
-      selectedHour: 8, // 默认8点
-      selectedMinute: 0, // 默认0分
+      timePickerColumns: ['date', 'time'],
+      simpleDate: '',
+      simpleTime: '',
+      selectedWeekday: 1, 
+
+      showCustomPickers: false,
+      reminderDate: '',
+      reminderTime: '',
       
-      // 简易模式数据
-      simpleData: {
-        recurrenceType: 'DAILY',
-        hour: 8,
-        minute: 0,
-        weekday: 1, // 周一
-        dayOfMonth: 1,
-        month: 1
-      },
-      simpleTime: '08:00',
-      
-      // 选项数据
-      recurrenceOptions: ['每天', '每周', '每月', '每年'],
-      recurrenceValues: ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'],
-      recurrenceIndex: 0,
-      
-      weekDays: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
-      weekdayIndex: 1,
-      
-      months: ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'],
-      monthIndex: 0,
-      
-      monthDays: [],
-      monthDayIndex: 0,
-      
-      dayIndex: 0,
-      
-      // 预览数据
       previewTimes: [],
-      humanReadableDescription: '每天上午8:00'
-    }
+      cronPreview: '',
+      humanReadableDescription: '',
+    };
   },
   
   computed: {
-    // 控制Cron输入框显示
+    reminderData() {
+      return reminderState.form || {};
+    },
     showCronInput() {
-      return this.repeatIndex === 4; // 自定义时显示
+      return this.repeatOptions[this.repeatIndex] === '自定义';
     },
-    
-    // Cron表达式预览
-    cronPreview() {
-      if (this.reminderData.cronExpression && this.repeatIndex === 4) {
-        try {
-          // 这里可以添加cronstrue库来解析Cron表达式
-          return '自定义Cron表达式';
-        } catch (e) {
-          return '无效的Cron表达式';
-        }
-      }
-      return '';
-    },
-    
-    // Cron表达式文字描述
     cronDescription() {
-      const result = this.parseCronToDescription(this.reminderData.cronExpression);
-      console.log('计算cronDescription:', this.reminderData.cronExpression, '->', result);
-      return result;
-    },
-    
-    // 根据重复类型动态确定时间选择器显示的列
-    timePickerColumns() {
-      switch (this.repeatIndex) {
-        case 0: // 每天 - 只显示时分
-          return ['hour', 'minute'];
-        case 1: // 每周 - 显示周几和时分
-          return ['weekday', 'hour', 'minute'];
-        case 2: // 每月 - 显示日时分
-          return ['day', 'hour', 'minute'];
-        default:
-          return ['hour', 'minute'];
-      }
+      return this.humanReadableDescription || '点击设置';
     }
   },
-  
-  watch: {
-    // 监听重复选项变化，自动更新Cron表达式
-    repeatIndex(newIndex) {
-      this.updateCronFromRepeat();
-    },
-    
-    // 监听时间变化，更新Cron表达式中的时间部分
-    reminderTime(newTime) {
-      if (newTime && this.repeatIndex > 0 && this.repeatIndex < 4) {
-        const [hour, minute] = newTime.split(':');
-        const cronParts = this.reminderData.cronExpression.split(' ');
-        if (cronParts.length >= 2) {
-          cronParts[0] = minute || '0';
-          cronParts[1] = hour || '8';
-          this.reminderData.cronExpression = cronParts.join(' ');
-        }
-      }
-    },
-    
-    // 监听cronDescription变化，触发文本溢出检测
-    cronDescription(newDescription) {
-      console.log('cronDescription变化:', newDescription);
-      this.$nextTick(() => {
-        this.checkTextOverflow();
-      });
-    }
-  },
-  
-  // 页面加载完成后的回调
+
   async onLoad(options) {
-    console.log('复杂提醒页面加载参数:', options);
-    
-    // 检查登录状态
-    const token = uni.getStorageSync('accessToken');
-    if (!token) {
-      uni.showModal({
-        title: '提示',
-        content: '请先登录',
-        showCancel: false,
-        confirmText: '去登录',
-        success: () => {
-          uni.reLaunch({
-            url: '/pages/login/login'
-          });
-        }
-      });
-      return;
+    await requireAuth();
+    this.isEdit = !!options.id;
+    if (this.isEdit) {
+      this.activeTab = 'advanced'; // 编辑模式默认进入高级模式
+      await this.loadReminderData(options.id);
+    } else {
+      this.resetAndSetupNewReminder();
     }
-    
-    if (options.id) {
-      this.isEdit = true;
-      this.activeTab = 'advanced'; // 编辑模式默认显示高级模式
-      this.loadReminderData(options.id);
-    }
-    this.initializeData();
-    this.generateMonthDays();
-    this.updatePreview();
-    
-    // 添加调试日志
-    console.log('页面加载完成，初始cronExpression:', this.reminderData.cronExpression);
-    console.log('初始cronDescription:', this.cronDescription);
-    
-    // 确保页面可以滚动
-    this.$nextTick(() => {
-      setTimeout(() => {
-        this.scrollTop = 1; // 设置一个很小的滚动位置
-      }, 200);
-    });
-  },
-  
-  mounted() {
-    // 页面挂载后检测文本溢出
-    this.checkTextOverflow();
-    
-    // 确保页面可以滚动，设置一个小的初始滚动位置
-    this.$nextTick(() => {
-      // 延迟一点时间确保DOM完全渲染
-      setTimeout(() => {
-        this.scrollTop = 1; // 设置一个很小的滚动位置，确保可以向上滚动
-      }, 100);
-    });
-  },
-  
-  updated() {
-    // 页面更新后检测文本溢出
-    this.checkTextOverflow();
+    this.initReminderTypes(); // 在这里初始化提醒方式
   },
   
   methods: {
-    // 初始化数据
-    initializeData() {
-      const today = new Date();
-      // 移除强制设置validFrom的默认值，让它保持为空字符串（对应后端的null）
-      // this.reminderData.validFrom = today.toISOString().split('T')[0];
-      
-      // 初始化简单模式的日期时间
-      this.reminderDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      this.simpleDate = this.reminderDate;
-      
-      // 设置默认时间为当前时间的后一小时整点
-      const now = new Date();
-      now.setHours(now.getHours() + 1);
-      now.setMinutes(0);
-      now.setSeconds(0);
-      this.reminderTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      this.simpleTime = this.reminderTime;
-      
-      // 同步简单模式数据
-      this.simpleData.hour = now.getHours();
-      this.simpleData.minute = 0;
-      this.simpleData.recurrenceType = 'DAILY'; // 默认设置为每天重复
-      // 使用默认的重复选项（repeatIndex = 0 对应 "每天"）
-      this.updateCronFromRepeat();
-      
-      // 更新eventTime
-      this.updateEventTime();
-      
-      console.log('初始化数据完成:');
-      console.log('今天日期:', this.reminderDate);
-      console.log('设置时间:', this.reminderTime);
-      console.log('简单模式数据:', this.simpleData);
-    },
-    
-    // 切换标签
-    switchTab(tab) {
-      this.activeTab = tab;
-      console.log('切换到模式:', tab);
-      
-      if (tab === 'simple') {
-        // 确保简单模式数据完整
-        if (!this.simpleData.hour && !this.simpleData.minute) {
-          this.simpleData.hour = 8;
-          this.simpleData.minute = 0;
-          this.simpleTime = '08:00';
+    initReminderTypes() {
+      let options = [];
+      let values = [];
+
+      if (isProductionVersion()) {
+        // 正式环境: 只有邮件和手机
+        options = ['邮件', '手机'];
+        values = ['EMAIL', 'SMS'];
+        // 创建新提醒时，默认邮件
+        if (!this.isEdit) {
+          this.reminderData.reminderType = 'EMAIL';
         }
-        this.updateCronFromSimple();
+      } else {
+        // 开发和测试环境: 只有微信
+        options = ['微信'];
+        values = ['WECHAT_MINI'];
+        // 创建新提醒时，默认微信
+        if (!this.isEdit) {
+          this.reminderData.reminderType = 'WECHAT_MINI';
+        }
       }
-      
-      this.updatePreview();
-      
-      // 确保切换后页面可以滚动
-      this.$nextTick(() => {
-        this.ensureScrollable();
+
+      this.reminderTypeOptions = options;
+      this.reminderTypeValues = values;
+
+      const defaultIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
+      this.reminderTypeIndex = defaultIndex !== -1 ? defaultIndex : 0;
+    },
+
+    showReminderTypeSelector() {
+      uni.showActionSheet({
+        itemList: this.reminderTypeOptions,
+        success: (res) => {
+          const selectedIndex = res.tapIndex;
+          this.reminderTypeIndex = selectedIndex;
+          this.reminderData.reminderType = this.reminderTypeValues[selectedIndex];
+        },
+        fail: (err) => {
+          console.log(err.errMsg);
+        }
       });
     },
-    
-    // 提醒方式改变
-    onReminderTypeChange(e) {
-      this.reminderTypeIndex = e.detail.value;
-      this.reminderData.reminderType = this.reminderTypeValues[this.reminderTypeIndex];
-    },
-    
-    // 简单模式 - 日期改变
-    onDateChange(e) {
-      this.reminderDate = e.detail.value;
-      this.updateEventTime();
-    },
-    
-    // 简单模式 - 时间改变
-    onTimeChange(e) {
-      this.reminderTime = e.detail.value;
-      this.updateEventTime();
-    },
-    
-    // 简单模式 - 重复选项改变
-    onRepeatChange(e) {
-      this.repeatIndex = e.detail.value;
-      this.updateCronFromRepeat();
-    },
-    
-    // 小时选择改变
-    onHourChange(e) {
-      this.selectedHour = e.detail.value;
-      this.updateCronFromTime();
-    },
-    
-    // 分钟选择改变
-    onMinuteChange(e) {
-      this.selectedMinute = e.detail.value;
-      this.updateCronFromTime();
-    },
-    
-    // 简单模式时间变化处理
-    onSimpleTimeChange(dateTimeData) {
-      this.simpleDate = dateTimeData.date;
-      this.simpleTime = dateTimeData.time;
+
+    resetAndSetupNewReminder() {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 2);
+
+      const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       
-      // 解析时间
-      const [hour, minute] = dateTimeData.time.split(':');
-      
-      // 更新简易模式数据
-      this.simpleData.hour = parseInt(hour);
-      this.simpleData.minute = parseInt(minute);
-      
-      // 解析日期（如果有的话）
-      if (dateTimeData.date) {
-        const [year, month, day] = dateTimeData.date.split('-');
-        this.simpleData.month = parseInt(month);
-        this.simpleData.dayOfMonth = parseInt(day);
-      }
-      
-      // 根据当前重复类型更新Cron表达式
-      this.updateCronFromSimple();
-      
-      // 更新预览
-      this.updatePreview();
-    },
-    
-    // 周几变化处理
-    onWeekdayChange(weekday) {
-      // weekday: 0-6 (周日到周六)
-      this.simpleData.weekday = weekday;
-      
-      // 根据当前重复类型更新Cron表达式
-      this.updateCronFromSimple();
-      
-      // 更新预览
-      this.updatePreview();
-    },
-    
-    // 根据时间选择更新Cron表达式
-    updateCronFromTime() {
-      const hour = parseInt(this.hourOptions[this.selectedHour]);
-      const minute = parseInt(this.minuteOptions[this.selectedMinute]);
-      
-      // 更新简易模式数据
-      this.simpleData.hour = hour;
-      this.simpleData.minute = minute;
-      
-      // 根据当前重复类型更新Cron表达式 - 统一使用5位格式
-      switch (Number(this.repeatIndex)) {
-        case 0: // 每天
-          this.reminderData.cronExpression = `${minute} ${hour} * * *`;
-          break;
-        case 1: // 每周
-          this.reminderData.cronExpression = `${minute} ${hour} * * ${this.simpleData.weekday || 1}`;
-          break;
-        case 2: // 每月
-          this.reminderData.cronExpression = `${minute} ${hour} ${this.simpleData.dayOfMonth || 1} * *`;
-          break;
-        default:
-          // 自定义不处理
-          break;
-      }
-    },
-    
-    // 更新eventTime
-    updateEventTime() {
-      if (this.reminderDate && this.reminderTime) {
-        this.reminderData.eventTime = `${this.reminderDate} ${this.reminderTime}:00`;
-      } else {
-        this.reminderData.eventTime = '';
-      }
-    },
-    
-    // 根据重复选项更新Cron表达式
-    updateCronFromRepeat() {
-      // 使用简单模式的时间数据
-      const hour = this.simpleData.hour;
-      const minute = this.simpleData.minute;
-      
-      switch (Number(this.repeatIndex)) {
-        case 0: // 每天
-          this.reminderData.cronExpression = `${minute} ${hour} * * *`;
-          this.simpleData.recurrenceType = 'DAILY';
-          break;
-        case 1: // 每周
-          this.reminderData.cronExpression = `${minute} ${hour} * * ${this.simpleData.weekday || 1}`;
-          this.simpleData.recurrenceType = 'WEEKLY';
-          // 如果没有设置星期，默认为周一
-          if (!this.simpleData.weekday) {
-            this.simpleData.weekday = 1;
-          }
-          break;
-        case 2: // 每月
-          const dayOfMonth = this.simpleData.dayOfMonth || 1; // 使用已选择的日期，默认1号
-          this.reminderData.cronExpression = `${minute} ${hour} ${dayOfMonth} * *`;
-          this.simpleData.recurrenceType = 'MONTHLY';
-          if (!this.simpleData.dayOfMonth) {
-            this.simpleData.dayOfMonth = 1; // 只有在没有设置时才默认为1号
-          }
-          break;
-      }
-      
-      // 更新预览
-      this.updatePreview();
-    },
-    
-    // 解析Cron表达式为文字描述
-    parseCronToDescription(cronExpression) {
-      console.log('解析Cron表达式:', cronExpression);
-      
-      if (!cronExpression || cronExpression.trim() === '') {
-        console.log('Cron表达式为空');
-        return '请设置重复规则';
-      }
-      
-      try {
-        // 解析cron表达式 (统一使用5位格式: 分 时 日 月 周)
-        const parts = cronExpression.trim().split(/\s+/);
-        console.log('Cron表达式分割结果:', parts);
-        
-        if (parts.length < 5) {
-          console.log('Cron表达式位数不足');
-          return '无效的Cron表达式';
-        }
-        
-        let minute, hour, day, month, weekday;
-        
-        if (parts.length === 5) {
-          // 5位格式: 分 时 日 月 周
-          [minute, hour, day, month, weekday] = parts;
-          console.log('解析为5位格式');
-        } else if (parts.length === 6) {
-          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
-          [, minute, hour, day, month, weekday] = parts;
-          console.log('解析为6位格式，忽略秒');
-        } else {
-          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
-          [, minute, hour, day, month, weekday] = parts;
-          console.log('解析为7位格式，忽略秒和年');
-        }
-        
-        console.log('解析结果:', { minute, hour, day, month, weekday });
-        
-        let description = '';
-        
-        // 解析时间
-        const timeStr = this.formatTime(hour, minute);
-        console.log('格式化时间结果:', timeStr);
-        
-        // 解析重复模式 - 修复逻辑顺序
-        if (month !== '*' && month !== '?' && month.trim() !== '') {
-          // 按年重复 - 优先检查年重复
-          const months = this.parseMonths(month);
-          
-          if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
-            // 年重复 + 星期模式
-            const weekdays = this.parseWeekdays(weekday);
-            description = `每年${months}的${weekdays}${timeStr}`;
-          } else if (day !== '?' && day !== '*' && day.trim() !== '') {
-            // 年重复 + 日期模式
-            description = `每年${months}${day}日${timeStr}`;
-          } else {
-            // 年重复但日期和星期都为通配符
-            description = `每年${months}${timeStr}`;
-          }
-          console.log('识别为年重复:', description);
-        } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
-          // 按周重复
-          const weekdays = this.parseWeekdays(weekday);
-          description = `每${weekdays}${timeStr}`;
-          console.log('识别为周重复:', description);
-        } else if (day !== '?' && day !== '*' && day.trim() !== '') {
-          // 按月重复
-          if (day.includes(',')) {
-            const days = day.split(',').join('日、');
-            description = `每月${days}日${timeStr}`;
-          } else {
-            description = `每月${day}日${timeStr}`;
-          }
-          console.log('识别为月重复:', description);
-        } else {
-          // 每天重复
-          description = `每天${timeStr}`;
-          console.log('识别为每天重复:', description);
-        }
-        
-        console.log('最终描述:', description);
-        return description;
-      } catch (error) {
-        console.error('解析Cron表达式失败:', error);
-        return '无效的Cron表达式';
-      }
-    },
-    
-    // 格式化时间
-    formatTime(hour, minute) {
-      const h = hour === '*' ? '0' : hour;
-      const m = minute === '*' ? '0' : minute;
-      const hourNum = parseInt(h) || 0;  // 使用 || 0 处理NaN
-      const minuteNum = parseInt(m) || 0; // 使用 || 0 处理NaN
-      
-      // 处理凌晨0点的情况
-      if (hourNum === 0) {
-        return `上午12:${String(minuteNum).padStart(2, '0')}`;
-      } else if (hourNum < 12) {
-        return `上午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
-      } else if (hourNum === 12) {
-        return `中午${hourNum}:${String(minuteNum).padStart(2, '0')}`;
-      } else {
-        return `下午${hourNum - 12}:${String(minuteNum).padStart(2, '0')}`;
-      }
-    },
-    
-    // 解析星期
-    parseWeekdays(weekday) {
-      const weekMap = {
-        '0': '周日', '7': '周日',
-        '1': '周一', '2': '周二', '3': '周三', 
-        '4': '周四', '5': '周五', '6': '周六',
-        'SUN': '周日', 'MON': '周一', 'TUE': '周二', 
-        'WED': '周三', 'THU': '周四', 'FRI': '周五', 'SAT': '周六'
+      reminderState.form = {
+        title: '',
+        description: '',
+        cronExpression: `0 ${String(now.getMinutes()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')} * * ?`,
+        reminderType: '', // 让 initReminderTypes 来设置
+        status: 'PENDING',
       };
-      
-      if (weekday.includes(',')) {
-        return weekday.split(',').map(w => weekMap[w.trim()] || w).join(',');
-      } else {
-        return weekMap[weekday] || weekday;
-      }
+
+      this.simpleTime = defaultTime;
+      this.simpleDate = new Date().toISOString().split('T')[0];
+      this.selectedWeekday = new Date().getDay() || 7; 
+      this.originalReminderType = this.reminderData.reminderType;
+      this.updateCronFromSimple();
     },
-    
-    // 解析月份
-    parseMonths(month) {
-      const monthMap = {
-        '1': '1月', '2': '2月', '3': '3月', '4': '4月',
-        '5': '5月', '6': '6月', '7': '7月', '8': '8月',
-        '9': '9月', '10': '10月', '11': '11月', '12': '12月'
-      };
-      
-      if (month.includes(',')) {
-        return month.split(',').map(m => monthMap[m.trim()] || m).join(',');
-      } else {
-        return monthMap[month] || month;
-      }
-    },
-    
-    // 加载提醒数据（编辑模式）
+
     async loadReminderData(id) {
       try {
         const data = await getComplexReminderById(id);
-        
-        // 更新表单数据
-        this.reminderData = {
-          ...this.reminderData,
-          ...data
-        };
-        
-        // 解析Cron表达式到简易模式
-        if (data.cronExpression) {
-          this.parseCronToSimple(data.cronExpression);
+        if (data) {
+          reminderState.form = data;
+          this.originalReminderType = data.reminderType;
+          // ... 其他数据恢复逻辑
+          this.updateSimpleInputsFromCron(data.cronExpression);
+          this.updatePreview();
         }
-        
-        console.log('加载复杂提醒数据成功:', data);
       } catch (error) {
-        console.error('加载提醒数据失败:', error);
-        uni.showToast({
-          title: '加载数据失败',
-          icon: 'error'
-        });
+        console.error('加载复杂提醒失败:', error);
       }
-    },
-    
-    // 保存提醒
-    async saveReminder() {
-      if (!this.validateForm()) {
-        return;
-      }
-      
-      // 检查是否需要请求微信订阅权限
-      if (this.needWechatSubscribe()) {
-        try {
-          console.log('📱 需要请求微信订阅权限');
-          const subscribeResult = await smartRequestSubscribe({
-            showToast: false  // 不显示自动提示，由我们控制
-          });
-          
-          if (!subscribeResult.success || !subscribeResult.granted) {
-            console.log('⚠️ 微信订阅权限获取失败，无法使用微信提醒');
-            uni.showModal({
-              title: '无法使用微信提醒',
-              content: '需要微信订阅权限才能发送微信提醒。您可以选择其他提醒方式或重新授权。',
-              confirmText: '继续保存',
-              cancelText: '取消',
-              success: (res) => {
-                if (res.confirm) {
-                  // 用户选择继续保存，将提醒方式改为邮件
-                  this.reminderData.reminderType = 'EMAIL';
-                  this.reminderTypeIndex = 0;
-                  console.log('🔄 已将提醒方式改为邮件');
-                  // 继续保存流程
-                  this.proceedWithSave();
-                }
-              }
-            });
-            return;
-          }
-          console.log('✅ 微信订阅权限获取成功');
-        } catch (error) {
-          console.error('❌ 请求微信订阅权限失败:', error);
-          uni.showToast({
-            title: '无法获取微信权限，请重试',
-            icon: 'none',
-            duration: 3000
-          });
-          return;
-        }
-      }
-      
-      // 执行保存流程
-      this.proceedWithSave();
     },
 
-    // 继续保存流程
-    proceedWithSave() {
-      // 显示确认弹窗
-      uni.showModal({
-        title: '确认保存',
-        content: `确定要${this.isEdit ? '修改' : '创建'}这个复杂提醒吗？`,
-        confirmText: '确定',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            this.handleConfirmSave();
-          }
-        }
-      });
-    },
-    
-    // 确认保存
-    async handleConfirmSave() {
-      this.isSubmitting = true;
-      
-      try {
-        // 准备保存数据，清理空字符串为null
-        const saveData = {
-          ...this.reminderData,
-          timeMode: this.activeTab,
-          // 将空字符串转换为null，确保后端正确处理
-          validFrom: this.reminderData.validFrom || null,
-          validUntil: this.reminderData.validUntil || null,
-          maxExecutions: this.reminderData.maxExecutions || null
-        };
-        
-        console.log('保存复杂提醒:', saveData);
-        
-        let result;
-        if (this.isEdit && this.reminderData.id) {
-          result = await updateComplexReminder(this.reminderData.id, saveData);
-          console.log('修改成功:', result);
-          
-          // 更新全局状态中的复杂提醒列表
-          const index = reminderState.complexReminders.findIndex(item => item.id === this.reminderData.id);
-          if (index !== -1) {
-            reminderState.complexReminders[index] = result;
-          }
-          
-          // 编辑成功后直接关闭页面
-          uni.navigateBack();
-        } else {
-          result = await createComplexReminder(saveData);
-          console.log('创建成功:', result);
-          
-          // 将新创建的复杂提醒添加到全局状态列表中
-          if (result) {
-            reminderState.complexReminders.push(result);
-          }
-          
-          // 创建成功后直接关闭页面
-          uni.navigateBack();
-        }
-        
-      } catch (error) {
-        console.error('保存失败:', error);
-        
-        // 更详细的错误处理
-        let errorMessage = '未知错误，请重试';
-        
-        if (error && error.statusCode) {
-          // HTTP错误
-          if (error.statusCode === 401) {
-            errorMessage = '请先登录';
-          } else if (error.statusCode === 403) {
-            errorMessage = '权限不足';
-          } else if (error.statusCode === 400) {
-            errorMessage = error.data?.message || '请求参数错误';
-          } else if (error.statusCode === 500) {
-            errorMessage = error.data?.message || '服务器内部错误';
-          } else {
-            errorMessage = `请求失败 (${error.statusCode})`;
-          }
-        } else if (error && error.message) {
-          errorMessage = error.message;
-        }
-        
-        // 显示错误弹窗
-        uni.showModal({
-          title: '保存失败',
-          content: errorMessage,
-          showCancel: false,
-          confirmText: '知道了'
-        });
-      } finally {
-        this.isSubmitting = false;
-      }
-    },
-    
-    // 表单验证
-    validateForm() {
-      if (!this.reminderData.title.trim()) {
-        uni.showToast({
-          title: '请输入提醒标题',
-          icon: 'none',
-          duration: 2000
-        });
-        return false;
-      }
-      
-      // 验证Cron表达式不能为空
-      if (!this.reminderData.cronExpression.trim()) {
-        uni.showToast({
-          title: 'Cron表达式不能为空',
-          icon: 'none',
-          duration: 2000
-        });
-        return false;
-      }
-      
-      // 验证日期范围
-      if (this.reminderData.validFrom && this.reminderData.validUntil) {
-        const startDate = new Date(this.reminderData.validFrom);
-        const endDate = new Date(this.reminderData.validUntil);
-        if (endDate <= startDate) {
-          // 使用更详细的错误弹窗
-          uni.showModal({
-            title: '日期范围错误',
-            content: '结束日期必须晚于开始日期，请重新选择。',
-            showCancel: false,
-            confirmText: '知道了'
-          });
-          return false;
-        }
-      }
-      
-      return true;
-    },
-    
-    // 显示Cron帮助信息
-    showCronHelp() {
-      uni.showModal({
-        title: 'Cron表达式说明',
-        content: '格式：分钟 小时 日期 月份 星期\n\n示例：\n0 8 * * * - 每天上匈8点\n30 14 * * 1 - 每周一下午2点30分\n0 9 1 * * - 每月第一天上匈9点\n0 10 25 12 * - 每年12月25日上午10点',
-        showCancel: false,
-        confirmText: '知道了'
-      });
-    },
-    
-    // 复制描述事件处理
-    onCopyDescription(description) {
-      console.log('描述已复制:', description);
-    },
-    
-    // 复制时间表事件处理
-    onCopyTimes(timeList) {
-      console.log('时间表已复制:', timeList);
-    },
-    
-    // 显示预览操作菜单（保留兼容性）
-    showPreviewActions() {
-      uni.showActionSheet({
-        itemList: ['刷新预览', '复制描述', '导出时间表'],
-        success: (res) => {
-          switch (res.tapIndex) {
-            case 0:
-              this.updatePreview();
-              uni.showToast({
-                title: '预览已刷新',
-                icon: 'success'
-              });
-              break;
-            case 1:
-              uni.setClipboardData({
-                data: this.humanReadableDescription,
-                success: () => {
-                  uni.showToast({
-                    title: '描述已复制',
-                    icon: 'success'
-                  });
-                }
-              });
-              break;
-            case 2:
-              const timeList = this.previewTimes.join('\n');
-              uni.setClipboardData({
-                data: timeList,
-                success: () => {
-                  uni.showToast({
-                    title: '时间表已复制',
-                    icon: 'success'
-                  });
-                }
-              });
-              break;
-          }
-        }
-      });
-    },
-    
-    // 返回上一页
     goBack() {
-      // 如果有未保存的数据，显示确认弹窗
-      if (this.hasUnsavedChanges()) {
-        uni.showModal({
-          title: '提示',
-          content: '您有未保存的修改，确定要离开吗？',
-          confirmText: '离开',
-          cancelText: '留下',
-          confirmColor: '#ff4757',
-          success: (res) => {
-            if (res.confirm) {
-              uni.navigateBack();
-            }
-          }
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        // 如果没有上一页，则跳转到首页
+        uni.switchTab({
+          url: '/pages/index/index'
         });
       } else {
         uni.navigateBack();
       }
     },
     
-    // 检查是否有未保存的修改
-    hasUnsavedChanges() {
-      // 简单检查标题是否为空或者有内容
-      return this.reminderData.title.trim() !== '' || this.reminderData.description.trim() !== '';
+    switchTab(tab) {
+      console.log('switchTab called with:', tab);
+      this.activeTab = tab;
     },
     
-    // 重复类型改变
-    onRecurrenceChange(e) {
-      this.recurrenceIndex = e.detail.value;
-      this.simpleData.recurrenceType = this.recurrenceValues[this.recurrenceIndex];
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
-    
-    // 每月第几天改变
-    onMonthDayChange(e) {
-      this.monthDayIndex = e.detail.value;
-      this.simpleData.dayOfMonth = this.monthDayIndex + 1;
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
-    
-    // 月份改变
-    onMonthChange(e) {
-      this.monthIndex = e.detail.value;
-      this.simpleData.month = this.monthIndex + 1;
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
-    
-    // 日期改变
-    onDayChange(e) {
-      this.dayIndex = e.detail.value;
-      this.simpleData.dayOfMonth = this.dayIndex + 1;
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
-    
-    // 生效日期改变
-    onValidFromChange(e) {
-      this.reminderData.validFrom = e.detail.value;
-      this.updatePreview();
-    },
-    
-    // 失效日期改变
-    onValidUntilChange(e) {
-      this.reminderData.validUntil = e.detail.value;
-      this.updatePreview();
-    },
-    
-    // 生成月份天数选项
-    generateMonthDays() {
-      this.monthDays = [];
-      for (let i = 1; i <= 31; i++) {
-        this.monthDays.push(i + '日');
-      }
-    },
-    
-    // 获取指定月份的天数
-    getDaysInMonth() {
-      const month = this.simpleData.month || 1;
-      const year = new Date().getFullYear();
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const days = [];
-      for (let i = 1; i <= daysInMonth; i++) {
-        days.push(i + '日');
-      }
-      return days;
-    },
-    
-    // 从简易模式更新Cron表达式
-    updateCronFromSimple() {
-      const { recurrenceType, hour, minute, weekday, dayOfMonth, month } = this.simpleData;
-      
-      switch (recurrenceType) {
-        case 'DAILY':
-          this.reminderData.cronExpression = `${minute} ${hour} * * *`;
-          break;
-        case 'WEEKLY':
-          this.reminderData.cronExpression = `${minute} ${hour} * * ${weekday}`;
-          break;
-        case 'MONTHLY':
-          this.reminderData.cronExpression = `${minute} ${hour} ${dayOfMonth} * *`;
-          break;
-        case 'YEARLY':
-          this.reminderData.cronExpression = `${minute} ${hour} ${dayOfMonth} ${month} *`;
-          break;
-      }
-      
-      console.log('更新Cron表达式:', this.reminderData.cronExpression);
-    },
-    
-    // 更新预览
-    updatePreview() {
-      this.updateHumanReadableDescription();
-      this.generatePreviewTimes();
-    },
-    
-    // 更新人类可读描述
-    updateHumanReadableDescription() {
-      if (this.activeTab === 'simple') {
-        const { recurrenceType, hour, minute, weekday, dayOfMonth, month } = this.simpleData;
-        const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-        
-        switch (recurrenceType) {
-          case 'DAILY':
-            this.humanReadableDescription = `每天 ${timeStr}`;
-            break;
-          case 'WEEKLY':
-            this.humanReadableDescription = `每${this.weekDays[weekday]} ${timeStr}`;
-            break;
-          case 'MONTHLY':
-            // 检查是否有月份不存在该日期
-            const hasInvalidMonths = this.checkInvalidMonthsForDay(dayOfMonth);
-            if (hasInvalidMonths.length > 0) {
-              this.humanReadableDescription = `每月${dayOfMonth}日 ${timeStr} (${hasInvalidMonths.join('、')}月将使用月末)`;
-            } else {
-              this.humanReadableDescription = `每月${dayOfMonth}日 ${timeStr}`;
-            }
-            break;
-          case 'YEARLY':
-            // 检查是否是2月29日（闰年问题）
-            if (month === 2 && dayOfMonth === 29) {
-              this.humanReadableDescription = `每年${this.months[month-1]}${dayOfMonth}日 ${timeStr} (非闰年将使用2月28日)`;
-            } else {
-              this.humanReadableDescription = `每年${this.months[month-1]}${dayOfMonth}日 ${timeStr}`;
-            }
-            break;
-          default:
-            this.humanReadableDescription = `每天 ${timeStr}`;
-            break;
-        }
-      } else {
-        // 高级模式，使用cronDescription
-        this.humanReadableDescription = this.cronDescription;
-      }
-    },
-    
-    // 生成预览时间
-    generatePreviewTimes() {
-      this.previewTimes = [];
-      
-      try {
-        const now = new Date();
-        const startDate = this.reminderData.validFrom ? new Date(this.reminderData.validFrom) : now;
-        const endDate = this.reminderData.validUntil ? new Date(this.reminderData.validUntil) : null;
-        const maxExecutions = this.reminderData.maxExecutions || 10;
-        
-        // 从当前时间开始查找
-        let currentDate = new Date(now.getTime());
-        const generatedTimes = [];
-        
-        console.log('开始生成预览时间，当前时间:', this.formatDateTime(now));
-        console.log('当前模式:', this.activeTab);
-        console.log('Cron表达式:', this.reminderData.cronExpression);
-        
-        // 根据模式选择不同的生成方式
-        if (this.activeTab === 'advanced') {
-          // 高级模式：直接从Cron表达式生成
-          const cronData = this.parseCronExpressionForPreview(this.reminderData.cronExpression);
-          if (cronData) {
-            for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
-              const targetDate = this.getNextTriggerTimeFromCron(currentDate, cronData);
-              if (!targetDate) break;
-              
-              if (endDate && targetDate > endDate) break;
-              
-              generatedTimes.push(this.formatDateTime(targetDate));
-              
-              // 移动到目标时间后1分钟
-              currentDate = new Date(targetDate.getTime() + 60 * 1000);
-            }
-          }
-        } else {
-          // 简单模式：使用simpleData生成
-          for (let i = 0; i < Math.min(maxExecutions, 10); i++) {
-            const targetDate = this.getNextTriggerTime(currentDate);
-            if (!targetDate) break;
-            
-            if (endDate && targetDate > endDate) break;
-            
-            generatedTimes.push(this.formatDateTime(targetDate));
-            
-            // 移动到下一个周期的起始点
-            if (this.simpleData.recurrenceType === 'DAILY') {
-              // 每天重复：移动到下一天的0点
-              currentDate = new Date(targetDate.getTime());
-              currentDate.setDate(currentDate.getDate() + 1);
-              currentDate.setHours(0, 0, 0, 0);
-            } else {
-              // 其他重复类型：移动到目标时间后1分钟
-              currentDate = new Date(targetDate.getTime() + 60 * 1000);
-            }
-          }
-        }
-        
-        this.previewTimes = generatedTimes;
-        console.log('生成的预览时间:', generatedTimes);
-      } catch (error) {
-        console.error('生成预览时间出错:', error);
-        this.previewTimes = ['生成预览时出错'];
-      }
-    },
-    
-    // 获取下次触发时间
-    getNextTriggerTime(fromDate) {
-      const { recurrenceType, hour, minute, weekday, dayOfMonth, month } = this.simpleData;
-      
-      // 创建目标时间，从fromDate的日期开始，设置为指定的小时和分钟
-      let targetDate = new Date(fromDate);
-      targetDate.setHours(hour || 0, minute || 0, 0, 0);
-      
-      switch (recurrenceType) {
-        case 'DAILY':
-          // 如果目标时间小于等于当前时间，移动到下一天
-          if (targetDate <= fromDate) {
-            targetDate.setDate(targetDate.getDate() + 1);
-            targetDate.setHours(hour || 0, minute || 0, 0, 0);
-          }
-          console.log('DAILY计算结果:', this.formatDateTime(targetDate), '从时间:', this.formatDateTime(fromDate));
-          break;
-          
-        case 'WEEKLY':
-          const currentWeekday = targetDate.getDay();
-          let daysToAdd = weekday - currentWeekday;
-          if (daysToAdd <= 0 || (daysToAdd === 0 && targetDate <= fromDate)) {
-            daysToAdd += 7;
-          }
-          targetDate.setDate(targetDate.getDate() + daysToAdd);
-          break;
-          
-        case 'MONTHLY':
-          // 处理月份日期不存在的情况（如2月30日、6月31日等）
-          const setValidMonthlyDate = (date, targetDay) => {
-            const year = date.getFullYear();
-            const month = date.getMonth();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            
-            // 如果目标日期超过当月最大天数，使用当月最后一天
-            const validDay = Math.min(targetDay, daysInMonth);
-            date.setDate(validDay);
-            return validDay;
-          };
-          
-          let actualDay = setValidMonthlyDate(targetDate, dayOfMonth);
-          
-          if (targetDate <= fromDate) {
-            // 移动到下个月
-            targetDate.setMonth(targetDate.getMonth() + 1);
-            actualDay = setValidMonthlyDate(targetDate, dayOfMonth);
-          }
-          
-          console.log(`MONTHLY计算: 目标日期${dayOfMonth}日, 实际使用${actualDay}日`);
-          break;
-          
-        case 'YEARLY':
-          // 处理年度重复中的日期不存在情况（如闰年2月29日）
-          const setValidYearlyDate = (date, targetMonth, targetDay) => {
-            const year = date.getFullYear();
-            const daysInMonth = new Date(year, targetMonth, 0).getDate();
-            
-            // 如果目标日期超过当月最大天数，使用当月最后一天
-            const validDay = Math.min(targetDay, daysInMonth);
-            date.setMonth(targetMonth - 1, validDay);
-            return validDay;
-          };
-          
-          let actualYearDay = setValidYearlyDate(targetDate, month, dayOfMonth);
-          
-          if (targetDate <= fromDate) {
-            // 移动到下一年
-            targetDate.setFullYear(targetDate.getFullYear() + 1);
-            actualYearDay = setValidYearlyDate(targetDate, month, dayOfMonth);
-          }
-          
-          console.log(`YEARLY计算: 目标${month}月${dayOfMonth}日, 实际使用${month}月${actualYearDay}日`);
-          break;
-          
-        default:
-          return null;
-      }
-      
-      return targetDate;
-    },
-    
-    // 格式化日期时间 - 使用统一的时间格式化工具
-    formatDateTime(date) {
-      return DateFormatter.formatReminder(date);
-    },
-    
-    // 检查哪些月份不存在指定的日期
-    checkInvalidMonthsForDay(day) {
-      const invalidMonths = [];
-      const currentYear = new Date().getFullYear();
-      
-      for (let month = 1; month <= 12; month++) {
-        const daysInMonth = new Date(currentYear, month, 0).getDate();
-        if (day > daysInMonth) {
-          invalidMonths.push(month);
-        }
-      }
-      
-      return invalidMonths;
-    },
-    
-    // 解析Cron表达式到简易模式
-    parseCronToSimple(cronExpression) {
-      try {
-        const parts = cronExpression.split(' ');
-        let minute, hour, day, month, weekday;
-        
-        if (parts.length === 5) {
-          // 5位格式: 分 时 日 月 周
-          [minute, hour, day, month, weekday] = parts;
-        } else if (parts.length === 6) {
-          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
-          [, minute, hour, day, month, weekday] = parts;
-        } else if (parts.length === 7) {
-          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
-          [, minute, hour, day, month, weekday] = parts;
-        } else {
-          return; // 格式不正确
-        }
-        
-        this.simpleData.minute = parseInt(minute) || 0;
-        this.simpleData.hour = parseInt(hour) || 0;
-        this.simpleTime = `${String(this.simpleData.hour).padStart(2, '0')}:${String(this.simpleData.minute).padStart(2, '0')}`;
-        
-        // 设置默认日期为今天
-        if (!this.simpleDate) {
-          const today = new Date();
-          this.simpleDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        }
-        
-        // 判断重复类型
-        if (day === '*' && month === '*' && weekday === '*') {
-          // 每天
-          this.simpleData.recurrenceType = 'DAILY';
-          this.repeatIndex = 0; // 对应repeatOptions中的"每天"
-        } else if (day === '*' && month === '*' && weekday !== '*') {
-          // 每周
-          this.simpleData.recurrenceType = 'WEEKLY';
-          this.repeatIndex = 1; // 对应repeatOptions中的"每周"
-          this.simpleData.weekday = parseInt(weekday) || 1;
-        } else if (day !== '*' && month === '*' && weekday === '*') {
-          // 每月
-          this.simpleData.recurrenceType = 'MONTHLY';
-          this.repeatIndex = 2; // 对应repeatOptions中的"每月"
-          this.simpleData.dayOfMonth = parseInt(day) || 1;
-        }
-        console.log('解析Cron表达式成功:', this.simpleData);
-      } catch (error) {
-        console.error('解析Cron表达式失败:', error);
-        this.activeTab = 'advanced';
-      }
-    },
-    
-    // 切换Cron表达式展开状态
-    toggleCronExpression() {
-      this.showCronExpression = !this.showCronExpression;
-    },
-    
-    // 显示时间设置
-    showTimeSettings() {
-      console.log('点击了时间设置按钮');
-      this.showCronPicker = true;
-      console.log('showCronPicker设置为:', this.showCronPicker);
-    },
-    
-    // Cron选择器确认
-    onCronConfirm(cronExpression) {
-      console.log('接收到的cron表达式:', cronExpression);
-      console.log('更新前的cronExpression:', this.reminderData.cronExpression);
-      
-      // 使用Vue.set确保响应式更新
-      this.$set(this.reminderData, 'cronExpression', cronExpression);
-      
-      console.log('更新后的cronExpression:', this.reminderData.cronExpression);
-      
-      // 强制更新视图
-      this.$forceUpdate();
-      
-      // 延迟计算以确保数据已更新
-      this.$nextTick(() => {
-        console.log('nextTick中计算的cronDescription:', this.cronDescription);
-        // 再次强制更新确保显示正确
-        this.$forceUpdate();
-        // 检测文本溢出
-        this.checkTextOverflow();
-      });
-      
-      this.showCronPicker = false;
-      this.updatePreview();
-      
-      uni.showToast({
-        title: '时间设置已更新',
-        icon: 'success',
-        duration: 1500
-      });
-    },
-    
-    // Cron选择器取消
-    onCronCancel() {
-      this.showCronPicker = false;
-    },
-    
-    // 选择重复类型
-    selectRecurrenceType(type, index) {
-      this.simpleData.recurrenceType = type;
-      this.recurrenceIndex = index;
-      this.updateCronFromSimple();
-      this.updatePreview();
-    },
-    
-    // 检查是否需要请求微信订阅权限
-    needWechatSubscribe() {
-      // 只有微信小程序环境才需要检查
-      // #ifdef MP-WEIXIN
-      // 如果提醒方式不是微信，则不需要
-      if (this.reminderData.reminderType !== 'WECHAT_MINI') {
-        return false;
-      }
-      
-      // 微信订阅消息权限和登录权限是独立的
-      // 无论用户是否通过微信登录，都需要单独请求订阅权限
-      console.log('🔍 用户选择微信提醒，需要请求订阅权限');
-      return true;
-      // #endif
-      // #ifndef MP-WEIXIN
-      return false;
-      // #endif
-    },
-
-    // 显示提醒方式选择器
-    showReminderTypeSelector() {
-      uni.showActionSheet({
-        itemList: this.reminderTypeOptions,
-        success: (res) => {
-          const selectedType = this.reminderTypeValues[res.tapIndex];
-          
-          // 直接设置提醒方式，不在选择时请求权限
-          this.reminderTypeIndex = res.tapIndex;
-          this.reminderData.reminderType = selectedType;
-          
-          console.log('提醒方式已设置为:', selectedType);
-        }
-      });
-    },
-    
-    // 显示重复选择器
     showRepeatSelector() {
-      uni.showActionSheet({
+      console.log('showRepeatSelector called');
+       uni.showActionSheet({
         itemList: this.repeatOptions,
         success: (res) => {
           this.repeatIndex = res.tapIndex;
-          // 确保有时间数据后再更新Cron表达式
-          if (this.simpleData.hour !== undefined && this.simpleData.minute !== undefined) {
-            this.updateCronFromRepeat();
-          } else {
-            // 如果没有时间数据，使用默认时间
-            this.simpleData.hour = 8;
-            this.simpleData.minute = 0;
-            this.updateCronFromRepeat();
-          }
+          this.updateCronFromSimple();
         }
       });
     },
-    
-    // 显示时间选择器
-    showTimeSelector() {
-      // 显示自定义日期时间选择器
-      this.showCustomDateTime();
+
+    onSimpleTimeChange(e) {
+      console.log('onSimpleTimeChange called with:', e);
+      this.simpleDate = e.date;
+      this.simpleTime = e.time;
+      this.updateCronFromSimple();
     },
-    
-    // 显示自定义日期时间选择
-    showCustomDateTime() {
-      this.showCustomPickers = true;
+
+    onWeekdayChange(e) {
+      console.log('onWeekdayChange called with:', e);
+      this.selectedWeekday = e.weekday;
+      this.updateCronFromSimple();
     },
-    
-    // 隐藏自定义选择器
-    hideCustomPickers() {
-      this.showCustomPickers = false;
+
+    updateCronFromSimple() {
+      const repeatType = this.repeatValues[this.repeatIndex];
+      const timeParts = this.simpleTime.split(':');
+      const hours = timeParts[0];
+      const minutes = timeParts[1];
+      let cron = '';
+
+      switch (repeatType) {
+        case 'DAILY':
+          cron = `0 ${minutes} ${hours} * * ?`;
+          break;
+        case 'WEEKLY':
+          // cron星期几：1=周日, 2=周一, ... 7=周六
+          // selectedWeekday: 1=周一, ... 7=周日
+          const cronWeekday = this.selectedWeekday === 7 ? 1 : this.selectedWeekday + 1;
+          cron = `0 ${minutes} ${hours} ? * ${cronWeekday}`;
+          break;
+        case 'MONTHLY':
+          const dayOfMonth = this.simpleDate.split('-')[2];
+          cron = `0 ${minutes} ${hours} ${dayOfMonth} * ?`;
+          break;
+        case 'YEARLY':
+          const month = this.simpleDate.split('-')[1];
+          const day = this.simpleDate.split('-')[2];
+          cron = `0 ${minutes} ${hours} ${day} ${month} ?`;
+          break;
+        case 'CUSTOM':
+          // 自定义模式下，不主动更新cron表达式，由用户手动输入
+          return; 
+      }
+      this.reminderData.cronExpression = cron;
+      this.updatePreview();
     },
-    
-    // 确认自定义日期时间
-    confirmCustomDateTime() {
-      if (this.reminderDate && this.reminderTime) {
-        this.updateEventTime();
-        this.showCustomPickers = false;
-        uni.showToast({
-          title: '自定义时间设置成功',
-          icon: 'success'
-        });
-      } else {
-        uni.showToast({
-          title: '请选择日期和时间',
-          icon: 'none'
-        });
+
+    updateSimpleInputsFromCron(cron) {
+      if (!cron) return;
+
+      const parts = cron.split(' ');
+      const minutes = parts[1];
+      const hours = parts[2];
+      const dayOfMonth = parts[3];
+      const month = parts[4];
+      const dayOfWeek = parts[5];
+
+      this.simpleTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      
+      if (dayOfWeek !== '?' && dayOfWeek !== '*') { // 每周
+        this.repeatIndex = this.repeatValues.indexOf('WEEKLY');
+        const cronWeekday = parseInt(dayOfWeek, 10);
+        this.selectedWeekday = cronWeekday === 1 ? 7 : cronWeekday - 1;
+      } else if (month !== '?' && month !== '*') { // 每年
+        this.repeatIndex = this.repeatValues.indexOf('YEARLY');
+        const today = new Date();
+        this.simpleDate = `${today.getFullYear()}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
+      } else if (dayOfMonth !== '?' && dayOfMonth !== '*') { // 每月
+        this.repeatIndex = this.repeatValues.indexOf('MONTHLY');
+        const today = new Date();
+        this.simpleDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
+      } else { // 每日
+        this.repeatIndex = this.repeatValues.indexOf('DAILY');
       }
     },
-    
-    // 格式化显示日期时间
-    getFormattedDateTime() {
-      if (!this.reminderDate || !this.reminderTime) {
-        return '选择时间';
+
+    updatePreview() {
+      if (!this.reminderData.cronExpression) {
+        this.previewTimes = [];
+        this.humanReadableDescription = '无效的表达式';
+        return;
       }
-      
-      // 使用iOS兼容的日期格式创建Date对象
-      const dateTimeStr = `${this.reminderDate}T${this.reminderTime}:00`;
-      const date = new Date(dateTimeStr);
-      
-      // 检查日期是否有效
-      if (isNaN(date.getTime())) {
-        console.error('无效的日期格式:', dateTimeStr);
-        return '选择时间';
-      }
-      
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      // 判断是否是今天、明天
-      const isToday = date.toDateString() === now.toDateString();
-      const isTomorrow = date.toDateString() === tomorrow.toDateString();
-      
-      let dateStr = '';
-      if (isToday) {
-        dateStr = '今天';
-      } else if (isTomorrow) {
-        dateStr = '明天';
-      } else {
-        // 格式化为中文日期格式
-        const months = ['1月', '2月', '3月', '4月', '5月', '6月', 
-                       '7月', '8月', '9月', '10月', '11月', '12月'];
-        dateStr = `${months[date.getMonth()]}${date.getDate()}日`;
-      }
-      
-      // 格式化时间为中文格式
-      let hours = date.getHours();
-      const minutes = date.getMinutes();
-      let timeStr = '';
-      
-      if (hours < 12) {
-        const displayHour = hours === 0 ? 12 : hours;
-        timeStr = `上午${displayHour}:${String(minutes).padStart(2, '0')}`;
-      } else {
-        const displayHour = hours === 12 ? 12 : hours - 12;
-        timeStr = `下午${displayHour}:${String(minutes).padStart(2, '0')}`;
-      }
-      
-      return `${dateStr} ${timeStr}`;
-    },
-    
-    // 检测文本是否溢出
-    checkTextOverflow() {
-      console.log('开始检测文本溢出，cronDescription:', this.cronDescription);
-      this.$nextTick(() => {
-        try {
-          // 获取容器宽度
-          uni.createSelectorQuery().in(this).select('.setting-value-container').boundingClientRect((containerRect) => {
-            if (containerRect) {
-              console.log('容器宽度:', containerRect.width);
-              
-              // 使用字符长度估算文本宽度（中文字符按1.2倍计算）
-              const text = this.cronDescription;
-              let estimatedWidth = 0;
-              for (let i = 0; i < text.length; i++) {
-                const char = text.charAt(i);
-                // 中文字符宽度约16px，英文字符约8px（基于28rpx字体）
-                if (/[\u4e00-\u9fa5]/.test(char)) {
-                  estimatedWidth += 16; // 中文字符
-                } else {
-                  estimatedWidth += 8; // 英文字符和数字
-                }
-              }
-              
-              console.log('估算文本宽度:', estimatedWidth, 'px，容器宽度:', containerRect.width, 'px');
-              
-              // 如果估算宽度超过容器宽度，启用跑马灯
-              if (estimatedWidth > containerRect.width - 20) { // 20px的误差范围
-                // 计算滚动距离
-                const overflowWidth = estimatedWidth - containerRect.width + 40; // 额外40px缓冲
-                this.scrollDistance = `-${overflowWidth}px`;
-                this.isTextOverflow = true;
-                console.log('文本溢出，启用跑马灯，滚动距离:', this.scrollDistance);
-              } else {
-                this.isTextOverflow = false;
-                console.log('文本未溢出，禁用跑马灯');
-              }
-            } else {
-              console.log('无法获取容器尺寸信息');
-              // 如果无法获取容器信息，基于文本长度简单判断
-              if (this.cronDescription.length > 15) {
-                this.isTextOverflow = true;
-                this.scrollDistance = '-150px';
-                console.log('基于文本长度判断溢出，启用跑马灯');
-              }
-            }
-          }).exec();
-        } catch (error) {
-          console.error('检测文本溢出失败:', error);
-          // 出错时，基于文本长度简单判断
-          if (this.cronDescription.length > 15) {
-            this.isTextOverflow = true;
-            this.scrollDistance = '-150px';
-            console.log('检测出错，基于文本长度判断溢出');
-          }
-        }
-      });
-    },
-    
-    // 解析Cron表达式用于预览生成
-    parseCronExpressionForPreview(cronExpression) {
-      if (!cronExpression || cronExpression.trim() === '') {
-        return null;
-      }
-      
       try {
-        const parts = cronExpression.trim().split(/\s+/);
-        
-        if (parts.length < 5) {
-          return null;
+        this.humanReadableDescription = cronstrue.toString(this.reminderData.cronExpression, { locale: 'zh_CN' });
+        //... 更多预览逻辑
+      } catch (e) {
+        this.humanReadableDescription = 'Cron表达式解析失败';
+        this.previewTimes = [];
+      }
+    },
+
+    showTimeSettings() {
+      console.log('showTimeSettings called');
+      this.showCronPicker = true;
+    },
+
+    onCronConfirm(cron) {
+      console.log('onCronConfirm called with:', cron);
+      this.reminderData.cronExpression = cron;
+      this.showCronPicker = false;
+      this.updatePreview();
+    },
+
+    onCronCancel() {
+      console.log('onCronCancel called');
+      this.showCronPicker = false;
+    },
+
+    async saveReminder() {
+      if (!this.reminderData.title) {
+        uni.showToast({ title: '请输入提醒标题', icon: 'none' });
+        return;
+      }
+      if (!this.reminderData.cronExpression) {
+        uni.showToast({ title: '请设置提醒时间', icon: 'none' });
+        return;
+      }
+
+      // 检查微信订阅权限
+      if (this.needWechatSubscribe()) {
+        const subResult = await smartRequestSubscribe({ showToast: true });
+        if (!subResult.success || !subResult.granted) {
+          uni.showModal({
+            title: '授权失败',
+            content: '微信提醒需要订阅消息授权，是否前往设置？',
+            success: (res) => {
+              if (res.confirm) uni.openSetting();
+            }
+          });
+          return;
         }
-        
-        let minute, hour, day, month, weekday;
-        
-        if (parts.length === 5) {
-          // 5位格式: 分 时 日 月 周
-          [minute, hour, day, month, weekday] = parts;
-        } else if (parts.length === 6) {
-          // 6位格式: 秒 分 时 日 月 周 - 忽略秒
-          [, minute, hour, day, month, weekday] = parts;
+      }
+
+      this.isSubmitting = true;
+      try {
+        const dataToSave = { ...this.reminderData };
+        let result;
+        if (this.isEdit) {
+          result = await updateComplexReminder(dataToSave.id, dataToSave);
         } else {
-          // 7位格式: 秒 分 时 日 月 周 年 - 忽略秒和年
-          [, minute, hour, day, month, weekday] = parts;
+          result = await createComplexReminder(dataToSave);
         }
-        
-        return {
-          minute: minute,
-          hour: hour,
-          day: day,
-          month: month,
-          weekday: weekday
-        };
+
+        if (result) {
+          uni.showToast({
+            title: this.isEdit ? '更新成功' : '创建成功',
+            icon: 'success',
+            duration: 1500,
+          });
+          setTimeout(() => uni.navigateBack(), 1500);
+        }
       } catch (error) {
-        console.error('解析Cron表达式失败:', error);
-        return null;
+        console.error('保存复杂提醒失败:', error);
+        // api.js中已有统一的错误提示
+      } finally {
+        this.isSubmitting = false;
       }
     },
-    
-    // 根据Cron表达式获取下次触发时间
-    getNextTriggerTimeFromCron(fromDate, cronData) {
-      if (!cronData) return null;
-      
-      const { minute, hour, day, month, weekday } = cronData;
-      
-      // 解析时间
-      const targetMinute = minute === '*' ? fromDate.getMinutes() : parseInt(minute);
-      const targetHour = hour === '*' ? fromDate.getHours() : parseInt(hour);
-      
-      // 创建候选时间
-      let targetDate = new Date(fromDate);
-      targetDate.setHours(targetHour, targetMinute, 0, 0);
-      
-      // 如果时间已过，移动到下一天
-      if (targetDate <= fromDate) {
-        targetDate.setDate(targetDate.getDate() + 1);
-        targetDate.setHours(targetHour, targetMinute, 0, 0);
+
+    needWechatSubscribe() {
+      // #ifdef MP-WEIXIN
+      if (this.reminderData.reminderType !== 'WECHAT_MINI') {
+        return false;
       }
-      
-      // 检查日期和星期约束
-      const maxAttempts = 366; // 最多尝试一年
-      let attempts = 0;
-      
-      while (attempts < maxAttempts) {
-        const currentDay = targetDate.getDate();
-        const currentMonth = targetDate.getMonth() + 1;
-        const currentWeekday = targetDate.getDay();
-        
-        let dayMatch = true;
-        let monthMatch = true;
-        let weekdayMatch = true;
-        
-        // 检查日期约束
-        if (day !== '*' && day !== '?') {
-          if (day.includes(',')) {
-            dayMatch = day.split(',').map(d => parseInt(d.trim())).includes(currentDay);
-          } else {
-            dayMatch = currentDay === parseInt(day);
-          }
-        }
-        
-        // 检查月份约束
-        if (month !== '*' && month !== '?') {
-          if (month.includes(',')) {
-            monthMatch = month.split(',').map(m => parseInt(m.trim())).includes(currentMonth);
-          } else {
-            monthMatch = currentMonth === parseInt(month);
-          }
-        }
-        
-        // 检查星期约束
-        if (weekday !== '*' && weekday !== '?') {
-          let targetWeekdays = [];
-          if (weekday.includes(',')) {
-            targetWeekdays = weekday.split(',').map(w => {
-              const wd = w.trim();
-              return isNaN(wd) ? this.parseWeekdayString(wd) : parseInt(wd);
-            });
-          } else {
-            const wd = weekday.trim();
-            targetWeekdays = [isNaN(wd) ? this.parseWeekdayString(wd) : parseInt(wd)];
-          }
-          weekdayMatch = targetWeekdays.includes(currentWeekday);
-        }
-        
-        // 如果所有约束都满足，返回这个时间
-        if (dayMatch && monthMatch && weekdayMatch) {
-          return targetDate;
-        }
-        
-        // 移动到下一天
-        targetDate.setDate(targetDate.getDate() + 1);
-        targetDate.setHours(targetHour, targetMinute, 0, 0);
-        attempts++;
+      if (!this.isEdit) {
+        return true; // 创建时，选择微信就需要
       }
-      
-      return null; // 找不到合适的时间
+      if (this.isEdit && this.originalReminderType !== 'WECHAT_MINI') {
+        return true; // 编辑时，从其他方式改成微信需要
+      }
+      return false;
+      // #endif
+      return false;
     },
     
-    // 解析星期字符串
-    parseWeekdayString(weekdayStr) {
-      const weekdayMap = {
-        'SUN': 0, 'MON': 1, 'TUE': 2, 'WED': 3, 'THU': 4, 'FRI': 5, 'SAT': 6
-      };
-      return weekdayMap[weekdayStr.toUpperCase()] || 0;
+    onDateChange(e) {
+      this.reminderDate = e.detail.value;
     },
-    
-    // 确保页面可以滚动
-    ensureScrollable() {
-      // 设置一个很小的滚动位置，然后立即重置，这样可以激活滚动
-      this.scrollTop = 1;
-      this.$nextTick(() => {
-        setTimeout(() => {
-          this.scrollTop = 0;
-        }, 50);
-      });
+    onTimeChange(e) {
+      this.reminderTime = e.detail.value;
+    },
+    showCustomPickers() {
+      // no-op
+    },
+    hideCustomPickers() {
+      // no-op
+    },
+    confirmCustomDateTime() {
+       // no-op
     }
   }
 }
