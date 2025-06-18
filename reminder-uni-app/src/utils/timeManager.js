@@ -75,7 +75,7 @@ export class UnifiedTimeData {
 }
 
 // 解析Cron表达式
-function parseCronExpression(cronExpression) {
+export function parseCronExpression(cronExpression) {
   if (!cronExpression) return null;
   
   try {
@@ -97,9 +97,13 @@ function parseCronExpression(cronExpression) {
       hour: parseInt(hour) || 0
     };
     
-    // 解析星期
+    // 解析星期 - 修复转换逻辑
     if (weekday && weekday !== '*' && weekday !== '?') {
-      result.weekdays = weekday.split(',').map(w => parseInt(w));
+      result.weekdays = weekday.split(',').map(w => {
+        const cronWeekday = parseInt(w);
+        // Cron中1-7对应周日-周六，转换为JavaScript的0-6
+        return cronWeekday === 7 ? 6 : cronWeekday - 1;
+      });
     }
     
     // 解析日期
@@ -138,7 +142,11 @@ export function generateCronExpression(timeData) {
       
     case TimeType.WEEKLY:
       // 每周: 分 时 * * 周几
-      const weekStr = weekdays.length > 0 ? weekdays.join(',') : '1';
+      // JavaScript的0-6转换为Cron的1-7
+      const cronWeekdays = weekdays.map(jsWeekday => {
+        return jsWeekday === 6 ? 7 : jsWeekday + 1;
+      });
+      const weekStr = cronWeekdays.length > 0 ? cronWeekdays.join(',') : '2';  // 默认周一
       return `${m} ${h} * * ${weekStr}`;
       
     case TimeType.MONTHLY:
@@ -153,7 +161,16 @@ export function generateCronExpression(timeData) {
       return `${m} ${h} ${yearDayStr} ${monthStr} *`;
       
     case TimeType.CUSTOM:
-      // 自定义：直接返回已有的Cron表达式
+      // 自定义：需要正确转换星期值
+      if (weekdays && weekdays.length > 0) {
+        const cronWeekdays = weekdays.map(jsWeekday => {
+          return jsWeekday === 6 ? 7 : jsWeekday + 1;
+        });
+        const weekStr = cronWeekdays.join(',');
+        const dayStr = monthDays && monthDays.length > 0 ? monthDays.join(',') : '?';
+        const monthStr = months && months.length > 0 ? months.join(',') : '*';
+        return `${m} ${h} ${dayStr} ${monthStr} ${weekStr}`;
+      }
       return timeData.cronExpression || '';
       
     default:
@@ -232,22 +249,22 @@ export function detectTimeType(cronExpression) {
   }
   
   // 每天
-  if (day === '*' && month === '*' && weekday === '*') {
+  if ((day === '*' || day === '?') && (month === '*' || month === '?') && (weekday === '*' || weekday === '?')) {
     return TimeType.DAILY;
   }
   
   // 每周
-  if (day === '*' && month === '*' && weekday !== '*' && weekday !== '?') {
+  if ((day === '*' || day === '?') && (month === '*' || month === '?') && weekday !== '*' && weekday !== '?' && !isNaN(parseInt(weekday))) {
     return TimeType.WEEKLY;
   }
   
   // 每月
-  if (day !== '*' && day !== '?' && month === '*' && (weekday === '*' || weekday === '?')) {
+  if (day !== '*' && day !== '?' && !isNaN(parseInt(day)) && (month === '*' || month === '?') && (weekday === '*' || weekday === '?')) {
     return TimeType.MONTHLY;
   }
   
   // 每年
-  if (day !== '*' && day !== '?' && month !== '*' && month !== '?') {
+  if (day !== '*' && day !== '?' && !isNaN(parseInt(day)) && month !== '*' && month !== '?' && !isNaN(parseInt(month))) {
     return TimeType.YEARLY;
   }
   
@@ -317,6 +334,27 @@ function matchesSchedule(date, type, weekdays, monthDays, months) {
       const dayMatch = monthDays.length === 0 ? dayOfMonth === 1 : monthDays.includes(dayOfMonth);
       return monthMatch && dayMatch;
       
+    case TimeType.CUSTOM:
+      // 对于自定义类型，需要同时满足所有指定的条件
+      let matches = true;
+      
+      // 检查月份限制
+      if (months && months.length > 0) {
+        matches = matches && months.includes(month);
+      }
+      
+      // 检查星期限制
+      if (weekdays && weekdays.length > 0) {
+        matches = matches && weekdays.includes(dayOfWeek);
+      }
+      
+      // 检查日期限制
+      if (monthDays && monthDays.length > 0) {
+        matches = matches && monthDays.includes(dayOfMonth);
+      }
+      
+      return matches;
+      
     default:
       return false;
   }
@@ -327,28 +365,47 @@ function formatPreviewTime(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
   
   // 获取星期
   const weekNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   const weekday = weekNames[date.getDay()];
   
-  // 判断是否是今天或明天
+  // 格式化时间为中文格式
+  let timeStr = '';
+  if (hours < 12) {
+    const displayHour = hours === 0 ? 12 : hours;
+    timeStr = `上午${displayHour}:${String(minutes).padStart(2, '0')}`;
+  } else {
+    const displayHour = hours === 12 ? 12 : hours - 12;
+    timeStr = `下午${displayHour}:${String(minutes).padStart(2, '0')}`;
+  }
+  
+  // 判断是否是今天、明天、后天
   const today = new Date();
   const tomorrow = new Date(today);
+  const dayAfterTomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
   
   let datePrefix = '';
   if (date.toDateString() === today.toDateString()) {
     datePrefix = '今天';
   } else if (date.toDateString() === tomorrow.toDateString()) {
     datePrefix = '明天';
+  } else if (date.toDateString() === dayAfterTomorrow.toDateString()) {
+    datePrefix = '后天';
   } else {
-    datePrefix = `${month}月${day}日`;
+    // 检查是否是本年
+    if (date.getFullYear() === today.getFullYear()) {
+      datePrefix = `${parseInt(month)}月${parseInt(day)}日`;
+    } else {
+      datePrefix = `${year}年${parseInt(month)}月${parseInt(day)}日`;
+    }
   }
   
-  return `${datePrefix} ${weekday} ${hours}:${minutes}`;
+  return `${datePrefix} ${weekday} ${timeStr}`;
 }
 
 // 转换数据格式：从后端数据到UnifiedTimeData

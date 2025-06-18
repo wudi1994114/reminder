@@ -2,6 +2,8 @@
 	"easycom": {
 		"autoscan": true,
 		"custom": {
+			"^time-picker-modal": "@/components/TimePickerModal.vue",
+			"^custom-picker-modal": "@/components/CustomPickerModal.vue",
 			"^one-click-login": "@/components/OneClickLogin.vue",
 			"^confirm-dialog": "@/components/ConfirmDialog.vue",
 			"^confirm-modal": "@/components/ConfirmModal.vue",
