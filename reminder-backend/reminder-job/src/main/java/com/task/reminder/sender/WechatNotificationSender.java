@@ -36,7 +36,7 @@ public class WechatNotificationSender implements NotificationSender {
     @Value("${wechat.notification.template-id:VXTd9P8DUPpM0aM-nLSHSkDC9KTUolBNhkAHV7UkqxQ}")
     private String templateId;
 
-    @Value("${wechat.notification.page:index}")
+    @Value("${wechat.notification.page:pages/index/index}")
     private String defaultPage;
 
     private ObjectMapper objectMapper = new ObjectMapper();

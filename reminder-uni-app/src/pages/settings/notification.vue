@@ -101,7 +101,7 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { 
   getUserPreferences, 
   setUserPreference, 
@@ -115,8 +115,12 @@ import {
   booleanToString,
   getOptionLabel
 } from '../../constants/preferences';
-import PickerModal from '../../components/PickerModal.vue';
-import ConfirmDialog from '../../components/ConfirmDialog.vue';
+import { FeatureControl, VersionLabels, getCurrentVersionLabel, isProductionVersion } from '@/config/version';
+import { reminderActions } from '@/store/modules/reminder';
+import { uiActions } from '@/store/modules/ui';
+import { logout } from '@/utils/auth';
+import PickerModal from '@/components/PickerModal.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
   name: 'NotificationSettings',
@@ -132,8 +136,52 @@ export default {
     const currentPickerItem = ref(null);
     const showResetDialog = ref(false);
 
-    // 计算属性
-    const PREFERENCE_GROUPS_COMPUTED = computed(() => PREFERENCE_GROUPS);
+    // 计算属性 - 根据版本控制过滤设置组
+    const PREFERENCE_GROUPS_COMPUTED = computed(() => {
+      return PREFERENCE_GROUPS.map(group => {
+        const filteredItems = group.items.filter(item => {
+          // 根据版本控制隐藏邮件和短信相关设置
+          if (item.key === PREFERENCE_KEYS.EMAIL_NOTIFICATION_ENABLED) {
+            return FeatureControl.showEmailFeatures();
+          }
+          if (item.key === PREFERENCE_KEYS.SMS_NOTIFICATION_ENABLED) {
+            return FeatureControl.showPhoneFeatures();
+          }
+          if (item.key === PREFERENCE_KEYS.DAILY_SUMMARY_ENABLED) {
+            // 每日汇总需要邮箱功能
+            return FeatureControl.showEmailFeatures();
+          }
+          if (item.key === PREFERENCE_KEYS.DAILY_SUMMARY_TIME) {
+            // 汇总时间依赖于邮箱功能
+            return FeatureControl.showEmailFeatures();
+          }
+          return true; // 其他项目正常显示
+        }).map(item => {
+          // 对DEFAULT_REMINDER_TYPE项目过滤选项
+          if (item.key === PREFERENCE_KEYS.DEFAULT_REMINDER_TYPE) {
+            const filteredOptions = item.options.filter(option => {
+              if (option.value === 'EMAIL') {
+                return FeatureControl.showEmailFeatures();
+              }
+              if (option.value === 'SMS') {
+                return FeatureControl.showPhoneFeatures();
+              }
+              return true; // 其他选项（如微信）正常显示
+            });
+            return {
+              ...item,
+              options: filteredOptions
+            };
+          }
+          return item; // 其他项目保持原样
+        });
+        
+        return {
+          ...group,
+          items: filteredItems
+        };
+      }).filter(group => group.items.length > 0); // 过滤掉没有项目的组
+    });
 
     // 生命周期
     onMounted(() => {

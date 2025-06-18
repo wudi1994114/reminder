@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
 import { resolve } from 'path'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,7 +11,7 @@ export default defineConfig({
   // 路径别名配置
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': path.resolve(__dirname, 'src'),
       '@api': resolve(__dirname, 'src/api'),
       '@store': resolve(__dirname, 'src/store'),
       '@utils': resolve(__dirname, 'src/utils'),
@@ -76,8 +77,17 @@ export default defineConfig({
             return 'components-dialog';
           }
           
-          if (id.includes('/components/LoginForm')) {
-            return 'components-form';
+          // Conditional inclusion logic
+          if (process.env.NODE_ENV === 'development') {
+            if (id.includes('/components/datetime-picker')) {
+              console.log('Including datetime-picker in development');
+              return true;
+            }
+          } else {
+            if (id.includes('/components/datetime-picker')) {
+              console.log('Excluding datetime-picker in production');
+              return false;
+            }
           }
           
           return null;
@@ -121,7 +131,7 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "@/styles/variables.scss";`
+        
       }
     }
   },

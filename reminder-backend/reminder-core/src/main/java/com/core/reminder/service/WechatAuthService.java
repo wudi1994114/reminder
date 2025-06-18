@@ -522,16 +522,13 @@ public class WechatAuthService {
             boolean isNewUser = false;
 
             if (existingWechatUser.isPresent()) {
-                // 已存在的微信用户 - 纯登录，不更新用户资料
+                // 已存在的微信用户 - 纯登录，不做任何更新操作
                 wechatUser = existingWechatUser.get();
                 appUser = appUserRepository.findById(wechatUser.getAppUserId())
                         .orElseThrow(() -> new RuntimeException("关联的系统用户不存在，ID: " + wechatUser.getAppUserId()));
 
-                // 只更新登录时间，不更新用户资料
-                wechatUser.setLastLoginTime(OffsetDateTime.now());
-                wechatUserRepository.save(wechatUser);
-
-                log.info("云托管用户登录成功，openid: {}, 用户ID: {} - 保护现有用户资料", openid, appUser.getId());
+                // 不更新任何信息，直接返回
+                log.info("云托管用户登录成功，openid: {}, 用户ID: {} - 直接返回，无数据库操作", openid, appUser.getId());
             } else {
                 // 新用户
                 isNewUser = true;

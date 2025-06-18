@@ -33,7 +33,8 @@
         <text class="char-count">{{ nickname.length }}/20</text>
       </view>
       
-      <view class="email-section">
+      <!-- 邮箱部分 - 版本控制：开发版本完全隐藏 -->
+      <view v-if="FeatureControl.showEmailFeatures()" class="email-section">
         <text class="label">邮箱</text>
         <input 
           class="email-input" 
@@ -44,9 +45,11 @@
           @input="onEmailInput"
         />
         <text v-if="emailError" class="error-text">{{ emailError }}</text>
+        <text class="notification-hint">💡 只有填写了邮箱才能通过邮件渠道接收通知</text>
       </view>
       
-      <view class="phone-section">
+      <!-- 手机号部分 - 版本控制：开发版本完全隐藏 -->
+      <view v-if="FeatureControl.showPhoneFeatures()" class="phone-section">
         <text class="label">手机号</text>
         <input 
           class="phone-input" 
@@ -58,6 +61,7 @@
           @input="onPhoneInput"
         />
         <text v-if="phoneError" class="error-text">{{ phoneError }}</text>
+        <text class="notification-hint">💡 只有填写了手机号才能通过短信渠道接收通知</text>
       </view>
     </view>
     
@@ -69,7 +73,6 @@
       >
         {{ saving ? '保存中...' : '保存' }}
       </button>
-      <button class="cancel-button" @click="cancel">稍后再说</button>
     </view>
   </view>
 </template>
@@ -78,6 +81,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { updateUserInfoFromComponent, uploadAvatarWithFile } from '../services/api';
 import { userState } from '../services/userService';
+import { FeatureControl } from '../config/version';
 
 export default {
   name: 'UserInfoEditor',
@@ -104,7 +108,7 @@ export default {
   
   setup(props, { emit }) {
     const avatarUrl = ref('');
-    const displayAvatarUrl = ref('/static/images/default-avatar.png');
+    const displayAvatarUrl = ref('https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132');
     const nickname = ref('');
     const email = ref('');
     const phone = ref('');
@@ -112,7 +116,7 @@ export default {
     const emailError = ref('');
     const phoneError = ref('');
 
-    const defaultAvatar = '/static/images/default-avatar.png';
+    const defaultAvatar = 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
 
     const canSave = computed(() => {
       const hasValidNickname = nickname.value.trim().length >= 2;
@@ -161,27 +165,73 @@ export default {
         try {
           // 获取用户ID
           const userId = userState.user?.id;
+          console.log('当前用户状态:', {
+            isAuthenticated: userState.isAuthenticated,
+            userId: userId,
+            user: userState.user
+          });
+          
           if (!userId) {
             console.error('无法获取用户ID，无法上传头像');
+            uni.showToast({ title: '请先登录', icon: 'none' });
             return;
           }
 
+          // 显示上传进度
+          uni.showLoading({ title: '上传头像中...' });
+
           // 下载微信头像并上传到我们的云存储
           console.log('开始下载并上传微信头像...');
+          console.log('调用 downloadFile 参数:', { url: wechatAvatarUrl });
           
-          // 1. 下载微信头像到本地临时文件
-          const downloadRes = await new Promise((resolve, reject) => {
-            uni.downloadFile({
-              url: wechatAvatarUrl,
-              success: resolve,
-              fail: reject
+          let tempFilePath;
+          
+          // 检查是否为本地文件路径
+          if (wechatAvatarUrl.startsWith('wxfile://') || wechatAvatarUrl.startsWith('file://')) {
+            // 本地文件，直接使用
+            console.log('检测到本地文件路径，直接使用:', wechatAvatarUrl);
+            tempFilePath = wechatAvatarUrl;
+          } else {
+            // 网络URL，需要下载
+            console.log('检测到网络URL，开始下载:', wechatAvatarUrl);
+            const downloadRes = await new Promise((resolve, reject) => {
+              uni.downloadFile({
+                url: wechatAvatarUrl,
+                success: (res) => {
+                  console.log('downloadFile 成功响应:', res);
+                  resolve(res);
+                },
+                fail: (err) => {
+                  console.error('downloadFile 失败:', err);
+                  reject(err);
+                }
+              });
             });
+            
+            console.log('微信头像下载成功:', downloadRes.tempFilePath);
+            console.log('下载文件详情:', {
+              tempFilePath: downloadRes.tempFilePath,
+              statusCode: downloadRes.statusCode,
+              header: downloadRes.header
+            });
+            tempFilePath = downloadRes.tempFilePath;
+          }
+          
+          console.log('准备上传的文件路径:', tempFilePath);
+
+          // 2. 上传到我们的云存储（传递当前头像URL用于删除）
+          const currentAvatarUrl = avatarUrl.value; // 保存当前头像URL
+          console.log('🔄 准备上传新头像，当前头像URL:', currentAvatarUrl);
+          console.log('调用 uploadAvatarWithFile 参数:', {
+            userId: userId,
+            tempFilePath: tempFilePath,
+            currentAvatarUrl: currentAvatarUrl
           });
-
-          console.log('微信头像下载成功:', downloadRes.tempFilePath);
-
-          // 2. 上传到我们的云存储
-          const uploadResult = await uploadAvatarWithFile(userId, downloadRes.tempFilePath);
+          
+          const uploadResult = await uploadAvatarWithFile(userId, tempFilePath, currentAvatarUrl);
+          console.log('uploadAvatarWithFile 响应:', uploadResult);
+          
+          uni.hideLoading();
           
           if (uploadResult.success && uploadResult.avatarUrl) {
             // 使用上传后的URL
@@ -195,21 +245,50 @@ export default {
             }
             
             console.log('✅ 微信头像上传完成，新URL:', uploadResult.avatarUrl);
+            uni.showToast({ title: '头像更新成功', icon: 'success' });
           } else {
             console.error('头像上传失败:', uploadResult.error);
-            // 失败时仍然尝试使用原始URL
-            avatarUrl.value = wechatAvatarUrl;
-            displayAvatarUrl.value = wechatAvatarUrl;
+            uni.showToast({ 
+              title: `头像上传失败: ${uploadResult.error || '未知错误'}`, 
+              icon: 'none',
+              duration: 3000
+            });
+            // 上传失败时保持原有头像，不使用微信临时文件
           }
           
         } catch (error) {
+          uni.hideLoading();
           console.error('处理微信头像失败:', error);
-          // 出错时仍然尝试使用原始URL
-          avatarUrl.value = wechatAvatarUrl;
-          displayAvatarUrl.value = wechatAvatarUrl;
+          console.error('错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            errMsg: error.errMsg,
+            fullError: error
+          });
+          
+          // 提供更详细的错误信息
+          let errorMessage = '未知错误';
+          if (error.message) {
+            errorMessage = error.message;
+          } else if (error.errMsg) {
+            errorMessage = error.errMsg;
+          } else if (typeof error === 'string') {
+            errorMessage = error;
+          } else if (error.toString && error.toString() !== '[object Object]') {
+            errorMessage = error.toString();
+          }
+          
+          uni.showToast({ 
+            title: `头像处理失败: ${errorMessage}`, 
+            icon: 'none',
+            duration: 3000
+          });
+          // 出错时保持原有头像，不使用微信临时文件
         }
       } else {
         console.warn('未获取到有效的头像URL');
+        uni.showToast({ title: '获取头像失败，请重试', icon: 'none' });
       }
     };
     
@@ -301,6 +380,7 @@ export default {
       emailError,
       phoneError,
       canSave,
+      FeatureControl,
       onChooseAvatar,
       onNicknameInput,
       onEmailInput,
@@ -321,7 +401,7 @@ export default {
 
 .editor-header {
   text-align: center;
-  margin-bottom: 40rpx;
+  margin-bottom: 28rpx;
   padding-bottom: 0;
 }
 
@@ -350,7 +430,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin-bottom: 48rpx;
+  margin-bottom: 36rpx;
   padding: 0;
 }
 
@@ -361,9 +441,9 @@ export default {
 /* 新增：头像下方提示信息样式 */
 .info-prompt-under-avatar {
   text-align: center;
-  padding: 16rpx 24rpx;
-  margin-top: -16rpx; /* 向上微调，减少与头像的间距 */
-  margin-bottom: 32rpx; /* 与下方表单的间距 */
+  padding: 12rpx 20rpx;
+  margin-top: -12rpx; /* 向上微调，减少与头像的间距 */
+  margin-bottom: 24rpx; /* 与下方表单的间距 */
   font-size: 24rpx;
   color: #9d8148;
   background-color: #f4efe7;
@@ -545,13 +625,21 @@ export default {
   transform: scale(0.98);
 }
 
+.notification-hint {
+  font-size: 20rpx;
+  color: #9d8148;
+  margin-top: 6rpx;
+  line-height: 1.4;
+  display: block;
+}
+
 @media (max-width: 750rpx) {
   .user-info-editor {
     padding: 24rpx 20rpx;
   }
   
   .editor-header {
-    margin-bottom: 32rpx;
+    margin-bottom: 24rpx;
   }
   
   .title {
@@ -563,7 +651,7 @@ export default {
   }
   
   .avatar-section {
-    margin-bottom: 36rpx;
+    margin-bottom: 28rpx;
   }
   
   .avatar-button {
@@ -612,6 +700,10 @@ export default {
     height: 64rpx;
     font-size: 26rpx;
     border-radius: 32rpx;
+  }
+  
+  .notification-hint {
+    font-size: 26rpx;
   }
 }
 </style>

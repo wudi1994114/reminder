@@ -32,8 +32,9 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue';
-import { UserService, userState } from '../../services/userService';
-import UserInfoEditor from '../../components/UserInfoEditor.vue';
+import { UserService, userState } from '@/services/userService';
+import { FeatureControl } from '@/config/version';
+import UserInfoEditor from '@/components/UserInfoEditor.vue';
 
 export default {
   components: {
@@ -60,29 +61,21 @@ export default {
         };
         initialUserInfo.value = userInfo;
         
-        // --- 修改：根据缺失信息生成更具体的提示 ---
+        // --- 修改：根据版本控制和缺失信息生成提示 ---
         const missingInfo = [];
-        if (!userInfo.email) {
+        
+        // 只有在线上版本才检查邮箱和手机号
+        if (FeatureControl.showEmailFeatures() && !userInfo.email) {
           missingInfo.push('邮箱');
         }
-        if (!userInfo.phone) {
+        if (FeatureControl.showPhoneFeatures() && !userInfo.phone) {
           missingInfo.push('手机号');
         }
 
-        if (missingInfo.length === 2) {
-          // 两者都缺失
-          promptMessage.value = '建议补充手机号和邮箱，确保能通过这两个重要渠道接收服务通知。';
-        } else if (missingInfo.length === 1) {
-          if (missingInfo[0] === '邮箱') {
-            // 只缺失邮箱
-            promptMessage.value = '补充邮箱后，您将能通过邮件接收订单回执和服务通知。';
-          } else {
-            // 只缺失手机号
-            promptMessage.value = '补充手机号后，您将能通过短信接收紧急安全提醒或登录验证。';
-          }
+        if (missingInfo.length > 0) {
+            promptMessage.value = `建议补充${missingInfo.join('和')}，以便接收提醒通知。`;
         } else {
-          // 信息完整
-          promptMessage.value = '';
+            promptMessage.value = '';
         }
         // --- 结束修改 ---
 
@@ -106,7 +99,7 @@ export default {
             content: '请先登录',
             showCancel: false,
             success: () => {
-              uni.reLaunch({ url: '/pages/login/login' });
+              uni.switchTab({ url: '/pages/index/index' });
             }
           });
           return;
@@ -145,13 +138,33 @@ export default {
     };
 
     // 更新成功处理
-    const onUpdateSuccess = (data) => {
+    const onUpdateSuccess = async (data) => {
       console.log('编辑资料页面: 用户信息更新成功:', data);
-      if (data.userInfo) {
-        // 直接更新共享的用户状态
-        Object.assign(userState.user, data.userInfo);
-        console.log('本地用户状态已更新');
+      
+      try {
+        // 重新获取用户资料，确保本地状态与服务器同步
+        console.log('🔄 重新获取用户资料...');
+        const success = await UserService.refreshUserProfile();
+        
+        if (success) {
+          console.log('✅ 用户资料已更新');
+        } else {
+          console.warn('⚠️ 重新获取用户资料失败，使用返回的数据更新本地状态');
+          // 如果重新获取失败，使用返回的数据更新本地状态
+          if (data.userInfo) {
+            Object.assign(userState.user, data.userInfo);
+            console.log('本地用户状态已更新');
+          }
+        }
+      } catch (error) {
+        console.error('❌ 重新获取用户资料出错:', error);
+        // 如果重新获取失败，使用返回的数据更新本地状态
+        if (data.userInfo) {
+          Object.assign(userState.user, data.userInfo);
+          console.log('本地用户状态已更新（降级处理）');
+        }
       }
+      
       setTimeout(() => {
         goBack();
       }, 1000);

@@ -2,7 +2,7 @@
 	"easycom": {
 		"autoscan": true,
 		"custom": {
-			"^login-form": "@/components/LoginForm.vue",
+			"^one-click-login": "@/components/OneClickLogin.vue",
 			"^confirm-dialog": "@/components/ConfirmDialog.vue",
 			"^confirm-modal": "@/components/ConfirmModal.vue",
 			"^picker-modal": "@/components/PickerModal.vue",
@@ -51,21 +51,11 @@
 			}
 		},
 		{
-			"path": "pages/login/login",
-			"style": {
-				"navigationBarTitleText": "登录"
-			}
-		},
-		{
-			"path": "pages/register/register",
-			"style": {
-				"navigationBarTitleText": "注册"
-			}
-		},
-		{
 			"path": "pages/profile/edit",
 			"style": {
-				"navigationBarTitleText": "编辑资料"
+				"navigationBarTitleText": "编辑个人资料",
+				"enablePullDownRefresh": false,
+				"navigationStyle": "custom"
 			}
 		},
 		{
@@ -79,12 +69,6 @@
 			"style": {
 				"navigationBarTitleText": "提醒设置",
 				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/settings/test-preferences",
-			"style": {
-				"navigationBarTitleText": "API测试"
 			}
 		}
 	],

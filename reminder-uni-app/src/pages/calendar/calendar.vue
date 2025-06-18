@@ -78,35 +78,43 @@
         <text class="add-text">添加提醒</text>
       </button>
     </view>
+    
+    <!-- 全局登录弹窗 -->
+    <GlobalLoginModal />
   </view>
 </template>
 
 <script>
-// 1. 修正：从 vue 导入的列表中移除了 onShow
-import { ref, computed, onMounted, watch, shallowRef } from 'vue';
-import { getAllSimpleReminders, getHolidaysByYearRange } from '../../services/api';
-import { formatTime } from '../../utils/dateFormat';
-import { getLunarInfo } from '../../utils/lunarManager';
-import performanceMonitor from '../../utils/performanceMonitor';
+import { ref, computed, onMounted, watch, shallowRef, onUnmounted } from 'vue';
+import { getAllSimpleReminders, getHolidaysByYearRange } from '@/services/api';
+import { formatTime } from '@/utils/dateFormat';
+import { getLunarInfo } from '@/utils/lunarManager';
+import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 
 export default {
-  // 2. 新增：使用 data 选项来管理页面级别的状态，这样 onShow 才能正确访问
+  components: {
+    GlobalLoginModal
+  },
   data() {
     return {
       isFirstShow: true,
     };
   },
   
-  // 3. 修正：onShow 必须放在 export default 的根级别
   onShow() {
-    // onShow 会在 onMounted 后立即执行一次, 通过标志位避免首次进入时重复加载
+    console.log('日历页面显示，检查登录状态');
+    
+    // 检查登录状态并清空数据
+    if (!checkAuthAndClearData('日历页面-onShow')) {
+      return;
+    }
+    
     if (this.isFirstShow) {
       this.isFirstShow = false;
       return;
     }
     
-    // this.refreshCalendarData() 是在 setup 中 return 的方法
-    // uni-app 会自动处理 this 的指向
     this.refreshCalendarData();
   },
 
@@ -189,6 +197,11 @@ export default {
     });
 
     const loadRemindersForMonth = async (year, month) => {
+      if (!isAuthenticated()) {
+        allRemindersInCurrentMonth.value = [];
+        return;
+      }
+      
       console.log(`正在加载 ${year}-${month} 的提醒事项`);
       try {
         const simpleReminders = await getAllSimpleReminders(year, month);
@@ -198,12 +211,17 @@ export default {
           let dateTime = reminder.eventTime.replace(' ', 'T');
           const timestamp = new Date(dateTime).getTime();
           return { ...reminder, _timestamp: isNaN(timestamp) ? 0 : timestamp };
-        }).sort((a, b) => a._timestamp - b._timestamp);
+        });
         
-        allRemindersInCurrentMonth.value = Object.freeze(processedReminders);
+        allRemindersInCurrentMonth.value = processedReminders;
+        console.log(`成功加载 ${processedReminders.length} 个提醒事项`);
       } catch (error) {
-        console.error("获取月份提醒失败:", error);
+        console.error('加载提醒事项失败:', error);
         allRemindersInCurrentMonth.value = [];
+        uni.showToast({
+          title: '加载提醒失败',
+          icon: 'none'
+        });
       }
     };
     
@@ -281,15 +299,28 @@ export default {
       console.log('切换提醒状态:', reminder);
     };
 
-    const viewReminderDetail = (id) => {
-      uni.navigateTo({ url: `/pages/detail/detail?id=${id}` });
+    const viewReminderDetail = async (reminderId) => {
+      const authenticated = await requireAuth();
+      
+      if (authenticated) {
+        uni.navigateTo({
+          url: `/pages/detail/detail?id=${reminderId}`
+        });
+      }
     };
     
-    const createReminderOnSelectedDate = () => {
-      if (selectedDate.value) {
-        const d = selectedDate.value;
-        const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        uni.navigateTo({ url: `/pages/create/create?date=${dateString}` });
+    const createReminderOnSelectedDate = async () => {
+      const authenticated = await requireAuth();
+      
+      if (authenticated && selectedDate.value) {
+        const year = selectedDate.value.getFullYear();
+        const month = String(selectedDate.value.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.value.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        
+        uni.navigateTo({
+          url: `/pages/create/create?date=${dateStr}`
+        });
       }
     };
 
@@ -332,18 +363,44 @@ export default {
     };
 
     onMounted(async () => {
-      console.log('日历页面 onMounted');
-      const { year, month } = currentCalendarDisplayTime.value;
-      await Promise.all([
-        loadRemindersForMonth(year, month),
-        loadHolidaysForYear(year)
-      ]);
-      if (selectedDate.value) {
-        loadRemindersForSelectedDate(selectedDate.value);
+      console.log('日历页面挂载，开始加载数据');
+      
+      // 使用统一的登录检查和数据清理
+      if (!checkAuthAndClearData('日历页面-onMounted')) {
+        return;
       }
+      
+      await loadRemindersForMonth(currentCalendarDisplayTime.value.year, currentCalendarDisplayTime.value.month);
+      await loadHolidaysForYear(currentCalendarDisplayTime.value.year);
+      loadRemindersForSelectedDate(selectedDate.value);
     });
     
-    // 4. setup 中必须 return 暴露给根级别的方法
+    // 监听用户登出事件，清理日历数据
+    uni.$on('userLogout', () => {
+      console.log('日历页面：收到用户登出事件，清理所有数据');
+      
+      // 清空日历相关数据
+      allRemindersInCurrentMonth.value = [];
+      selectedDateReminders.value = [];
+      holidaysInCurrentYear.value = [];
+      loadingRemindersForDate.value = false;
+      
+      // 清空缓存
+      if (typeof window !== 'undefined' && window._calendarCache) {
+        window._calendarCache.clear();
+      }
+      
+      // 强制刷新日历显示
+      forceRefreshKey.value++;
+      
+      console.log('✅ 日历页面：数据清理完成');
+    });
+    
+    // 组件销毁时清理事件监听器
+    onUnmounted(() => {
+      uni.$off('userLogout');
+    });
+    
     return {
       currentCalendarDisplayTime,
       selectedDate,
@@ -361,14 +418,13 @@ export default {
       viewReminderDetail,
       createReminderOnSelectedDate,
       formatDisplayTime,
-      refreshCalendarData, // 暴露给 onShow 使用
+      refreshCalendarData,
     };
   }
 };
 </script>
 
 <style scoped>
-/* 页面容器 */
 .page-container {
   min-height: 100vh;
   background-color: #fcfbf8;
@@ -378,13 +434,11 @@ export default {
   position: relative;
 }
 
-/* 内容区域 */
 .content-wrapper {
   flex: 1;
-  padding-bottom: 110rpx; /* 为底部按钮留出空间 */
+  padding-bottom: 110rpx;
 }
 
-/* 顶部导航栏 */
 .nav-header {
   display: flex;
   align-items: center;
@@ -418,7 +472,6 @@ export default {
   text-align: center;
 }
 
-/* 日历区域 */
 .calendar-wrapper {
   display: flex;
   flex-wrap: wrap;
@@ -437,7 +490,6 @@ export default {
   gap: 8rpx;
 }
 
-/* 月份导航 */
 .month-nav {
   display: flex;
   align-items: center;
@@ -471,7 +523,6 @@ export default {
   text-align: center;
 }
 
-/* 星期标题 */
 .weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -491,13 +542,11 @@ export default {
   padding-bottom: 8rpx;
 }
 
-/* 提醒列表区域 */
 .reminders-section {
   background-color: #fcfbf8;
   padding: 16rpx 32rpx;
 }
 
-/* 日期网格 */
 .dates-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -570,7 +619,6 @@ export default {
   white-space: normal;
 }
 
-/* 加载状态 */
 .loading-state {
   display: flex;
   align-items: center;
@@ -584,7 +632,6 @@ export default {
   line-height: 1.4;
 }
 
-/* 空状态 */
 .empty-state {
   display: flex;
   align-items: center;
@@ -599,7 +646,6 @@ export default {
   line-height: 1.4;
 }
 
-/* 提醒列表 */
 .reminders-list {
   display: flex;
   flex-direction: column;
@@ -671,7 +717,6 @@ export default {
   border-color: #f7bd4a;
 }
 
-/* 底部按钮区域 */
 .bottom-actions {
   position: fixed;
   bottom: 0;
@@ -726,10 +771,9 @@ export default {
   text-overflow: ellipsis;
 }
 
-/* 响应式适配 */
 @media (max-width: 750rpx) {
   .content-wrapper {
-    padding-bottom: 90rpx; /* 小屏幕适配 */
+    padding-bottom: 90rpx;
   }
   
   .nav-header {
@@ -802,7 +846,6 @@ export default {
   }
 }
 
-/* 提醒元数据容器 */
 .reminder-meta {
   display: flex;
   align-items: center;
@@ -810,7 +853,6 @@ export default {
   margin-bottom: 8rpx;
 }
 
-/* 提醒描述 */
 .reminder-description {
   color: #9d8148;
   font-size: 26rpx;
@@ -824,7 +866,6 @@ export default {
   -webkit-box-orient: vertical;
 }
 
-/* 过期标识 */
 .past-indicator {
   color: #ff4757;
   font-size: 24rpx;
@@ -835,7 +876,6 @@ export default {
   white-space: nowrap;
 }
 
-/* 过去提醒的样式 */
 .reminder-item.reminder-past {
   opacity: 0.7;
   background-color: #f8f9fa;

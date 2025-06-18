@@ -93,374 +93,407 @@
       <view class="bottom-spacer"></view>
     </scroll-view>
     
-    <!-- 用户信息完善弹窗 -->
-    <UserInfoModal
-      :visible="showUserInfoModal"
-      :initialUserInfo="newUserInfo"
-      :required="true"
-      :maskClosable="false"
-      @success="onUserInfoCompleted"
-      @cancel="onUserInfoSkipped"
-      @close="closeUserInfoModal"
-    />
+    <!-- 登录弹窗 -->
+    <view v-if="showLoginPopup" class="login-modal-overlay" @click="closeLoginModal">
+      <view class="login-modal" @click.stop>
+        <view class="login-modal-header">
+          <text class="login-modal-title">登录</text>
+          <view class="login-modal-close" @click="closeLoginModal">
+            <text class="close-icon">×</text>
+          </view>
+        </view>
+        <view class="login-modal-content">
+          <text class="login-desc">使用微信账号快速登录</text>
+          <button 
+            class="wechat-login-button" 
+            open-type="getUserInfo"
+            @getuserinfo="handleWechatLogin"
+          >
+            <text class="wechat-login-text">微信一键登录</text>
+          </button>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 全局登录弹窗 -->
+    <GlobalLoginModal />
   </view>
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue';
-import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '../../services/api';
-import { reminderState } from '../../services/store';
-import SimpleReminderCard from '../../components/SimpleReminderCard.vue';
-import ComplexReminderCard from '../../components/ComplexReminderCard.vue';
-import UserInfoModal from '../../components/UserInfoModal.vue';
+import { ref, computed, nextTick, onUnmounted } from 'vue';
+import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi, wechatLogin } from '@/services/api';
+import { reminderState, reminderActions } from '@/store/modules/reminder';
+import { UserService, userState } from '@/services/userService';
+import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
+import SimpleReminderCard from '@/components/SimpleReminderCard.vue';
+import ComplexReminderCard from '@/components/ComplexReminderCard.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 export default {
   name: 'IndexPage',
   components: {
     SimpleReminderCard,
     ComplexReminderCard,
-    UserInfoModal
+    GlobalLoginModal,
+    ConfirmDialog
   },
   onTabItemTap() {
+    // 标签页切换时的逻辑，暂时移除直接调用
+    console.log('标签页被点击');
+  },
+  
+  onShow() {
+    console.log('Index页面显示，检查登录状态并加载数据');
+    
+    // 检查登录状态并清空数据
+    if (!checkAuthAndClearData('Index页面-onShow')) {
+      return;
+    }
+    
+    // 加载当前标签页数据
     this.loadCurrentTabData();
   },
   
-  // 添加onShow生命周期方法，页面显示时刷新数据
-  onShow() {
-    console.log('Index页面显示，刷新当前标签页数据');
-    // 调用setup中返回的方法来刷新数据
-    if (this.loadCurrentTabData) {
-      this.loadCurrentTabData();
-    }
-  },
-  
   setup() {
-    const loading = ref(false);
-    const activeTab = ref('simple'); // 'simple' 或 'complex'
-    
-    // 用户信息完善弹窗相关
-    const showUserInfoModal = ref(false);
+    // 响应式数据
+    const activeTab = ref('simple');
+    const simpleReminders = ref([]);
+    const complexReminders = ref([]);
+    const isLoading = ref(false);
+    const refreshing = ref(false);
+    const showLoginPopup = ref(false);
     const newUserInfo = ref({});
     
-    // 使用共享状态管理的即将到来的提醒数据
-    const simpleReminders = computed(() => {
-      return reminderState.upcomingReminders || [];
+    // 计算属性
+    const currentReminders = computed(() => {
+      return activeTab.value === 'simple' ? simpleReminders.value : complexReminders.value;
     });
     
-    // 复杂提醒数据 - 改为使用全局状态管理
-    const complexReminders = computed(() => {
-      return reminderState.complexReminders || [];
+    const hasNoData = computed(() => {
+      return !isLoading.value && currentReminders.value.length === 0;
     });
     
-    // 动态按钮文本
+    const emptyStateText = computed(() => {
+      return activeTab.value === 'simple' ? '暂无简单提醒' : '暂无复杂提醒';
+    });
+    
+    const emptyStateDesc = computed(() => {
+      if (activeTab.value === 'simple') {
+        return '点击右上角"+"添加你的第一个简单提醒吧！';
+      } else {
+        return '点击右上角"+"创建你的第一个复杂提醒吧！';
+      }
+    });
+
+    // 创建按钮文字
     const createButtonText = computed(() => {
       return activeTab.value === 'simple' ? '新建简单提醒' : '新建复杂提醒';
     });
-    
-    // 加载当前标签页数据
-    const loadCurrentTabData = () => {
-      console.log('加载当前标签页数据，当前标签:', activeTab.value);
-      if (activeTab.value === 'simple') {
-        loadSimpleReminders();
-      } else {
-        loadComplexReminders();
-      }
-    };
-    
-    // 加载即将到来的简单提醒列表
-    const loadSimpleReminders = async () => {
-      try {
-        loading.value = true;
-        reminderState.loading = true;
-        
-        const result = await getUpcomingReminders();
-        
-        // 确保result是数组才设置状态，否则设置为空数组
-        if (Array.isArray(result)) {
-          reminderState.upcomingReminders = result;
-        } else {
-          console.warn('API返回的数据不是数组:', result);
-          reminderState.upcomingReminders = [];
-        }
-      } catch (error) {
-        console.error('获取简单提醒列表失败:', error);
-        
-        // 确保发生错误时也赋值为空数组
-        reminderState.upcomingReminders = [];
-        
-        uni.showToast({
-          title: '获取简单提醒列表失败',
-          icon: 'none',
-          duration: 2000
-        });
-      } finally {
-        loading.value = false;
-        reminderState.loading = false;
-      }
-    };
-    
-    // 加载复杂提醒列表 - 更新全局状态
-    const loadComplexReminders = async () => {
-      try {
-        loading.value = true;
-        
-        const result = await getAllComplexReminders();
-        
-        // 确保result是数组才设置状态，否则设置为空数组
-        if (Array.isArray(result)) {
-          // 更新全局状态
-          reminderState.complexReminders = result;
-        } else {
-          console.warn('API返回的数据不是数组:', result);
-          reminderState.complexReminders = [];
-        }
-      } catch (error) {
-        console.error('获取复杂提醒列表失败:', error);
-        
-        reminderState.complexReminders = [];
-        
-        uni.showToast({
-          title: '获取复杂提醒列表失败',
-          icon: 'none',
-          duration: 2000
-        });
-      } finally {
-        loading.value = false;
-      }
-    };
-    
-    // 切换标签页
+
+    // loading别名，方便模板使用
+    const loading = computed(() => isLoading.value);
+
+    // 标签页切换
     const switchTab = (tab) => {
-      activeTab.value = tab;
-      loadCurrentTabData();
+      if (tab !== activeTab.value) {
+        activeTab.value = tab;
+        loadCurrentTabData();
+      }
     };
-    
+
+    // 加载当前标签页数据
+    const loadCurrentTabData = async () => {
+      if (!isAuthenticated()) {
+        console.log('用户未登录，清空提醒数据');
+        simpleReminders.value = [];
+        complexReminders.value = [];
+        return;
+      }
+      
+      if (activeTab.value === 'simple') {
+        await loadSimpleReminders();
+      } else {
+        await loadComplexReminders();
+      }
+    };
+
+    // 加载简单提醒
+    const loadSimpleReminders = async () => {
+      if (isLoading.value) return;
+      
+      try {
+        isLoading.value = true;
+        console.log('开始加载简单提醒...');
+        
+        const response = await getUpcomingReminders();
+        console.log('简单提醒加载响应:', response);
+        
+        if (response && Array.isArray(response)) {
+          simpleReminders.value = response;
+          console.log(`成功加载 ${response.length} 个简单提醒`);
+        } else {
+          console.warn('简单提醒响应格式异常:', response);
+          simpleReminders.value = [];
+        }
+      } catch (error) {
+        console.error('加载简单提醒失败:', error);
+        simpleReminders.value = [];
+        
+        // 如果是认证错误，清空数据
+        if (error.message && error.message.includes('认证')) {
+          clearAllUserData();
+        }
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    // 加载复杂提醒
+    const loadComplexReminders = async () => {
+      if (isLoading.value) return;
+      
+      try {
+        isLoading.value = true;
+        console.log('开始加载复杂提醒...');
+        
+        const response = await getAllComplexReminders();
+        console.log('复杂提醒加载响应:', response);
+        
+        if (response && Array.isArray(response)) {
+          complexReminders.value = response;
+          console.log(`成功加载 ${response.length} 个复杂提醒`);
+        } else {
+          console.warn('复杂提醒响应格式异常:', response);
+          complexReminders.value = [];
+        }
+      } catch (error) {
+        console.error('加载复杂提醒失败:', error);
+        complexReminders.value = [];
+        
+        // 如果是认证错误，清空数据
+        if (error.message && error.message.includes('认证')) {
+          clearAllUserData();
+        }
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
+    // 刷新数据
+    const refreshData = async () => {
+      if (refreshing.value) return;
+      
+      try {
+        refreshing.value = true;
+        console.log('开始刷新数据...');
+        await loadCurrentTabData();
+        console.log('数据刷新完成');
+      } finally {
+        refreshing.value = false;
+      }
+    };
+
+    // 删除复杂提醒
+    const deleteComplexReminder = async (reminderId) => {
+      try {
+        console.log('删除复杂提醒:', reminderId);
+        await deleteComplexReminderApi(reminderId);
+        
+        // 从本地列表中移除
+        complexReminders.value = complexReminders.value.filter(r => r.id !== reminderId);
+        
+        uni.showToast({
+          title: '删除成功',
+          icon: 'success'
+        });
+        
+        console.log('复杂提醒删除成功');
+      } catch (error) {
+        console.error('删除复杂提醒失败:', error);
+        uni.showToast({
+          title: '删除失败',
+          icon: 'none'
+        });
+      }
+    };
+
+    // 跳转到创建页面
     const navigateToCreate = () => {
       uni.navigateTo({
         url: '/pages/create/create'
       });
     };
-    
-    const navigateToComplexCreate = () => {
+
+    const goTocreateComplex = () => {
       uni.navigateTo({
         url: '/pages/create-complex/create-complex'
       });
     };
-    
-    const goToDetail = (id) => {
-      console.log('=== Index页面跳转简单提醒详情 ===');
-      console.log('点击的提醒ID:', id);
-      console.log('ID类型:', typeof id);
-      console.log('跳转URL:', `/pages/detail/detail?id=${id}`);
-      
-      uni.navigateTo({
-        url: `/pages/detail/detail?id=${id}`
-      });
-    };
-    
-    const goToComplexDetail = (id) => {
-      console.log('=== Index页面跳转复杂提醒详情 ===');
-      console.log('点击的复杂提醒ID:', id);
-      
-      // 暂时跳转到编辑页面，后续可以创建专门的详情页
-      uni.navigateTo({
-        url: `/pages/create-complex/create-complex?id=${id}`
-      });
-    };
-    
-    const editComplexReminder = (id) => {
-      uni.navigateTo({
-        url: `/pages/create-complex/create-complex?id=${id}`
-      });
-    };
-    
-    const deleteComplexReminder = (id) => {
-      console.log('=== 删除复杂提醒 ===');
-      console.log('要删除的复杂提醒ID:', id);
-      
-      // 显示确认弹窗
-      uni.showModal({
-        title: '确认删除',
-        content: '确定要删除这个复杂提醒吗？删除后将无法恢复，同时会删除所有相关的简单提醒。',
-        confirmText: '删除',
-        cancelText: '取消',
-        confirmColor: '#ff4757',
-        success: async (res) => {
-          if (res.confirm) {
-            try {
-              // 显示加载提示
-              uni.showLoading({
-                title: '删除中...',
-                mask: true
-              });
-              
-              // 调用删除API
-              await deleteComplexReminderApi(id);
-              
-              // 从全局状态中移除该复杂提醒
-              const index = reminderState.complexReminders.findIndex(item => item.id === id);
-              if (index !== -1) {
-                reminderState.complexReminders.splice(index, 1);
-              }
-              
-              // 隐藏加载提示
-              uni.hideLoading();
-              
-              // 显示成功提示
-              uni.showToast({
-                title: '删除成功',
-                icon: 'success',
-                duration: 2000
-              });
-              
-              console.log('复杂提醒删除成功，ID:', id);
-              
-            } catch (error) {
-              console.error('删除复杂提醒失败:', error);
-              
-              // 隐藏加载提示
-              uni.hideLoading();
-              
-              // 处理错误信息
-              let errorMessage = '删除失败，请重试';
-              
-              if (error && error.statusCode) {
-                if (error.statusCode === 401) {
-                  errorMessage = '请先登录';
-                } else if (error.statusCode === 403) {
-                  errorMessage = '权限不足';
-                } else if (error.statusCode === 404) {
-                  errorMessage = '提醒不存在或已被删除';
-                } else if (error.statusCode === 500) {
-                  errorMessage = error.data?.message || '服务器内部错误';
-                } else {
-                  errorMessage = `删除失败 (${error.statusCode})`;
-                }
-              } else if (error && error.message) {
-                errorMessage = error.message;
-              }
-              
-              // 显示错误弹窗
-              uni.showModal({
-                title: '删除失败',
-                content: errorMessage,
-                showCancel: false,
-                confirmText: '知道了'
-              });
-            }
-          }
-        }
-      });
-    };
-    
 
+    const navigateToEdit = (reminderId) => {
+      uni.navigateTo({
+        url: `/pages/create/create?id=${reminderId}`
+      });
+    };
+
+    const editComplexReminder = (reminderId) => {
+      console.log('首页: 编辑复杂提醒, ID:', reminderId);
+      uni.navigateTo({
+        url: `/pages/create-complex/create-complex?id=${reminderId}`
+      });
+    };
     
-    // 检查是否需要显示用户信息完善弹窗
-    const checkNeedCompleteProfile = () => {
-      const needCompleteData = uni.getStorageSync('needCompleteProfile');
-      if (needCompleteData && needCompleteData.isNewUser) {
-        console.log('🆕 检测到新用户需要完善资料，显示弹窗');
-        
-        // 设置用户信息
-        newUserInfo.value = needCompleteData.userInfo || {};
-        
-        // 显示弹窗
-        showUserInfoModal.value = true;
-        
-        // 清除标记，避免重复显示
-        uni.removeStorageSync('needCompleteProfile');
+    const handleCreateNew = async () => {
+      const authenticated = await requireAuth();
+      if (authenticated) {
+        if (activeTab.value === 'simple') {
+          navigateToCreate();
+        } else {
+          goTocreateComplex();
+        }
       }
     };
     
-    // 用户信息完善成功
-    const onUserInfoCompleted = (data) => {
-      console.log('✅ 用户信息完善成功:', data);
-      
-      // 显示成功提示
-      uni.showToast({
-        title: '资料完善成功！',
-        icon: 'success',
-        duration: 2000
-      });
-      
-      // 关闭弹窗
-      showUserInfoModal.value = false;
+    const closeLoginModal = () => {
+      showLoginPopup.value = false;
     };
     
-    // 用户跳过完善资料
-    const onUserInfoSkipped = () => {
-      console.log('⏭️ 用户跳过完善资料');
+    // 微信登录处理
+    const handleWechatLogin = async (e) => {
+      console.log('微信登录事件触发:', e);
       
-      // 显示提示
-      uni.showModal({
-        title: '提示',
-        content: '您可以稍后在个人中心完善资料，现在继续使用应用吗？',
-        confirmText: '继续使用',
-        cancelText: '完善资料',
-        success: (res) => {
-          if (res.confirm) {
-            // 用户选择继续使用
-            showUserInfoModal.value = false;
-            
-            uni.showToast({
-              title: '欢迎使用！',
-              icon: 'success',
-              duration: 2000
-            });
-          }
-          // 如果用户选择完善资料，则保持弹窗打开
+      try {
+        uni.showLoading({ title: '登录中...' });
+        
+        // 调用微信登录API
+        const response = await wechatLogin(e.detail);
+        console.log('微信登录响应:', response);
+        
+        if (response && response.accessToken) {
+          // 使用UserService处理登录成功
+          await UserService.onLoginSuccess(response, 'wechat');
+          
+          console.log('✅ 登录处理完成，用户状态已更新');
+          
+          // 关闭登录弹窗
+          showLoginPopup.value = false;
+          
+          uni.hideLoading();
+          uni.showToast({
+            title: '登录成功',
+            icon: 'success'
+          });
+          
+          // 刷新页面数据
+          setTimeout(() => {
+            loadCurrentTabData();
+          }, 1000);
+        } else {
+          throw new Error('登录响应格式错误');
         }
-      });
+        
+      } catch (error) {
+        console.error('微信登录失败:', error);
+        uni.hideLoading();
+        
+        let errorMessage = '登录失败';
+        if (error.message) {
+          if (error.message.includes('用户拒绝')) {
+            errorMessage = '用户取消了授权';
+          } else if (error.message.includes('网络')) {
+            errorMessage = '网络连接失败';
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        uni.showToast({
+          title: errorMessage,
+          icon: 'none'
+        });
+      }
     };
     
-    // 关闭用户信息弹窗
-    const closeUserInfoModal = () => {
-      showUserInfoModal.value = false;
-    };
-    
-    // 页面加载时获取数据
-    onMounted(() => {
+    // 初始化逻辑
+    nextTick(() => {
+      console.log('Index页面初始化，开始加载数据');
       loadCurrentTabData();
-      
-      // 延迟检查是否需要显示用户信息完善弹窗
-      setTimeout(() => {
-        checkNeedCompleteProfile();
-      }, 500);
     });
     
-    const handleCreateNew = () => {
-      if (activeTab.value === 'simple') {
-        navigateToCreate();
-      } else {
-        navigateToComplexCreate();
+    // 监听页面显示事件，刷新数据
+    uni.$on('refreshIndexData', () => {
+      console.log('收到页面显示刷新事件，重新加载数据');
+      if (isAuthenticated()) {
+        loadCurrentTabData();
       }
-    };
+    });
     
+    // 监听用户登录成功事件
+    uni.$on('userLoginSuccess', () => {
+      console.log('收到用户登录成功事件，刷新Index页面数据');
+      if (isAuthenticated()) {
+        loadCurrentTabData();
+      }
+    });
+    
+    // 组件销毁时清理事件监听器
+    onUnmounted(() => {
+      uni.$off('refreshIndexData');
+      uni.$off('userLoginSuccess');
+    });
+
+    const goToDetail = (reminder) => {
+      uni.navigateTo({
+        url: `/pages/detail/detail?id=${reminder.id}`
+      });
+    };
+
+    const goToComplexDetail = (reminder) => {
+      uni.navigateTo({
+        url: `/pages/create-complex/create-complex?id=${reminder.id}`
+      });
+    };
+
     return {
+      // 响应式数据
       activeTab,
       simpleReminders,
       complexReminders,
-      loading,
-      showUserInfoModal,
+      isLoading,
+      refreshing,
+      showLoginPopup,
       newUserInfo,
+      
+      // 计算属性  
+      currentReminders,
+      hasNoData,
+      emptyStateText,
+      emptyStateDesc,
       createButtonText,
+      loading,
+      
+      // 方法
       switchTab,
-      navigateToCreate,
-      navigateToComplexCreate,
-      goToDetail,
-      goToComplexDetail,
-      editComplexReminder,
-      deleteComplexReminder,
       loadCurrentTabData,
+      loadSimpleReminders,
+      loadComplexReminders,
+      refreshData,
+      deleteComplexReminder,
+      navigateToCreate,
+      goTocreateComplex,
+      navigateToEdit,
+      editComplexReminder,
       handleCreateNew,
-      onUserInfoCompleted,
-      onUserInfoSkipped,
-      closeUserInfoModal
+      closeLoginModal,
+      handleWechatLogin,
+      goToDetail,
+      goToComplexDetail
     };
   }
 };
 </script>
-
 <style scoped>
 .page-container {
   display: flex;
@@ -518,13 +551,12 @@ export default {
   color: #1c170d;
 }
 
-.secondary-btn {
-  background-color: #ffffff;
-  color: #1c170d;
-  border: 2rpx solid #e9e0ce;
+.wechat-login-btn {
+  background-color: #07c160;
+  color: #ffffff;
 }
 
-.test-btn {
+.secondary-btn {
   background-color: #ffffff;
   color: #1c170d;
   border: 2rpx solid #e9e0ce;
@@ -749,5 +781,107 @@ export default {
   font-size: 48rpx;
   font-weight: 600;
   color: #1c170d;
+}
+
+/* 登录弹窗样式 */
+.login-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(28, 23, 13, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.login-modal {
+  background-color: #fcfbf8;
+  border-radius: 24rpx;
+  width: 600rpx;
+  max-width: 90vw;
+  overflow: hidden;
+  border: 2rpx solid #e9e0ce;
+}
+
+.login-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx;
+  border-bottom: 2rpx solid #e9e0ce;
+  background-color: #fcfbf8;
+}
+
+.login-modal-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1c170d;
+}
+
+.login-modal-close {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 8rpx;
+  transition: all 0.2s ease;
+}
+
+.login-modal-close:hover {
+  background-color: #e9e0ce;
+}
+
+.close-icon {
+  font-size: 40rpx;
+  color: #9d8148;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.login-modal-content {
+  padding: 48rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32rpx;
+  background-color: #fcfbf8;
+}
+
+.login-desc {
+  font-size: 28rpx;
+  color: #9d8148;
+  text-align: center;
+  font-weight: 500;
+}
+
+.wechat-login-button {
+  width: 100%;
+  height: 88rpx;
+  background-color: #f7bd4a;
+  color: #1c170d;
+  border-radius: 16rpx;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4rpx 12rpx rgba(247, 189, 74, 0.3);
+}
+
+.wechat-login-button:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 8rpx rgba(247, 189, 74, 0.4);
+}
+
+.wechat-login-text {
+  font-size: 32rpx;
+  color: #1c170d;
+  font-weight: 600;
 }
 </style>
