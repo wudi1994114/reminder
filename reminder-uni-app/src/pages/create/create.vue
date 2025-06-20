@@ -43,6 +43,7 @@
         v-if="isDataReady"
         ref="dateTimePickerRef"
         label="时间设置"
+        displayMode="datetime"
         :initial-date="reminderDate"
         :initial-time="reminderTime"
         :auto-set-default="!isEdit"

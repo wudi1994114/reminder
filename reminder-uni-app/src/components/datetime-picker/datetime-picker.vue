@@ -10,7 +10,7 @@
         
         <view class="datetime-inputs">
           <!-- 日期选择 -->
-          <view class="input-item date-input" @click="showDatePicker">
+          <view v-if="displayMode === 'datetime'" class="input-item date-input" @click="showDatePicker">
             <text class="input-label">日期</text>
             <text class="input-value">{{ getFormattedDate() }}</text>
           </view>
@@ -136,6 +136,16 @@ export default {
     columns: {
       type: Array,
       default: () => ['year', 'month', 'day', 'hour', 'minute']
+    },
+    // 是否启用时间验证（提前2分钟）
+    enableValidation: {
+      type: Boolean,
+      default: true
+    },
+    // 显示模式: 'datetime' | 'time'
+    displayMode: {
+      type: String,
+      default: 'datetime'
     }
   },
   emits: ['change', 'dateChange', 'timeChange', 'weekdayChange'],
@@ -168,6 +178,12 @@ export default {
     
     // 检查时间是否过短
     const checkTimeValidity = () => {
+      // 如果禁用了验证，则直接返回true
+      if (!props.enableValidation) {
+        showTimeWarning.value = false;
+        return true;
+      }
+
       if (!reminderDate.value || !reminderTime.value) {
         showTimeWarning.value = false;
         return true;

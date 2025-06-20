@@ -291,7 +291,15 @@ export default {
             // 检查是使用星期还是日期
             if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
               // 年重复 + 星期模式
-              selectedWeekdays.value = weekday.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+              // 将Cron星期值(1-7)转换为JavaScript星期值(0-6)
+              selectedWeekdays.value = weekday.split(',')
+                .map(w => parseInt(w.trim()))
+                .filter(w => !isNaN(w))
+                .map(cronWeekday => {
+                  // Cron: 1=周日, 2=周一, 3=周二, 4=周三, 5=周四, 6=周五, 7=周六
+                  // JS:   0=周日, 1=周一, 2=周二, 3=周三, 4=周四, 5=周五, 6=周六
+                  return cronWeekday === 1 ? 0 : cronWeekday === 7 ? 6 : cronWeekday - 1;
+                });
               selectedDays.value = []; // 清空日期选择
               console.log('识别为年重复（星期模式），选择的月份:', selectedMonths.value, '选择的星期:', selectedWeekdays.value);
             } else if (day !== '?' && day !== '*' && day.trim() !== '') {
@@ -308,7 +316,15 @@ export default {
           } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
             // 周重复
             currentType.value = 'week';
-            selectedWeekdays.value = weekday.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+            // 将Cron星期值(1-7)转换为JavaScript星期值(0-6)
+            selectedWeekdays.value = weekday.split(',')
+              .map(w => parseInt(w.trim()))
+              .filter(w => !isNaN(w))
+              .map(cronWeekday => {
+                // Cron: 1=周日, 2=周一, 3=周二, 4=周三, 5=周四, 6=周五, 7=周六
+                // JS:   0=周日, 1=周一, 2=周二, 3=周三, 4=周四, 5=周五, 6=周六
+                return cronWeekday === 1 ? 0 : cronWeekday === 7 ? 6 : cronWeekday - 1;
+              });
             console.log('识别为周重复，选择的星期:', selectedWeekdays.value);
           } else if (day !== '?' && day !== '*' && day.trim() !== '') {
             // 月重复
@@ -507,7 +523,7 @@ export default {
     
     // 生成cron表达式
     const generateCronExpression = () => {
-      // 5位格式: 分 时 日 月 周
+      // 5位格式: 分 时 日 月 周 (保持兼容性)
       // 从选择的时间中提取小时和分钟
       const [hour, minute] = selectedTime.value.split(':');
       
@@ -522,25 +538,37 @@ export default {
         const months = selectedMonths.value.length > 0 ? selectedMonths.value.join(',') : '1'; // 默认1月
         
         if (selectedWeekdays.value.length > 0) {
-          // 如果选择了星期，则使用星期模式（日期用*）
-          const weekdays = selectedWeekdays.value.join(',');
-          return `${minute} ${hour} * ${months} ${weekdays}`;
+          // 如果选择了星期，则使用星期模式（日期用?）
+          // 将JavaScript星期值(0-6)转换为Cron星期值(1-7)
+          const cronWeekdays = selectedWeekdays.value.map(jsWeekday => {
+            return jsWeekday === 6 ? 7 : jsWeekday + 1;
+          });
+          const weekdays = cronWeekdays.join(',');
+          return `${minute} ${hour} ? ${months} ${weekdays}`;
         } else {
-          // 如果没有选择星期，则使用日期模式（星期用*）
+          // 如果没有选择星期，则使用日期模式（星期用?）
           const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
-          return `${minute} ${hour} ${days} ${months} *`;
+          return `${minute} ${hour} ${days} ${months} ?`;
         }
       } else if (currentType.value === 'month') {
         // 月度重复：每月指定日期
         const days = selectedDays.value.length > 0 ? selectedDays.value.join(',') : '1'; // 默认1号
-        return `${minute} ${hour} ${days} * *`;
+        return `${minute} ${hour} ${days} * ?`;
       } else if (currentType.value === 'week') {
         // 周度重复：每周指定星期
-        const weekdays = selectedWeekdays.value.length > 0 ? selectedWeekdays.value.join(',') : '1'; // 默认周一
-        return `${minute} ${hour} * * ${weekdays}`;
+        // 将JavaScript星期值(0-6)转换为Cron星期值(1-7)
+        if (selectedWeekdays.value.length > 0) {
+          const cronWeekdays = selectedWeekdays.value.map(jsWeekday => {
+            return jsWeekday === 6 ? 7 : jsWeekday + 1;
+          });
+          const weekdays = cronWeekdays.join(',');
+          return `${minute} ${hour} ? * ${weekdays}`;
+        } else {
+          return `${minute} ${hour} ? * 2`; // 默认周一(Cron值2)
+        }
       }
       
-      return `${minute} ${hour} * * *`; // 默认每天
+      return `${minute} ${hour} * * ?`; // 默认每天
     };
 
     // 清空星期选择
