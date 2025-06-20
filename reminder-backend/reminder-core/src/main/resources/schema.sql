@@ -520,3 +520,27 @@ COMMENT ON COLUMN user_preference.value IS '偏好设置值，以字符串形式
 COMMENT ON COLUMN user_preference.property IS '偏好设置的描述或额外属性信息';
 COMMENT ON COLUMN user_preference.create_at IS '记录创建时间';
 COMMENT ON COLUMN user_preference.modify_at IS '记录最后修改时间';
+
+
+-- 创建用户反馈表 (user_feedback)
+DROP TABLE IF EXISTS user_feedback CASCADE;
+CREATE TABLE user_feedback
+(
+    id          BIGSERIAL PRIMARY KEY,                                       -- 反馈唯一标识符，自增
+    user_id     BIGINT,                                                      -- 用户ID，可为空（支持匿名反馈）
+    email       VARCHAR(255),                                                -- 用户邮箱，可为空
+    message     TEXT                                               NOT NULL, -- 用户反馈内容
+    create_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL  -- 反馈创建时间
+);
+
+-- 创建索引
+CREATE INDEX idx_user_feedback_create_time ON user_feedback (create_time);
+CREATE INDEX idx_user_feedback_user_id ON user_feedback (user_id);
+
+-- 表和字段注释
+COMMENT ON TABLE user_feedback IS '用户反馈表，存储用户提交的反馈信息';
+COMMENT ON COLUMN user_feedback.id IS '反馈记录的唯一标识符，自增主键';
+COMMENT ON COLUMN user_feedback.user_id IS '提交反馈的用户ID，可为空支持匿名反馈';
+COMMENT ON COLUMN user_feedback.email IS '用户邮箱地址，可为空';
+COMMENT ON COLUMN user_feedback.message IS '用户反馈的具体内容，支持长文本';
+COMMENT ON COLUMN user_feedback.create_time IS '反馈记录的创建时间，自动设置为当前时间';

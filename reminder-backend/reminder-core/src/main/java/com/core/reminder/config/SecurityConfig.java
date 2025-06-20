@@ -1,5 +1,6 @@
 package com.core.reminder.config;
 
+import com.core.reminder.security.JwtAuthenticationEntryPoint;
 import com.core.reminder.security.JwtAuthenticationFilter;
 import com.core.reminder.security.UserDetailsServiceImpl;
 import com.core.reminder.security.UserInfoFilter;
@@ -30,6 +31,9 @@ public class SecurityConfig {
 
     @Autowired
     private UserInfoFilter userInfoFilter;
+
+    @Autowired
+    private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     // Define the JWT Authentication Filter as a Bean
     // This allows Spring to manage its lifecycle and dependency injection
@@ -95,23 +99,21 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             // Configure session management to be stateless
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Configure exception handling for authentication errors
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(jwtAuthenticationEntryPoint) // Handle unauthenticated access
+            )
             // Configure authorization rules
             .authorizeHttpRequests(authz -> authz
                 .antMatchers("/api/auth/**").permitAll() // Allow access to authentication endpoints
                 .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Allow Swagger UI if used
                 .antMatchers("/actuator/**").permitAll() // Allow Actuator endpoints if used (consider securing them in production)
-                .antMatchers("/api/users/me").authenticated() 
                 .anyRequest().authenticated() // All other requests require authentication
             )
             // Add the JWT filter before the standard UsernamePasswordAuthenticationFilter
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
             // 添加用户信息过滤器，在JWT验证之后执行
             .addFilterAfter(userInfoFilter, JwtAuthenticationFilter.class);
-            // Optional: Configure exception handling (e.g., for authentication errors)
-            // .exceptionHandling(exceptions -> exceptions
-            //     .authenticationEntryPoint(...) // Handle unauthenticated access
-            //     .accessDeniedHandler(...)      // Handle forbidden access
-            // );
 
         return http.build();
     }

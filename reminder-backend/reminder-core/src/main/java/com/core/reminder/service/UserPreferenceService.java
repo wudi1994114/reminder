@@ -3,7 +3,9 @@ package com.core.reminder.service;
 import com.common.reminder.model.ReminderType;
 import com.common.reminder.model.UserPreference;
 import com.core.reminder.dto.UserPreferenceDto;
+import com.core.reminder.enums.UserPreferenceKey;
 import com.core.reminder.repository.UserPreferenceRepository;
+import com.core.reminder.utils.UserTagValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -107,17 +109,28 @@ public class UserPreferenceService {
     @Transactional
     public UserPreferenceDto setUserPreference(Long userId, String key, String value, String property) {
         log.info("设置用户偏好设置, userId: {}, key: {}, value: {}", userId, key, value);
-        
+
+        // 特殊处理用户标签列表的验证
+        if (UserPreferenceKey.USER_TAG_LIST.getKey().equals(key)) {
+            UserTagValidator.ValidationResult validationResult = UserTagValidator.validateTagList(value);
+            if (!validationResult.isValid()) {
+                throw new IllegalArgumentException("用户标签验证失败: " + validationResult.getMessage());
+            }
+            // 格式化标签列表
+            value = UserTagValidator.formatTagList(value);
+            log.info("用户标签列表验证通过并格式化, userId: {}, 格式化后的标签: {}", userId, value);
+        }
+
         UserPreference preference = userPreferenceRepository.findByUserIdAndKey(userId, key)
                 .orElse(new UserPreference(userId, key, null));
-        
+
         preference.setValue(value);
         if (StringUtils.hasText(property)) {
             preference.setProperty(property);
         }
-        
+
         UserPreference savedPreference = userPreferenceRepository.save(preference);
-        
+
         log.info("用户偏好设置保存成功, userId: {}, key: {}", userId, key);
         return convertToDto(savedPreference);
     }
@@ -200,18 +213,18 @@ public class UserPreferenceService {
         String key;
         switch (reminderType) {
             case EMAIL:
-                key = UserPreferenceDto.PreferenceKeys.EMAIL_NOTIFICATION_ENABLED;
+                key = UserPreferenceKey.EMAIL_NOTIFICATION_ENABLED.getKey();
                 break;
             case SMS:
-                key = UserPreferenceDto.PreferenceKeys.SMS_NOTIFICATION_ENABLED;
+                key = UserPreferenceKey.SMS_NOTIFICATION_ENABLED.getKey();
                 break;
             case WECHAT_MINI:
-                key = UserPreferenceDto.PreferenceKeys.WECHAT_NOTIFICATION_ENABLED;
+                key = UserPreferenceKey.WECHAT_NOTIFICATION_ENABLED.getKey();
                 break;
             default:
                 return false;
         }
-        
+
         String value = getUserPreferenceValue(userId, key, "true");
         return Boolean.parseBoolean(value);
     }
@@ -222,10 +235,10 @@ public class UserPreferenceService {
      * @return 默认通知类型
      */
     public ReminderType getDefaultReminderType(Long userId) {
-        String value = getUserPreferenceValue(userId, 
-                UserPreferenceDto.PreferenceKeys.DEFAULT_REMINDER_TYPE, 
-                ReminderType.EMAIL.name());
-        
+        String value = getUserPreferenceValue(userId,
+                UserPreferenceKey.DEFAULT_REMINDER_TYPE.getKey(),
+                UserPreferenceKey.DEFAULT_REMINDER_TYPE.getDefaultValue());
+
         try {
             return ReminderType.valueOf(value);
         } catch (IllegalArgumentException e) {
@@ -240,10 +253,10 @@ public class UserPreferenceService {
      * @return 默认提前提醒时间
      */
     public Integer getDefaultAdvanceMinutes(Long userId) {
-        String value = getUserPreferenceValue(userId, 
-                UserPreferenceDto.PreferenceKeys.DEFAULT_ADVANCE_MINUTES, 
-                "15");
-        
+        String value = getUserPreferenceValue(userId,
+                UserPreferenceKey.DEFAULT_ADVANCE_MINUTES.getKey(),
+                UserPreferenceKey.DEFAULT_ADVANCE_MINUTES.getDefaultValue());
+
         try {
             return Integer.valueOf(value);
         } catch (NumberFormatException e) {
@@ -276,34 +289,59 @@ public class UserPreferenceService {
      */
     private Map<String, String> getDefaultPreferences() {
         Map<String, String> defaults = new HashMap<>();
-        
-        // 通知相关默认设置
-        defaults.put(UserPreferenceDto.PreferenceKeys.DEFAULT_REMINDER_TYPE, ReminderType.EMAIL.name());
-        defaults.put(UserPreferenceDto.PreferenceKeys.EMAIL_NOTIFICATION_ENABLED, "true");
-        defaults.put(UserPreferenceDto.PreferenceKeys.SMS_NOTIFICATION_ENABLED, "false");
-        defaults.put(UserPreferenceDto.PreferenceKeys.WECHAT_NOTIFICATION_ENABLED, "false");
-        
-        // 提醒设置默认值
-        defaults.put(UserPreferenceDto.PreferenceKeys.DEFAULT_ADVANCE_MINUTES, "15");
-        defaults.put(UserPreferenceDto.PreferenceKeys.SOUND_ENABLED, "true");
-        defaults.put(UserPreferenceDto.PreferenceKeys.VIBRATION_ENABLED, "true");
-        
-        // 界面设置默认值
-        defaults.put(UserPreferenceDto.PreferenceKeys.THEME, "light");
-        defaults.put(UserPreferenceDto.PreferenceKeys.LANGUAGE, "zh-CN");
-        defaults.put(UserPreferenceDto.PreferenceKeys.TIMEZONE, "Asia/Shanghai");
-        
-        // 时间设置默认值
-        defaults.put(UserPreferenceDto.PreferenceKeys.DAILY_SUMMARY_TIME, "08:00");
-        defaults.put(UserPreferenceDto.PreferenceKeys.DAILY_SUMMARY_ENABLED, "false");
-        defaults.put(UserPreferenceDto.PreferenceKeys.WEEKEND_NOTIFICATION_ENABLED, "true");
-        
-        // 免打扰设置默认值
-        defaults.put(UserPreferenceDto.PreferenceKeys.QUIET_HOURS_START, "22:00");
-        defaults.put(UserPreferenceDto.PreferenceKeys.QUIET_HOURS_END, "07:00");
-        defaults.put(UserPreferenceDto.PreferenceKeys.QUIET_HOURS_ENABLED, "false");
-        
+
+        // 使用枚举自动生成所有默认配置
+        for (UserPreferenceKey preferenceKey : UserPreferenceKey.values()) {
+            defaults.put(preferenceKey.getKey(), preferenceKey.getDefaultValue());
+        }
+
         return defaults;
+    }
+
+    /**
+     * 检查用户是否启用了标签管理功能
+     * @param userId 用户ID
+     * @return 是否启用
+     */
+    public boolean isUserTagManagementEnabled(Long userId) {
+        String value = getUserPreferenceValue(userId,
+                UserPreferenceKey.USER_TAG_MANAGEMENT_ENABLED.getKey(),
+                UserPreferenceKey.USER_TAG_MANAGEMENT_ENABLED.getDefaultValue());
+        return "1".equals(value);
+    }
+
+    /**
+     * 获取用户标签列表
+     * @param userId 用户ID
+     * @return 标签列表，如果为空则返回空字符串
+     */
+    public String getUserTagList(Long userId) {
+        return getUserPreferenceValue(userId,
+                UserPreferenceKey.USER_TAG_LIST.getKey(),
+                UserPreferenceKey.USER_TAG_LIST.getDefaultValue());
+    }
+
+    /**
+     * 设置用户标签管理开关
+     * @param userId 用户ID
+     * @param enabled 是否启用（true=1, false=0）
+     * @return 保存后的偏好设置DTO
+     */
+    @Transactional
+    public UserPreferenceDto setUserTagManagementEnabled(Long userId, boolean enabled) {
+        String value = enabled ? "1" : "0";
+        return setUserPreference(userId, UserPreferenceKey.USER_TAG_MANAGEMENT_ENABLED.getKey(), value);
+    }
+
+    /**
+     * 设置用户标签列表
+     * @param userId 用户ID
+     * @param tagList 标签列表（逗号分隔）
+     * @return 保存后的偏好设置DTO
+     */
+    @Transactional
+    public UserPreferenceDto setUserTagList(Long userId, String tagList) {
+        return setUserPreference(userId, UserPreferenceKey.USER_TAG_LIST.getKey(), tagList);
     }
 
     /**

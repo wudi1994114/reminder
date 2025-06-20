@@ -1,6 +1,7 @@
 package com.core.reminder.dto;
 
 import com.common.reminder.model.ReminderType;
+import com.core.reminder.enums.UserPreferenceKey;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -127,34 +128,19 @@ public class UserPreferenceDto {
     }
 
     /**
-     * 偏好设置键值常量类
-     * 定义系统中常用的偏好设置键名
+     * 获取所有可用的配置项键名
+     * @return 配置项键名数组
      */
-    public static class PreferenceKeys {
-        // 通知相关
-        public static final String DEFAULT_REMINDER_TYPE = "defaultReminderType";
-        public static final String EMAIL_NOTIFICATION_ENABLED = "emailNotificationEnabled";
-        public static final String SMS_NOTIFICATION_ENABLED = "smsNotificationEnabled";
-        public static final String WECHAT_NOTIFICATION_ENABLED = "wechatNotificationEnabled";
-        
-        // 提醒设置
-        public static final String DEFAULT_ADVANCE_MINUTES = "defaultAdvanceMinutes";
-        public static final String SOUND_ENABLED = "soundEnabled";
-        public static final String VIBRATION_ENABLED = "vibrationEnabled";
-        
-        // 界面设置
-        public static final String THEME = "theme";
-        public static final String LANGUAGE = "language";
-        public static final String TIMEZONE = "timezone";
-        
-        // 时间设置
-        public static final String DAILY_SUMMARY_TIME = "dailySummaryTime";
-        public static final String DAILY_SUMMARY_ENABLED = "dailySummaryEnabled";
-        public static final String WEEKEND_NOTIFICATION_ENABLED = "weekendNotificationEnabled";
-        
-        // 免打扰设置
-        public static final String QUIET_HOURS_START = "quietHoursStart";
-        public static final String QUIET_HOURS_END = "quietHoursEnd";
-        public static final String QUIET_HOURS_ENABLED = "quietHoursEnabled";
+    public static String[] getAllPreferenceKeys() {
+        return UserPreferenceKey.getAllKeys();
+    }
+
+    /**
+     * 检查键名是否有效
+     * @param key 键名
+     * @return 是否有效
+     */
+    public static boolean isValidKey(String key) {
+        return UserPreferenceKey.isValidKey(key);
     }
 } 
