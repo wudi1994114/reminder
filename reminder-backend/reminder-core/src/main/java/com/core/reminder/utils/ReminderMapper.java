@@ -153,20 +153,39 @@ public class ReminderMapper {
             return;
         }
         
-        // 只更新业务上允许修改的字段
-        existingEntity.setFromUserId(dto.getFromUserId());
-        existingEntity.setToUserId(dto.getToUserId());
-        existingEntity.setTitle(dto.getTitle());
-        existingEntity.setDescription(dto.getDescription());
-        existingEntity.setCronExpression(dto.getCronExpression());
-        existingEntity.setReminderType(dto.getReminderType());
+        // 只更新业务上允许修改且DTO中提供的字段
+        // 对于必需字段，只有在DTO中明确提供时才更新，避免覆盖为null
+        if (dto.getFromUserId() != null) {
+            existingEntity.setFromUserId(dto.getFromUserId());
+        }
+        if (dto.getToUserId() != null) {
+            existingEntity.setToUserId(dto.getToUserId());
+        }
+        if (dto.getTitle() != null) {
+            existingEntity.setTitle(dto.getTitle());
+        }
+        if (dto.getDescription() != null) {
+            existingEntity.setDescription(dto.getDescription());
+        }
+        if (dto.getCronExpression() != null) {
+            existingEntity.setCronExpression(dto.getCronExpression());
+        }
+        if (dto.getReminderType() != null) {
+            existingEntity.setReminderType(dto.getReminderType());
+        }
         
-        // 处理可选的日期字段：允许null值
-        existingEntity.setValidFrom(dto.getValidFrom());
-        existingEntity.setValidUntil(dto.getValidUntil());
+        // 处理可选的日期字段：允许null值，但只有在DTO中明确设置时才更新
+        if (dto.getValidFrom() != null) {
+            existingEntity.setValidFrom(dto.getValidFrom());
+        }
+        if (dto.getValidUntil() != null) {
+            existingEntity.setValidUntil(dto.getValidUntil());
+        }
         
-        // 处理可选的数字字段：允许null值
-        existingEntity.setMaxExecutions(dto.getMaxExecutions());
+        // 处理可选的数字字段：允许null值，但只有在DTO中明确设置时才更新
+        if (dto.getMaxExecutions() != null) {
+            existingEntity.setMaxExecutions(dto.getMaxExecutions());
+        }
         
         // 不更新lastGeneratedYm，这是系统内部管理的字段
         // 不更新创建时间和更新时间，这些由JPA自动管理
@@ -181,13 +200,26 @@ public class ReminderMapper {
             return;
         }
         
-        // 只更新业务上允许修改的字段
-        existingEntity.setFromUserId(dto.getFromUserId());
-        existingEntity.setToUserId(dto.getToUserId());
-        existingEntity.setTitle(dto.getTitle());
-        existingEntity.setDescription(dto.getDescription());
-        existingEntity.setEventTime(dto.getEventTime());
-        existingEntity.setReminderType(dto.getReminderType());
+        // 只更新业务上允许修改且DTO中提供的字段
+        // 对于必需字段，只有在DTO中明确提供时才更新，避免覆盖为null
+        if (dto.getFromUserId() != null) {
+            existingEntity.setFromUserId(dto.getFromUserId());
+        }
+        if (dto.getToUserId() != null) {
+            existingEntity.setToUserId(dto.getToUserId());
+        }
+        if (dto.getTitle() != null) {
+            existingEntity.setTitle(dto.getTitle());
+        }
+        if (dto.getDescription() != null) {
+            existingEntity.setDescription(dto.getDescription());
+        }
+        if (dto.getEventTime() != null) {
+            existingEntity.setEventTime(dto.getEventTime());
+        }
+        if (dto.getReminderType() != null) {
+            existingEntity.setReminderType(dto.getReminderType());
+        }
         // 通常不应修改originatingComplexReminderId，因为这是系统关联关系
         // 不更新创建时间和更新时间，这些由JPA自动管理
     }

@@ -165,6 +165,12 @@ public class ReminderEventController {
 
             // 获取现有实体
             SimpleReminder existingReminder = existingReminderOpt.get();
+            
+            // 验证用户权限：只有创建者或接收者可以修改
+            Long userId = userProfileDto.getId();
+            if (!existingReminder.getFromUserId().equals(userId) && !existingReminder.getToUserId().equals(userId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限修改此提醒");
+            }
 
             // 用DTO中的值更新实体
             reminderMapper.updateEntityFromDTO(reminderDTO, existingReminder);
