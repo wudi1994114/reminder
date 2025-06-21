@@ -7,10 +7,12 @@ import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
+import com.core.reminder.util.IdempotencyUtils;
 import com.core.reminder.utils.CacheUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,11 @@ import java.util.HashSet;
 public class ReminderEventServiceImpl /* implements ReminderService */ {
 
     private static final Logger log = LoggerFactory.getLogger(ReminderEventServiceImpl.class);
+
+    /**
+     * 用户最大复杂提醒数量限制
+     */
+    private static final int MAX_COMPLEX_REMINDERS_PER_USER = 20;
 
     private final SimpleReminderRepository simpleReminderRepository;
     private final ComplexReminderRepository complexReminderRepository;
@@ -151,6 +158,32 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         } catch (Exception e) {
             log.error("清除用户[{}] 所有提醒缓存失败", userId, e);
         }
+    }
+
+    // === 验证方法 ===
+
+    /**
+     * 验证用户复杂提醒数量限制
+     * @param userId 用户ID
+     * @throws IllegalStateException 当用户复杂提醒数量超过限制时抛出
+     */
+    private void validateUserComplexReminderLimit(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+
+        long currentCount = complexReminderRepository.countByFromUserId(userId);
+
+        if (currentCount >= MAX_COMPLEX_REMINDERS_PER_USER) {
+            log.warn("用户[{}]尝试创建复杂提醒，但已达到最大限制。当前数量: {}, 最大限制: {}",
+                    userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
+            throw new IllegalStateException(
+                String.format("用户复杂提醒数量已达到最大限制(%d条)，无法创建新的复杂提醒", MAX_COMPLEX_REMINDERS_PER_USER)
+            );
+        }
+
+        log.debug("用户[{}]复杂提醒数量验证通过。当前数量: {}, 最大限制: {}",
+                userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
     }
 
     // === 业务方法（集成缓存功能） ===
@@ -636,35 +669,75 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     /**
-     * 创建复杂提醒并生成指定月数内的简单任务
+     * 创建复杂提醒并生成指定月数内的简单任务（带幂等控制）
      * 整个过程在一个事务中完成，保证数据一致性
-     * 
+     *
      * @param complexReminder 要创建的复杂提醒
      * @param monthsAhead 要生成的简单任务的月数
      * @return 创建后的复杂提醒对象
      */
     @Transactional
-    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER, 
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_CREATE, resourceType = ResourceType.COMPLEX_REMINDER,
                 description = "创建复杂提醒并生成简单任务", async = true, logParams = true, logResult = true)
     public ComplexReminder createComplexReminderWithSimpleReminders(ComplexReminder complexReminder, int monthsAhead) {
-        log.info("创建复杂提醒并生成{}个月内的简单任务", monthsAhead);
-        
-        // 保存复杂提醒
-        ComplexReminder savedReminder = createComplexReminder(complexReminder);
-        
-        // 生成简单任务
-        List<SimpleReminder> generatedReminders = generateSimpleRemindersForMonths(savedReminder, monthsAhead);
-        log.info("为复杂提醒ID: {} 成功生成 {} 个简单任务", savedReminder.getId(), generatedReminders.size());
-        
-        // 清除相关用户的缓存（因为生成了新的简单任务）
-        if (savedReminder.getToUserId() != null) {
-            invalidateAllUserReminderCaches(savedReminder.getToUserId());
+        log.info("创建复杂提醒并生成{}个月内的简单任务，标题: {}", monthsAhead, complexReminder.getTitle());
+
+        // 步骤0：检查用户复杂提醒数量限制
+        validateUserComplexReminderLimit(complexReminder.getFromUserId());
+
+        // 步骤1：幂等性检查
+        String idempotencyKey = complexReminder.getIdempotencyKey();
+
+        // 如果提供了幂等键，先检查是否已存在
+        if (idempotencyKey != null && !idempotencyKey.trim().isEmpty()) {
+            if (!IdempotencyUtils.isValidIdempotencyKey(idempotencyKey)) {
+                throw new IllegalArgumentException("无效的幂等键格式: " + idempotencyKey);
+            }
+
+            Optional<ComplexReminder> existingByKey = complexReminderRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingByKey.isPresent()) {
+                log.info("根据幂等键 {} 找到已存在的复杂提醒，ID: {}", idempotencyKey, existingByKey.get().getId());
+                return existingByKey.get();
+            }
+        } else {
+            // 如果没有提供幂等键，生成业务幂等键
+            idempotencyKey = IdempotencyUtils.generateBusinessBasedIdempotencyKey(complexReminder);
+            complexReminder.setIdempotencyKey(idempotencyKey);
+            log.info("生成业务幂等键: {}", idempotencyKey);
         }
-        if (savedReminder.getFromUserId() != null && !savedReminder.getFromUserId().equals(savedReminder.getToUserId())) {
-            invalidateAllUserReminderCaches(savedReminder.getFromUserId());
+
+        // 步骤3：创建新的复杂提醒
+        try {
+            ComplexReminder savedReminder = createComplexReminder(complexReminder);
+
+            // 生成简单任务
+            List<SimpleReminder> generatedReminders = generateSimpleRemindersForMonths(savedReminder, monthsAhead);
+            log.info("为复杂提醒ID: {} 成功生成 {} 个简单任务", savedReminder.getId(), generatedReminders.size());
+
+            // 清除相关用户的缓存（因为生成了新的简单任务）
+            if (savedReminder.getToUserId() != null) {
+                invalidateAllUserReminderCaches(savedReminder.getToUserId());
+            }
+            if (savedReminder.getFromUserId() != null && !savedReminder.getFromUserId().equals(savedReminder.getToUserId())) {
+                invalidateAllUserReminderCaches(savedReminder.getFromUserId());
+            }
+
+            return savedReminder;
+
+        } catch (DataIntegrityViolationException e) {
+            // 处理数据库唯一约束冲突（并发情况下可能发生）
+            log.warn("创建复杂提醒时发生唯一约束冲突，尝试查找已存在的记录: {}", e.getMessage());
+
+            // 再次尝试根据幂等键查找
+            Optional<ComplexReminder> existingByKey = complexReminderRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingByKey.isPresent()) {
+                log.info("并发冲突后根据幂等键找到已存在的复杂提醒，ID: {}", existingByKey.get().getId());
+                return existingByKey.get();
+            }
+
+            // 如果仍然找不到，重新抛出异常
+            throw new RuntimeException("创建复杂提醒失败，可能存在数据冲突", e);
         }
-        
-        return savedReminder;
     }
     
     /**
@@ -774,38 +847,55 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             ZonedDateTime nextTime = startTime;
             int count = 0;
             Integer maxExecutions = complexReminder.getMaxExecutions();
-            
+
+            // 用于批量插入的列表
+            List<SimpleReminder> batchToSave = new ArrayList<>();
+            final int BATCH_SIZE = 100;
+
             while (true) {
                 // 计算下一个执行时间
                 nextTime = cron.next(nextTime);
-                
+
                 // 如果超出了指定范围或validUntil，则停止
                 if (nextTime == null || nextTime.isAfter(endTime)) {
                     break;
                 }
-                
+
                 // 如果已经达到最大执行次数限制，则停止
                 if (maxExecutions != null && count >= maxExecutions) {
                     break;
                 }
-                
+
                 // 转换为OffsetDateTime，确保使用中国时区的偏移量
                 OffsetDateTime nextExecutionTime = nextTime.toOffsetDateTime();
-                
+
                 // 检查是否已经存在相同时间的简单任务
                 boolean exists = simpleReminderRepository.existsByOriginatingComplexReminderIdAndEventTime(
                         complexReminder.getId(), nextExecutionTime);
-                
+
                 if (!exists) {
-                    // 创建简单任务（直接保存，不通过createSimpleReminder避免重复缓存清理）
+                    // 创建简单任务（先不保存，加入批量列表）
                     SimpleReminder simpleReminder = createSimpleReminderFromTemplate(complexReminder, nextExecutionTime);
-                    SimpleReminder savedReminder = simpleReminderRepository.save(simpleReminder);
-                    generatedReminders.add(savedReminder);
+                    batchToSave.add(simpleReminder);
                     count++;
-                    
-                    log.info("已生成SimpleReminder (ID: {}) 执行时间: {} (中国时区)", 
-                             savedReminder.getId(), nextExecutionTime);
+
+                    log.debug("准备批量保存SimpleReminder，执行时间: {} (中国时区)", nextExecutionTime);
+
+                    // 当批量列表达到指定大小时，执行批量保存
+                    if (batchToSave.size() >= BATCH_SIZE) {
+                        List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                        generatedReminders.addAll(savedBatch);
+                        log.info("批量保存了 {} 个SimpleReminder", savedBatch.size());
+                        batchToSave.clear();
+                    }
                 }
+            }
+
+            // 保存剩余的记录
+            if (!batchToSave.isEmpty()) {
+                List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                generatedReminders.addAll(savedBatch);
+                log.info("批量保存了剩余的 {} 个SimpleReminder", savedBatch.size());
             }
             
             // 更新lastGeneratedYm字段 - 使用目标月份
@@ -827,9 +917,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                 complexReminderRepository.save(complexReminder);
                 log.info("更新复杂提醒ID: {} 的lastGeneratedYm为: {}", complexReminder.getId(), targetYearMonth);
             }
-            
-            log.info("为复杂提醒ID: {} 成功生成 {} 个简单任务", complexReminder.getId(), generatedReminders.size());
-            
+
             // 批量生成完成后，统一清理相关用户的缓存
             if (!generatedReminders.isEmpty()) {
                 Set<Long> affectedUserIds = new HashSet<>();
@@ -962,8 +1050,55 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
     }
 
     /**
+     * 删除复杂提醒及其关联的未来简单提醒（只删除触发时间大于当前时间的记录）
+     * 整个操作在一个事务中完成，确保原子性
+     *
+     * @param complexReminderId 要删除的复杂提醒ID
+     * @return 删除的简单提醒数量
+     */
+    @Transactional
+    @LogActivity(action = ActivityAction.COMPLEX_REMINDER_DELETE, resourceType = ResourceType.COMPLEX_REMINDER,
+                description = "删除复杂提醒及其关联的未来简单任务", async = true, logParams = true, logResult = true)
+    public int deleteComplexReminderWithFutureSimpleReminders(Long complexReminderId) {
+        log.info("删除复杂提醒ID: {} 及其关联的未来简单任务（触发时间大于当前时间）", complexReminderId);
+
+        // 先获取复杂提醒信息，用于清除缓存
+        Optional<ComplexReminder> complexReminderOpt = complexReminderRepository.findById(complexReminderId);
+
+        // 获取当前时间
+        OffsetDateTime currentTime = OffsetDateTime.now();
+
+        // 先删除关联的未来简单提醒（只删除触发时间大于当前时间的）
+        int deletedCount = simpleReminderRepository.deleteByOriginatingComplexReminderIdAndEventTimeAfter(complexReminderId, currentTime);
+        log.info("已删除与复杂提醒ID: {} 相关的 {} 个未来简单任务", complexReminderId, deletedCount);
+
+        // 检查复杂提醒是否存在
+        boolean exists = complexReminderRepository.existsById(complexReminderId);
+        if (exists) {
+            // 删除复杂提醒
+            complexReminderRepository.deleteById(complexReminderId);
+            log.info("已删除复杂提醒ID: {}", complexReminderId);
+        } else {
+            log.warn("无法删除不存在的复杂提醒ID: {}", complexReminderId);
+        }
+
+        // 清除相关用户的缓存
+        if (complexReminderOpt.isPresent()) {
+            ComplexReminder complexReminder = complexReminderOpt.get();
+            if (complexReminder.getToUserId() != null) {
+                invalidateAllUserReminderCaches(complexReminder.getToUserId());
+            }
+            if (complexReminder.getFromUserId() != null && !complexReminder.getFromUserId().equals(complexReminder.getToUserId())) {
+                invalidateAllUserReminderCaches(complexReminder.getFromUserId());
+            }
+        }
+
+        return deletedCount;
+    }
+
+    /**
      * 获取未来1分钟内需要触发的提醒事项
-     * 
+     *
      * @return 未来1分钟内的提醒事项列表
      */
     @LogActivity(action = ActivityAction.REMINDER_EXECUTE, resourceType = ResourceType.REMINDER, 

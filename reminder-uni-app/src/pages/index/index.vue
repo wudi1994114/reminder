@@ -122,10 +122,12 @@
 
 <script>
 import { ref, computed, nextTick, onUnmounted } from 'vue';
-import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi, wechatLogin } from '@/services/api';
+import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '@/services/cachedApi';
+import { wechatLogin } from '@/services/api';
 import { reminderState, reminderActions } from '@/store/modules/reminder';
-import { UserService, userState } from '@/services/userService';
+import ReminderCacheService, { userState } from '@/services/reminderCache';
 import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import { usePageDataSync, checkDataSyncOnShow, createSmartDataLoader } from '@/utils/dataSync';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 import SimpleReminderCard from '@/components/SimpleReminderCard.vue';
 import ComplexReminderCard from '@/components/ComplexReminderCard.vue';
@@ -146,14 +148,13 @@ export default {
   
   onShow() {
     console.log('Index页面显示，检查登录状态并加载数据');
-    
-    // 检查登录状态并清空数据
-    if (!checkAuthAndClearData('Index页面-onShow')) {
-      return;
-    }
-    
-    // 加载当前标签页数据
-    this.loadCurrentTabData();
+
+    // 使用数据同步工具检查状态
+    checkDataSyncOnShow(
+      'IndexPage',
+      () => this.loadCurrentTabData(),
+      () => this.clearPageData()
+    );
   },
   
   setup() {
@@ -165,6 +166,19 @@ export default {
     const refreshing = ref(false);
     const showLoginPopup = ref(false);
     const newUserInfo = ref({});
+
+    // 页面数据清理函数
+    const clearPageData = () => {
+      console.log('🧹 Index页面：清理所有数据');
+      simpleReminders.value = [];
+      complexReminders.value = [];
+      isLoading.value = false;
+      refreshing.value = false;
+      activeTab.value = 'simple';
+    };
+
+    // 注册页面数据同步
+    const unregisterDataSync = usePageDataSync('IndexPage', clearPageData);
     
     // 计算属性
     const currentReminders = computed(() => {
@@ -203,20 +217,21 @@ export default {
       }
     };
 
+    // 创建智能数据加载器
+    const smartLoadCurrentTabData = createSmartDataLoader(
+      async () => {
+        if (activeTab.value === 'simple') {
+          await loadSimpleReminders();
+        } else {
+          await loadComplexReminders();
+        }
+      },
+      clearPageData
+    );
+
     // 加载当前标签页数据
     const loadCurrentTabData = async () => {
-      if (!isAuthenticated()) {
-        console.log('用户未登录，清空提醒数据');
-        simpleReminders.value = [];
-        complexReminders.value = [];
-        return;
-      }
-      
-      if (activeTab.value === 'simple') {
-        await loadSimpleReminders();
-      } else {
-        await loadComplexReminders();
-      }
+      await smartLoadCurrentTabData();
     };
 
     // 加载简单提醒
@@ -372,8 +387,8 @@ export default {
         console.log('微信登录响应:', response);
         
         if (response && response.accessToken) {
-          // 使用UserService处理登录成功
-          await UserService.onLoginSuccess(response, 'wechat');
+          // 使用ReminderCacheService处理登录成功
+          await ReminderCacheService.onLoginSuccess(response, 'wechat');
           
           console.log('✅ 登录处理完成，用户状态已更新');
           
@@ -421,6 +436,21 @@ export default {
       console.log('Index页面初始化，开始加载数据');
       loadCurrentTabData();
     });
+
+    // 页面显示时检查认证状态
+    const checkAuthOnShow = () => {
+      console.log('Index页面显示，检查认证状态');
+      if (!isAuthenticated()) {
+        console.log('用户未认证，清空页面数据');
+        simpleReminders.value = [];
+        complexReminders.value = [];
+        isLoading.value = false;
+        refreshing.value = false;
+      } else {
+        console.log('用户已认证，刷新数据');
+        loadCurrentTabData();
+      }
+    };
     
     // 监听页面显示事件，刷新数据
     uni.$on('refreshIndexData', () => {
@@ -437,11 +467,35 @@ export default {
         loadCurrentTabData();
       }
     });
-    
-    // 组件销毁时清理事件监听器
+
+    // 监听用户登出事件，清理Index页面数据
+    uni.$on('userLogout', () => {
+      console.log('Index页面：收到用户登出事件，清理所有数据');
+
+      // 清空提醒数据
+      simpleReminders.value = [];
+      complexReminders.value = [];
+
+      // 重置加载状态
+      isLoading.value = false;
+      refreshing.value = false;
+
+      // 重置到简单提醒标签
+      activeTab.value = 'simple';
+
+      console.log('✅ Index页面：数据清理完成');
+    });
+
+    // 组件销毁时清理事件监听器和数据同步
     onUnmounted(() => {
       uni.$off('refreshIndexData');
       uni.$off('userLoginSuccess');
+      uni.$off('userLogout');
+
+      // 注销数据同步
+      if (unregisterDataSync) {
+        unregisterDataSync();
+      }
     });
 
     const goToDetail = (reminder) => {
@@ -489,7 +543,8 @@ export default {
       closeLoginModal,
       handleWechatLogin,
       goToDetail,
-      goToComplexDetail
+      goToComplexDetail,
+      clearPageData
     };
   }
 };

@@ -1,6 +1,5 @@
 <template>
   <view class="page-container">
-    <!-- 顶部导航栏 -->
     <view class="nav-bar">
       <view class="nav-left" @click="goBack">
         <view class="nav-icon">
@@ -10,92 +9,106 @@
       <view class="nav-title"></view>
       <view class="nav-right"></view>
     </view>
-    
-    <!-- 主要内容区域 -->
-    <scroll-view 
-      class="content-scroll" 
-      scroll-y 
-      :scroll-with-animation="true"
-      :enable-back-to-top="true"
-      :scroll-top="scrollTop"
-      :enhanced="true"
-      :bounces="true"
-      :show-scrollbar="true"
+
+    <scroll-view
+        class="content-scroll"
+        scroll-y
+        :scroll-with-animation="true"
+        :enable-back-to-top="true"
+        :scroll-top="scrollTop"
+        :enhanced="true"
+        :bounces="true"
+        :show-scrollbar="true"
     >
       <view class="form-container">
-        <!-- 基本信息 -->
         <view class="input-section">
-          <input 
-            class="title-input" 
-            v-model="reminderData.title" 
-            placeholder="标题"
-            placeholder-class="input-placeholder"
-            maxlength="50"
-          />
-        </view>
-        
-        <view class="input-section">
-          <textarea 
-            class="content-textarea" 
-            v-model="reminderData.description" 
-            placeholder="内容"
-            placeholder-class="input-placeholder"
-            maxlength="200"
-            auto-height
+          <input
+              class="title-input"
+              v-model="reminderData.title"
+              placeholder="标题"
+              placeholder-class="input-placeholder"
+              maxlength="50"
           />
         </view>
 
-        <!-- 提醒方式 -->
+        <view class="input-section">
+          <view class="textarea-container">
+            <textarea
+                class="content-textarea"
+                v-model="reminderData.description"
+                placeholder="内容"
+                placeholder-class="input-placeholder"
+                maxlength="200"
+                :style="{ height: textareaHeight + 'px' }"
+                @linechange="handleLineChange"
+            />
+            <view class="quick-tags-section">
+              <view class="quick-tags">
+                <view
+                    v-for="tag in userTags"
+                    :key="tag"
+                    class="tag-item"
+                    @click="addQuickTag(tag)"
+                >
+                  <text class="tag-text">{{ tag }}</text>
+                </view>
+
+                <view v-if="userTags.length === 0" class="tag-settings-hint" @click="goToTagSettings">
+                  <text class="hint-text">设置标签</text>
+                </view>
+              </view>
+              <view class="voice-input-btn" @click="startVoiceInput">
+                <image class="voice-icon" src="/static/images/voice.png" mode="aspectFit"></image>
+              </view>
+            </view>
+          </view>
+        </view>
+
         <view class="setting-item" @click="showReminderTypeSelector">
           <text class="setting-label">提醒方式</text>
           <text class="setting-value">{{ reminderTypeOptions[reminderTypeIndex] }}</text>
         </view>
 
-        <!-- 模式切换标签 -->
         <view class="tab-container">
           <view class="tab-buttons">
-            <view 
-              class="tab-button" 
-              :class="{ active: activeTab === 'simple' }"
-              @click="switchTab('simple')"
+            <view
+                class="tab-button"
+                :class="{ active: activeTab === 'simple' }"
+                @click="switchTab('simple')"
             >
               <text class="tab-text">简易模式</text>
             </view>
-            <view 
-              class="tab-button" 
-              :class="{ active: activeTab === 'advanced' }"
-              @click="switchTab('advanced')"
+            <view
+                class="tab-button"
+                :class="{ active: activeTab === 'advanced' }"
+                @click="switchTab('advanced')"
             >
               <text class="tab-text">高级模式</text>
             </view>
           </view>
         </view>
-        
-        <!-- 简易模式内容 -->
+
         <view v-if="activeTab === 'simple'">
-          <!-- 重复设置 -->
           <view class="setting-item" @click="showRepeatSelector">
             <text class="setting-label">重复</text>
             <text class="setting-value">{{ repeatOptions[repeatIndex] }}</text>
           </view>
-          
-          <!-- 时间设置 -->
+
           <view class="setting-item" @click="showSimpleTimeModal = true">
             <text class="setting-label">提醒时间</text>
             <text class="setting-value">{{ formatSimpleTime() }}</text>
           </view>
 
-          <!-- Cron表达式输入（自定义重复时显示） -->
           <view v-if="showCronInput" class="input-group">
             <view class="input-label">
               <text class="label-text">Cron表达式</text>
             </view>
             <view class="input-wrapper">
-              <input 
-                class="form-input" 
-                v-model="reminderData.cronExpression" 
-                placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
-                placeholder-class="input-placeholder"
+              <input
+                  class="form-input"
+                  v-model="reminderData.cronExpression"
+                  placeholder="Cron表达式 (例如: 0 0 8 * * ?)"
+                  placeholder-class="input-placeholder"
               />
             </view>
             <view v-if="cronPreview" class="cron-preview">
@@ -103,55 +116,49 @@
             </view>
           </view>
 
-          <!-- 简单模式下的触发时间预览 -->
           <trigger-preview
-            title="触发时间预览"
-            :preview-times="formattedPreviewTimes"
-            :description="humanReadableDescription"
-            :max-display="3"
-            :show-description="true"
-            :show-action-button="false"
-            :highlight-first="false"
-            :show-index="true"
-            @refresh="updatePreview"
+              title="触发时间预览"
+              :preview-times="formattedPreviewTimes"
+              :description="humanReadableDescription"
+              :max-display="3"
+              :show-description="true"
+              :show-action-button="false"
+              :highlight-first="false"
+              :show-index="true"
+              @refresh="updatePreview"
           />
         </view>
-        
-        <!-- 高级模式内容 -->
+
         <view v-if="activeTab === 'advanced'">
-          <!-- 时间设置按钮 -->
           <view class="setting-item time-setting-item" @click="showTimeSettings">
             <text class="setting-label">时间设置</text>
-            <view 
-              class="setting-value-container" 
-              :class="{ 'overflow': isTextOverflow }"
-              :style="{ '--scroll-distance': scrollDistance }"
-              ref="timeValueContainer"
+            <view
+                class="setting-value-container"
+                :class="{ 'overflow': isTextOverflow }"
+                :style="{ '--scroll-distance': scrollDistance }"
+                ref="timeValueContainer"
             >
               <text class="setting-value scrollable-text" ref="timeValueText">{{ cronDescription }}</text>
             </view>
           </view>
-          
-          <!-- 触发时间预览 -->
+
           <trigger-preview
-            title="触发时间预览"
-            :preview-times="formattedPreviewTimes"
-            :description="humanReadableDescription"
-            :max-display="3"
-            :show-description="true"
-            :show-action-button="false"
-            :highlight-first="false"
-            :show-index="true"
-            @refresh="updatePreview"
+              title="触发时间预览"
+              :preview-times="formattedPreviewTimes"
+              :description="humanReadableDescription"
+              :max-display="3"
+              :show-description="true"
+              :show-action-button="false"
+              :highlight-first="false"
+              :show-index="true"
+              @refresh="updatePreview"
           />
         </view>
-        
-        <!-- 额外的底部间距，确保页面可以向上滚动 -->
+
         <view class="extra-bottom-space"></view>
       </view>
     </scroll-view>
-    
-    <!-- 自定义日期时间选择器 -->
+
     <view class="custom-datetime" v-if="showCustomPickers" @touchmove.stop.prevent @click.self="hideCustomPickers">
       <view class="custom-modal" @click.stop>
         <view class="custom-header">
@@ -160,7 +167,7 @@
             <text class="close-icon">✕</text>
           </view>
         </view>
-        
+
         <view class="picker-container">
           <view class="picker-item">
             <text class="picker-label">日期</text>
@@ -170,7 +177,7 @@
               </view>
             </picker>
           </view>
-          
+
           <view class="picker-item">
             <text class="picker-label">时间</text>
             <picker mode="time" :value="reminderTime" @change="onTimeChange">
@@ -180,7 +187,7 @@
             </picker>
           </view>
         </view>
-        
+
         <view class="custom-actions">
           <button class="custom-btn confirm-btn" @click="confirmCustomDateTime">
             <text class="btn-text">确认</text>
@@ -188,14 +195,13 @@
         </view>
       </view>
     </view>
-    
-    <!-- 底部操作按钮 -->
+
     <view class="bottom-actions">
-      <button 
-        class="action-btn submit-btn" 
-        @click="saveReminder" 
-        :disabled="isSubmitting"
-        :class="{ 'btn-loading': isSubmitting }"
+      <button
+          class="action-btn submit-btn"
+          @click="saveReminder"
+          :disabled="isSubmitting"
+          :class="{ 'btn-loading': isSubmitting }"
       >
         <text class="btn-text" v-if="!isSubmitting">{{ isEdit ? '保存修改' : '创建提醒' }}</text>
         <text class="btn-text" v-else>保存中...</text>
@@ -204,23 +210,21 @@
         <text class="btn-text">取消</text>
       </button>
     </view>
-    
-        <!-- Cron表达式选择器 -->
+
     <cron-expression-picker
-      :show="showCronPicker"
-      :initialValue="reminderData.cronExpression"
-      @confirm="onCronConfirm"
-      @cancel="onCronCancel"
-      @update:show="showCronPicker = $event"
+        :show="showCronPicker"
+        :initialValue="reminderData.cronExpression"
+        @confirm="onCronConfirm"
+        @cancel="onCronCancel"
+        @update:show="showCronPicker = $event"
     />
 
-    <!-- 简单模式时间选择器 -->
     <time-picker-modal
-      :show="showSimpleTimeModal"
-      :initialTime="simpleTime"
-      @confirm="onSimpleTimeConfirm"
-      @cancel="showSimpleTimeModal = false"
-      @update:show="showSimpleTimeModal = $event"
+        :show="showSimpleTimeModal"
+        :initialTime="simpleTime"
+        @confirm="onSimpleTimeConfirm"
+        @cancel="showSimpleTimeModal = false"
+        @update:show="showSimpleTimeModal = $event"
     />
 
   </view>
@@ -228,20 +232,30 @@
 
 <script>
 // 移除静态组件导入，改为按需加载
-import { 
-  createComplexReminder, 
-  updateComplexReminder, 
+import {
+  createComplexReminder,
+  updateComplexReminder
+} from '@/services/cachedApi';
+import {
   getComplexReminderById,
-  smartRequestSubscribe
+  smartRequestSubscribe,
+  getUserTagManagementEnabled,
+  getUserTagList
 } from '@/services/api';
+import {
+  generateComplexReminderIdempotencyKey,
+  cacheIdempotencyKey,
+  isIdempotencyKeyCached
+} from '@/utils/idempotency';
 import { reminderState } from '@/services/store';
 import { DateFormatter } from '@/utils/dateFormat';
-import { isProductionVersion } from '@/config/version';
+import { isProductionVersion, isDevelopmentVersion } from '@/config/version';
 import { requireAuth } from '@/utils/auth';
-import { 
-  generateDescription, 
-  detectTimeType, 
-  parseCronExpression, 
+import ReminderCacheService from '@/services/reminderCache';
+import {
+  generateDescription,
+  detectTimeType,
+  parseCronExpression,
   generatePreviewTimes,
   TimeType,
   UnifiedTimeData
@@ -257,17 +271,19 @@ export default {
     TriggerPreview,
     TimePickerModal
   },
-      data() {
+  data() {
     return {
       isEdit: false,
       isSubmitting: false,
-      activeTab: 'simple', 
-      showCronPicker: false, 
+      activeTab: 'simple',
+      showCronPicker: false,
       showSimpleTimeModal: false,
-      isTextOverflow: false, 
+      isTextOverflow: false,
       scrollDistance: '-50%',
       scrollTop: 0,
-      
+      isInitialized: false, // 标记是否已初始化
+      reminderId: null, // 保存提醒ID
+
       reminderTypeOptions: [],
       reminderTypeValues: [],
       reminderTypeIndex: 0,
@@ -276,22 +292,28 @@ export default {
       repeatOptions: ['每日', '每周', '每月', '每年'],
       repeatValues: ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'],
       repeatIndex: 0,
-      
+
       simpleDate: '',
       simpleTime: '',
 
       showCustomPickers: false,
       reminderDate: '',
       reminderTime: '',
-      
+
       previewTimes: [],
       cronPreview: '',
       humanReadableDescription: '',
-      
 
+      // 用户标签
+      userTags: [],
+      tagManagementEnabled: false,
+
+      // [ADDED] 新增用于手动控制 textarea 高度的 data 属性
+      initialTextareaHeight: 0,
+      textareaHeight: 0,
     };
   },
-  
+
   computed: {
     reminderData() {
       return reminderState.form || {};
@@ -313,11 +335,18 @@ export default {
     }
   },
 
-
-
   async onLoad(options) {
     await requireAuth();
+
+    // [ADDED] 在页面加载时，将 rpx 转换为 px，并设置为初始高度
+    // 288 是你在 CSS 中原本设置的 min-height 值
+    const initialHeightInPx = uni.upx2px(288);
+    this.initialTextareaHeight = initialHeightInPx;
+    this.textareaHeight = initialHeightInPx;
+
     this.isEdit = !!options.id;
+    this.reminderId = options.id; // 保存ID供onShow使用
+
     if (this.isEdit) {
       this.activeTab = 'advanced'; // 编辑模式默认进入高级模式
       await this.loadReminderData(options.id);
@@ -325,9 +354,29 @@ export default {
       this.resetAndSetupNewReminder();
     }
     this.initReminderTypes(); // 在这里初始化提醒方式
+    await this.loadUserTags(); // 加载用户标签
+    this.isInitialized = true; // 标记已初始化
   },
-  
+
+  onShow() {
+    // 页面显示时刷新数据（从编辑页面返回时会触发）
+    console.log('复杂任务页面: onShow 触发，准备刷新数据');
+    if (this.isInitialized && this.isEdit && this.reminderId) {
+      console.log('复杂任务页面: 开始刷新数据，ID:', this.reminderId);
+      this.loadReminderData(this.reminderId);
+    }
+  },
+
   methods: {
+    // [ADDED] 新增 linechange 事件处理函数
+    handleLineChange(event) {
+      // event.detail = { height, heightRpx, lineCount }
+      const contentHeight = event.detail.height;
+
+      // 核心逻辑：取 "初始高度" 和 "内容实际高度" 中的最大值
+      this.textareaHeight = Math.max(this.initialTextareaHeight, contentHeight);
+    },
+
     initReminderTypes() {
       let options = [];
       let values = [];
@@ -376,7 +425,7 @@ export default {
       now.setMinutes(now.getMinutes() + 2);
 
       const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
+
       reminderState.form = {
         title: '',
         description: '',
@@ -389,13 +438,13 @@ export default {
       this.simpleTime = defaultTime;
       this.simpleDate = new Date().toISOString().split('T')[0];
       this.repeatIndex = 0; // 默认每日
-      
+
       console.log('设置新提醒默认值:', {
         time: defaultTime,
         repeatType: this.repeatValues[this.repeatIndex],
         simpleTime: this.simpleTime
       });
-      
+
       // 简单模式自动计算Cron表达式
       this.$nextTick(() => {
         this.updateCronFromSimple();
@@ -428,11 +477,11 @@ export default {
         uni.navigateBack();
       }
     },
-    
+
     switchTab(tab) {
       console.log('switchTab called with:', tab);
       this.activeTab = tab;
-      
+
       // 切换到简单模式时，如果没有Cron表达式，自动生成
       if (tab === 'simple' && !this.reminderData.cronExpression) {
         this.$nextTick(() => {
@@ -440,12 +489,12 @@ export default {
         });
       }
     },
-    
+
     showRepeatSelector() {
       console.log('=== showRepeatSelector 开始 ===');
       console.log('当前 repeatIndex:', this.repeatIndex);
       console.log('当前 repeatValue:', this.repeatValues[this.repeatIndex]);
-      
+
       uni.showActionSheet({
         itemList: this.repeatOptions,
         success: (res) => {
@@ -467,7 +516,7 @@ export default {
       console.log('=== onSimpleTimeChange 开始 ===');
       console.log('时间数据:', timeData);
       console.log('原 simpleTime:', this.simpleTime);
-      
+
       this.simpleTime = timeData;
       console.log('新 simpleTime:', this.simpleTime);
       console.log('调用 updateCronFromSimple');
@@ -486,11 +535,11 @@ export default {
       if (!this.simpleTime) {
         return '选择时间';
       }
-      
+
       const [hour, minute] = this.simpleTime.split(':');
       const h = parseInt(hour);
       const m = parseInt(minute);
-      
+
       // 转换为中文时间格式
       if (h < 12) {
         const displayHour = h === 0 ? 12 : h;
@@ -503,15 +552,15 @@ export default {
 
     optimizeCronDescription(cronDesc) {
       if (!cronDesc) return cronDesc;
-      
+
       try {
         // 解析原始 Cron 表达式来生成更简洁的中文描述
         const normalizedCron = this.normalizeCronExpression(this.reminderData.cronExpression);
         const parts = normalizedCron.split(/\s+/);
-        
+
         if (parts.length >= 6) {
           const [seconds, minutes, hours, day, month, weekday] = parts;
-          
+
           // 格式化时间
           const h = parseInt(hours);
           const m = parseInt(minutes);
@@ -523,7 +572,7 @@ export default {
             const displayHour = h === 12 ? 12 : h - 12;
             timeStr = `下午${displayHour}:${String(m).padStart(2, '0')}`;
           }
-          
+
           // 检测模式并生成简洁描述
           if (month !== '*' && month !== '?' && day !== '*' && day !== '?') {
             // 每年特定月份特定日期：每m月d,d,d号HH:mm
@@ -542,7 +591,7 @@ export default {
               if (cronDay === 1) {
                 dayIndex = 0; // 周日
               } else if (cronDay === 7) {
-                dayIndex = 6; // 周六  
+                dayIndex = 6; // 周六
               } else {
                 dayIndex = cronDay - 1; // 周一到周五
               }
@@ -564,7 +613,7 @@ export default {
               if (cronDay === 1) {
                 dayIndex = 0; // 周日
               } else if (cronDay === 7) {
-                dayIndex = 6; // 周六  
+                dayIndex = 6; // 周六
               } else {
                 dayIndex = cronDay - 1; // 周一到周五
               }
@@ -583,35 +632,35 @@ export default {
       } catch (e) {
         console.log('简洁描述生成失败，使用优化后的原描述:', e);
       }
-      
+
       // 如果解析失败，使用优化后的原描述
       let optimized = cronDesc
-        .replace(/在(\d{1,2}):(\d{2})/g, (match, hour, minute) => {
-          const h = parseInt(hour);
-          const m = parseInt(minute);
-          if (h < 12) {
-            const displayHour = h === 0 ? 12 : h;
-            return `上午${displayHour}:${minute}`;
-          } else {
-            const displayHour = h === 12 ? 12 : h - 12;
-            return `下午${displayHour}:${minute}`;
-          }
-        })
-        .replace(/星期天/g, '周日')
-        .replace(/星期一/g, '周一')
-        .replace(/星期二/g, '周二')
-        .replace(/星期三/g, '周三')
-        .replace(/星期四/g, '周四')
-        .replace(/星期五/g, '周五')
-        .replace(/星期六/g, '周六')
-        .replace(/仅星期/g, '每')
-        .replace(/仅于/g, '在')
-        .replace(/每天/g, '每日')
-        .replace(/，/g, '、')
-        .replace(/和/g, '、')
-        .replace(/\s+/g, '')
-        .replace(/、+/g, '、');
-        
+          .replace(/在(\d{1,2}):(\d{2})/g, (match, hour, minute) => {
+            const h = parseInt(hour);
+            const m = parseInt(minute);
+            if (h < 12) {
+              const displayHour = h === 0 ? 12 : h;
+              return `上午${displayHour}:${minute}`;
+            } else {
+              const displayHour = h === 12 ? 12 : h - 12;
+              return `下午${displayHour}:${minute}`;
+            }
+          })
+          .replace(/星期天/g, '周日')
+          .replace(/星期一/g, '周一')
+          .replace(/星期二/g, '周二')
+          .replace(/星期三/g, '周三')
+          .replace(/星期四/g, '周四')
+          .replace(/星期五/g, '周五')
+          .replace(/星期六/g, '周六')
+          .replace(/仅星期/g, '每')
+          .replace(/仅于/g, '在')
+          .replace(/每天/g, '每日')
+          .replace(/，/g, '、')
+          .replace(/和/g, '、')
+          .replace(/\s+/g, '')
+          .replace(/、+/g, '、');
+
       return optimized;
     },
 
@@ -621,46 +670,46 @@ export default {
       console.log('  repeatIndex:', this.repeatIndex);
       console.log('  repeatType:', this.repeatValues[this.repeatIndex]);
       console.log('  simpleTime:', this.simpleTime);
-      
+
       // 验证 simpleTime 格式
       if (!this.simpleTime || typeof this.simpleTime !== 'string') {
         console.error('simpleTime 无效:', this.simpleTime);
         return;
       }
-      
+
       const repeatType = this.repeatValues[this.repeatIndex];
       const timeParts = this.simpleTime.split(':');
-      
+
       // 确保时间部分都存在且有效
       if (timeParts.length !== 2) {
         console.error('时间格式无效，应为 HH:MM 格式:', this.simpleTime);
         return;
       }
-      
+
       const hours = timeParts[0];
       const minutes = timeParts[1];
-      
+
       // 验证时间值
       if (!hours || !minutes || isNaN(hours) || isNaN(minutes)) {
         console.error('时间值无效:', { hours, minutes });
         return;
       }
-      
+
       console.log('时间解析:');
       console.log('  hours:', hours);
       console.log('  minutes:', minutes);
-      
+
       // 获取今天的日期信息
       const today = new Date();
       const todayWeekday = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
       const todayDate = today.getDate(); // 1-31
       const todayMonth = today.getMonth() + 1; // 1-12
-      
+
       console.log('今天的日期信息:');
       console.log('  星期:', todayWeekday, '(0=周日)');
       console.log('  日期:', todayDate);
       console.log('  月份:', todayMonth);
-      
+
       let cron = '';
 
       switch (repeatType) {
@@ -684,7 +733,7 @@ export default {
           console.log('生成每年 cron:', cron, '(今天是', todayMonth, '月', todayDate, '日)');
           break;
       }
-      
+
       console.log('原 cronExpression:', this.reminderData.cronExpression);
       this.reminderData.cronExpression = cron;
       console.log('新 cronExpression:', this.reminderData.cronExpression);
@@ -699,9 +748,9 @@ export default {
       try {
         const parts = cron.trim().split(/\s+/);
         console.log('解析Cron表达式到简易模式，分割结果:', parts);
-        
+
         let seconds, minutes, hours, dayOfMonth, month, dayOfWeek;
-        
+
         if (parts.length === 5) {
           // 5位格式: 分 时 日 月 周 (主要支持格式)
           [minutes, hours, dayOfMonth, month, dayOfWeek] = parts;
@@ -717,29 +766,29 @@ export default {
         const hourNum = parseInt(hours) || 0;
         const minuteNum = parseInt(minutes) || 0;
         this.simpleTime = `${String(hourNum).padStart(2, '0')}:${String(minuteNum).padStart(2, '0')}`;
-      
+
         // 判断重复类型
-        if (dayOfWeek !== '?' && dayOfWeek !== '*') { 
+        if (dayOfWeek !== '?' && dayOfWeek !== '*') {
           // 每周模式
-        this.repeatIndex = this.repeatValues.indexOf('WEEKLY');
-        const cronWeekday = parseInt(dayOfWeek, 10);
+          this.repeatIndex = this.repeatValues.indexOf('WEEKLY');
+          const cronWeekday = parseInt(dayOfWeek, 10);
           // 转换cron星期格式到我们的格式
-        } else if (month !== '?' && month !== '*' && dayOfMonth !== '?' && dayOfMonth !== '*') { 
+        } else if (month !== '?' && month !== '*' && dayOfMonth !== '?' && dayOfMonth !== '*') {
           // 每年模式（同时指定了月份和日期）
-        this.repeatIndex = this.repeatValues.indexOf('YEARLY');
-        } else if (dayOfMonth !== '?' && dayOfMonth !== '*') { 
+          this.repeatIndex = this.repeatValues.indexOf('YEARLY');
+        } else if (dayOfMonth !== '?' && dayOfMonth !== '*') {
           // 每月模式（指定了日期但月份为*）
-        this.repeatIndex = this.repeatValues.indexOf('MONTHLY');
-        } else { 
+          this.repeatIndex = this.repeatValues.indexOf('MONTHLY');
+        } else {
           // 每日模式（默认）
           this.repeatIndex = this.repeatValues.indexOf('DAILY');
         }
-        
+
         console.log('Cron表达式解析完成:', {
           time: this.simpleTime,
           repeatType: this.repeatValues[this.repeatIndex],
         });
-        
+
       } catch (e) {
         console.error('解析Cron表达式到简易模式失败:', e);
         // 解析失败时使用默认值
@@ -753,26 +802,26 @@ export default {
         this.humanReadableDescription = '';
         return;
       }
-      
+
       try {
         // 规范化Cron表达式：5位自动补秒，6位直接使用
         const normalizedCron = this.normalizeCronExpression(this.reminderData.cronExpression);
-        
+
         console.log('正在解析Cron表达式:', normalizedCron);
-        
+
         // 使用cronstrue生成人性化描述，并优化为中文表达
         const cronDesc = cronstrue.toString(normalizedCron, { locale: 'zh_CN' });
         this.humanReadableDescription = this.optimizeCronDescription(cronDesc);
-        
+
         // 使用cron-parser生成预览时间
         this.generatePreviewTimes(normalizedCron);
-        
+
         console.log('Cron表达式解析成功:', this.humanReadableDescription);
-        
+
       } catch (e) {
         console.error('Cron表达式解析失败:', e);
         console.error('当前表达式:', this.reminderData.cronExpression);
-        
+
         this.humanReadableDescription = 'Cron表达式格式错误';
         this.previewTimes = [];
       }
@@ -780,7 +829,7 @@ export default {
 
     normalizeCronExpression(cronExpression) {
       const cronParts = cronExpression.trim().split(/\s+/);
-      
+
       if (cronParts.length === 5) {
         // 5位格式：分 时 日 月 周 -> 秒 分 时 日 月 周
         const normalized = '0 ' + cronExpression;
@@ -793,35 +842,35 @@ export default {
         throw new Error(`不支持的Cron表达式格式，应为5位或6位，实际为${cronParts.length}位`);
       }
     },
-    
+
     generatePreviewTimes(cronExpression) {
       // 统一使用cron-parser生成预览时间
       this.generateSimplePreviewTimes(cronExpression);
     },
-    
+
     generateSimplePreviewTimes(cronExpression) {
       try {
         console.log('使用内部timeManager生成预览时间');
         this.previewTimes = [];
-        
+
         // 创建timeData对象
         const timeType = detectTimeType(cronExpression);
         const timeData = UnifiedTimeData.fromCronExpression(cronExpression, timeType);
-        
+
         console.log('timeData创建完成:', timeData);
-        
+
         // 使用内部的generatePreviewTimes函数
         const previewList = generatePreviewTimes(timeData, 5);
-        
+
         // 转换格式
         const previewTimes = previewList.map(formatted => ({
           time: null, // 内部函数已返回格式化的字符串
           formatted: formatted
         }));
-        
+
         this.previewTimes = previewTimes;
         console.log('内部预览时间生成成功:', this.previewTimes);
-        
+
       } catch (e) {
         console.error('内部预览时间生成失败:', e);
         this.previewTimes = [];
@@ -829,7 +878,7 @@ export default {
       }
     },
 
-    
+
     formatPreviewTime(date) {
       try {
         // 使用项目内部的统一时间格式化工具，显示完整日期、星期和时间
@@ -888,10 +937,54 @@ export default {
       try {
         const dataToSave = { ...this.reminderData };
         let result;
+
         if (this.isEdit) {
           result = await updateComplexReminder(dataToSave.id, dataToSave);
         } else {
-          result = await createComplexReminder(dataToSave);
+          // 创建新任务时生成幂等键
+          // 首先尝试从ReminderCacheService获取用户信息
+          let userId = 'anonymous';
+
+          try {
+            // 方法1: 从ReminderCacheService获取当前用户
+            const currentUser = ReminderCacheService.getCurrentUser();
+            if (currentUser && currentUser.id) {
+              userId = currentUser.id;
+              console.log('从ReminderCacheService获取用户ID:', userId);
+            } else {
+              // 方法2: 从缓存中获取用户信息
+              const cachedData = uni.getStorageSync('user_profile_cache');
+              if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                if (parsed.user && parsed.user.id) {
+                  userId = parsed.user.id;
+                  console.log('从缓存获取用户ID:', userId);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('获取用户ID失败，使用anonymous:', error);
+          }
+
+          // 生成基于内容的幂等键
+          const idempotencyKey = generateComplexReminderIdempotencyKey(userId, dataToSave);
+          console.log('生成幂等键:', idempotencyKey, '用户ID:', userId);
+
+          // 检查是否已经在本地缓存中（防止快速重复点击）
+          if (isIdempotencyKeyCached(idempotencyKey)) {
+            uni.showToast({
+              title: '请勿重复提交',
+              icon: 'none',
+              duration: 2000
+            });
+            return;
+          }
+
+          // 缓存幂等键
+          cacheIdempotencyKey(idempotencyKey);
+
+          // 调用API创建任务
+          result = await createComplexReminder(dataToSave, idempotencyKey);
         }
 
         if (result) {
@@ -925,7 +1018,7 @@ export default {
       // #endif
       return false;
     },
-    
+
     onDateChange(e) {
       this.reminderDate = e.detail.value;
     },
@@ -939,7 +1032,100 @@ export default {
       // no-op
     },
     confirmCustomDateTime() {
-       // no-op
+      // no-op
+    },
+
+    // 添加快捷标签到内容
+    addQuickTag(tag) {
+      if (!this.reminderData.description) {
+        this.reminderData.description = tag;
+      } else {
+        // 如果内容不为空，在末尾添加标签
+        const currentText = this.reminderData.description.trim();
+        // 添加空格分隔符，允许多次添加相同标签
+        this.reminderData.description = currentText + (currentText ? ' ' : '') + tag;
+      }
+
+      // 限制长度不超过200字符
+      if (this.reminderData.description.length > 200) {
+        this.reminderData.description = this.reminderData.description.substring(0, 200);
+      }
+
+      // 提供触觉反馈（仅在真机上，开发环境中禁用以避免开发者工具的屏幕放大效果）
+      // #ifdef MP-WEIXIN
+      if (!isDevelopmentVersion()) {
+        uni.vibrateShort({
+          fail: () => {
+            // 忽略失败，不是所有设备都支持震动
+          }
+        });
+      }
+      // #endif
+    },
+
+    // 启动语音输入
+    startVoiceInput() {
+      uni.showToast({
+        title: '语音转文本功能开发中',
+        icon: 'none',
+        duration: 2000
+      });
+
+      // 提供触觉反馈（仅在真机上，开发环境中禁用以避免开发者工具的屏幕放大效果）
+      // #ifdef MP-WEIXIN
+      if (!isDevelopmentVersion()) {
+        uni.vibrateShort({
+          fail: () => {
+            // 忽略失败，不是所有设备都支持震动
+          }
+        });
+      }
+      // #endif
+
+      // TODO: 实现语音转文本功能
+      // 可以使用微信小程序的 wx.startRecord 或第三方语音识别API
+    },
+
+    // 加载用户标签
+    async loadUserTags() {
+      try {
+        // 检查标签管理是否启用
+        try {
+          const enabledResponse = await getUserTagManagementEnabled();
+          this.tagManagementEnabled = enabledResponse.value === '1';
+        } catch (error) {
+          console.log('标签管理功能未启用');
+          this.tagManagementEnabled = false;
+          this.userTags = [];
+          return;
+        }
+
+        // 如果启用了标签管理，获取标签列表
+        if (this.tagManagementEnabled) {
+          try {
+            const tagsResponse = await getUserTagList();
+            const tagListString = tagsResponse.value || '';
+            this.userTags = tagListString ? tagListString.split(',').filter(tag => tag.trim()) : [];
+            console.log('加载用户标签成功:', this.userTags);
+          } catch (error) {
+            console.log('获取标签列表失败，使用空列表');
+            this.userTags = [];
+          }
+        } else {
+          this.userTags = [];
+        }
+
+      } catch (error) {
+        console.error('加载用户标签失败:', error);
+        this.userTags = [];
+      }
+    },
+
+    // 跳转到标签设置页面
+    goToTagSettings() {
+      uni.navigateTo({
+        url: '/pages/settings/notification'
+      });
     },
 
 
@@ -1527,24 +1713,24 @@ export default {
     flex-direction: column;
     gap: 24rpx;
   }
-  
+
   .half-width {
     flex: none;
     width: 100%;
   }
-  
+
   .form-container {
     padding: 24rpx;
   }
-  
+
   .tab-button {
     font-size: 28rpx;
   }
-  
+
   .picker-display {
     padding: 20rpx 24rpx;
   }
-  
+
   .section-title {
     font-size: 32rpx;
   }
@@ -1567,17 +1753,21 @@ export default {
   line-height: 1.4;
 }
 
+/* [MODIFIED] 从 .content-textarea 移除了 min-height */
+/* [MODIFIED] 添加了 transition 使高度变化更平滑 */
 .content-textarea {
   width: 100%;
-  min-height: 288rpx;
+  /* min-height: 288rpx; */ /* <-- 已移除，由 JS 控制 */
   padding: 32rpx;
-  background-color: #f4efe7;
+  padding-bottom: 80rpx; /* 为底部标签区域留出空间 */
+  background-color: transparent;
   border-radius: 24rpx;
   border: none;
   font-size: 32rpx;
   color: #1c170d;
   line-height: 1.4;
   resize: none;
+  transition: height 0.1s ease-in-out;
 }
 
 .setting-item {
@@ -1802,6 +1992,101 @@ export default {
 .setting-value-container:not(.overflow) .scrollable-text {
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+/* 文本框容器 */
+.textarea-container {
+  position: relative;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  min-height: 120rpx;
+  overflow: hidden;
+}
+
+/* 快捷标签和语音输入区域 */
+.quick-tags-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: transparent;
+  padding: 16rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.quick-tags {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+}
+
+.tag-item {
+  background-color: #f7bd4a;
+  border-radius: 16rpx;
+  padding: 6rpx 12rpx;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.tag-item:active {
+  background-color: #e6a73d;
+  transform: scale(0.95) translateY(1rpx);
+  box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
+}
+
+.tag-text {
+  font-size: 22rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.tag-settings-hint {
+  background-color: #e9e0ce;
+  border: 2rpx dashed #cccccc;
+  border-radius: 16rpx;
+  padding: 6rpx 12rpx;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-settings-hint:active {
+  background-color: #f7bd4a;
+  border-color: #f7bd4a;
+}
+
+.hint-text {
+  font-size: 22rpx;
+  color: #9d8148;
+  font-weight: 500;
+}
+
+.voice-input-btn {
+  width: 48rpx;
+  height: 48rpx;
+  background-color: #f7bd4a;
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.voice-input-btn:active {
+  background-color: #e6a73d;
+  transform: scale(0.95) translateY(1rpx);
+  box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
+}
+
+.voice-icon {
+  width: 100%;
+  height: 100%;
 }
 
 /* 额外的底部间距，确保页面可以向上滚动 */

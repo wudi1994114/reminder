@@ -52,6 +52,9 @@ public class ComplexReminder {
     @Column(name = "last_generated_ym")
     private Integer lastGeneratedYm; // 最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)
 
+    @Column(name = "idempotency_key", length = 255)
+    private String idempotencyKey; // 幂等键，用于防止重复创建
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime createdAt;

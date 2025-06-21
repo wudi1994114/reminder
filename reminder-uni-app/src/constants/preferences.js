@@ -10,26 +10,30 @@ export const PREFERENCE_KEYS = {
   EMAIL_NOTIFICATION_ENABLED: 'emailNotificationEnabled',
   SMS_NOTIFICATION_ENABLED: 'smsNotificationEnabled',
   WECHAT_NOTIFICATION_ENABLED: 'wechatNotificationEnabled',
-  
+
   // 提醒设置
   DEFAULT_ADVANCE_MINUTES: 'defaultAdvanceMinutes',
   SOUND_ENABLED: 'soundEnabled',
   VIBRATION_ENABLED: 'vibrationEnabled',
-  
+
   // 界面设置
   THEME: 'theme',
   LANGUAGE: 'language',
   TIMEZONE: 'timezone',
-  
+
   // 时间设置
   DAILY_SUMMARY_TIME: 'dailySummaryTime',
   DAILY_SUMMARY_ENABLED: 'dailySummaryEnabled',
   WEEKEND_NOTIFICATION_ENABLED: 'weekendNotificationEnabled',
-  
+
   // 免打扰设置
   QUIET_HOURS_START: 'quietHoursStart',
   QUIET_HOURS_END: 'quietHoursEnd',
-  QUIET_HOURS_ENABLED: 'quietHoursEnabled'
+  QUIET_HOURS_ENABLED: 'quietHoursEnabled',
+
+  // 标签管理
+  USER_TAG_MANAGEMENT_ENABLED: 'userTagManagementEnabled',
+  USER_TAG_LIST: 'userTagList'
 };
 
 // 提醒类型选项
@@ -111,7 +115,9 @@ export const DEFAULT_PREFERENCES = {
   [PREFERENCE_KEYS.WEEKEND_NOTIFICATION_ENABLED]: 'true',
   [PREFERENCE_KEYS.QUIET_HOURS_START]: '22:00',
   [PREFERENCE_KEYS.QUIET_HOURS_END]: '07:00',
-  [PREFERENCE_KEYS.QUIET_HOURS_ENABLED]: 'false'
+  [PREFERENCE_KEYS.QUIET_HOURS_ENABLED]: 'false',
+  [PREFERENCE_KEYS.USER_TAG_MANAGEMENT_ENABLED]: '0',
+  [PREFERENCE_KEYS.USER_TAG_LIST]: ''
 };
 
 // 偏好设置分组配置

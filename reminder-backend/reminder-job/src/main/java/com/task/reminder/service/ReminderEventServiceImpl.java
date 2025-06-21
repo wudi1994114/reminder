@@ -28,6 +28,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
 
     private static final Logger log = LoggerFactory.getLogger(ReminderEventServiceImpl.class);
 
+    /**
+     * 用户最大复杂提醒数量限制
+     */
+    private static final int MAX_COMPLEX_REMINDERS_PER_USER = 20;
+
     private final SimpleReminderRepository simpleReminderRepository;
     private final ComplexReminderRepository complexReminderRepository;
     private final Scheduler scheduler;
@@ -247,6 +252,32 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                 .build();
     }
 
+    // === 验证方法 ===
+
+    /**
+     * 验证用户复杂提醒数量限制
+     * @param userId 用户ID
+     * @throws IllegalStateException 当用户复杂提醒数量超过限制时抛出
+     */
+    private void validateUserComplexReminderLimit(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+
+        long currentCount = complexReminderRepository.countByFromUserId(userId);
+
+        if (currentCount >= MAX_COMPLEX_REMINDERS_PER_USER) {
+            log.warn("用户[{}]尝试创建复杂提醒，但已达到最大限制。当前数量: {}, 最大限制: {}",
+                    userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
+            throw new IllegalStateException(
+                String.format("用户复杂提醒数量已达到最大限制(%d条)，无法创建新的复杂提醒", MAX_COMPLEX_REMINDERS_PER_USER)
+            );
+        }
+
+        log.debug("用户[{}]复杂提醒数量验证通过。当前数量: {}, 最大限制: {}",
+                userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
+    }
+
     @Transactional
     public ComplexReminder createComplexReminder(ComplexReminder complexReminder) {
         log.info("Creating complex reminder template: {}", complexReminder.getTitle());
@@ -369,38 +400,55 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             ZonedDateTime nextTime = startTime;
             int count = 0;
             Integer maxExecutions = complexReminder.getMaxExecutions();
-            
+
+            // 用于批量插入的列表
+            List<SimpleReminder> batchToSave = new ArrayList<>();
+            final int BATCH_SIZE = 100;
+
             while (true) {
                 // 计算下一个执行时间
                 nextTime = cron.next(nextTime);
-                
+
                 // 如果超出了指定范围或validUntil，则停止
                 if (nextTime == null || nextTime.isAfter(endTime)) {
                     break;
                 }
-                
+
                 // 如果已经达到最大执行次数限制，则停止
                 if (maxExecutions != null && count >= maxExecutions) {
                     break;
                 }
-                
+
                 // 转换为OffsetDateTime
                 OffsetDateTime nextExecutionTime = nextTime.toOffsetDateTime();
-                
+
                 // 检查是否已经存在相同时间的简单任务
                 boolean exists = simpleReminderRepository.existsByOriginatingComplexReminderIdAndEventTime(
                         complexReminder.getId(), nextExecutionTime);
-                
+
                 if (!exists) {
-                    // 创建简单任务
+                    // 创建简单任务（先不保存，加入批量列表）
                     SimpleReminder simpleReminder = createSimpleReminderFromTemplate(complexReminder, nextExecutionTime);
-                    SimpleReminder savedReminder = createSimpleReminder(simpleReminder);
-                    generatedReminders.add(savedReminder);
+                    batchToSave.add(simpleReminder);
                     count++;
-                    
-                    log.info("已生成SimpleReminder (ID: {}) 执行时间: {}", 
-                             savedReminder.getId(), nextExecutionTime);
+
+                    log.debug("准备批量保存SimpleReminder，执行时间: {}", nextExecutionTime);
+
+                    // 当批量列表达到指定大小时，执行批量保存
+                    if (batchToSave.size() >= BATCH_SIZE) {
+                        List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                        generatedReminders.addAll(savedBatch);
+                        log.info("批量保存了 {} 个SimpleReminder", savedBatch.size());
+                        batchToSave.clear();
+                    }
                 }
+            }
+
+            // 保存剩余的记录
+            if (!batchToSave.isEmpty()) {
+                List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                generatedReminders.addAll(savedBatch);
+                log.info("批量保存了剩余的 {} 个SimpleReminder", savedBatch.size());
             }
             
             // 更新lastGeneratedYm字段 - 使用目标月份

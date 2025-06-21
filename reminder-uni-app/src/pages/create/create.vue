@@ -22,14 +22,35 @@
       
       <!-- 内容输入 -->
       <view class="input-section">
-        <textarea 
-          class="content-textarea" 
-          v-model="reminderForm.description" 
-          placeholder="内容"
-          placeholder-class="input-placeholder"
-          maxlength="200"
-          auto-height
-        />
+        <view class="textarea-container">
+          <textarea
+            class="content-textarea"
+            v-model="reminderForm.description"
+            placeholder="内容"
+            placeholder-class="input-placeholder"
+            maxlength="200"
+            auto-height
+          />
+          <view class="quick-tags-section">
+            <view class="quick-tags">
+              <view
+                v-for="tag in userTags"
+                :key="tag"
+                class="tag-item"
+                @click="addQuickTag(tag)"
+              >
+                <text class="tag-text">{{ tag }}</text>
+              </view>
+
+              <view v-if="userTags.length === 0" class="tag-settings-hint" @click="goToTagSettings">
+                <text class="hint-text">设置标签</text>
+              </view>
+            </view>
+            <view class="voice-input-btn" @click="startVoiceInput">
+              <image class="voice-icon" src="/static/images/voice.png" mode="aspectFit"></image>
+            </view>
+          </view>
+        </view>
       </view>
       
       <!-- 提醒方式 -->
@@ -74,9 +95,18 @@
 
 <script>
 import { ref, computed, reactive, onMounted, getCurrentInstance, nextTick, watch } from 'vue';
-import { createEvent, updateEvent, getSimpleReminderById, smartRequestSubscribe } from '@/services/api';
+import {
+  createEvent,
+  updateEvent
+} from '@/services/cachedApi';
+import {
+  getSimpleReminderById,
+  smartRequestSubscribe,
+  getUserTagManagementEnabled,
+  getUserTagList
+} from '@/services/api';
 import { requireAuth } from '@/utils/auth';
-import { FeatureControl, isProductionVersion } from '@/config/version';
+import { FeatureControl, isProductionVersion, isDevelopmentVersion } from '@/config/version';
 import UnifiedTimePicker from '@/components/unified-time-picker/unified-time-picker.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
@@ -122,6 +152,10 @@ export default {
     const reminderTypeOptions = ref([]);
     const reminderTypeValues = ref([]);
     const reminderTypeIndex = ref(0);
+
+    // 4. 用户标签相关
+    const userTags = ref([]);
+    const tagManagementEnabled = ref(false);
     
     // 4. 统一的参数处理函数
     const processPageOptions = () => {
@@ -178,8 +212,9 @@ export default {
         });
         return;
       }
-      
+
       initReminderTypes(); // 初始化提醒选项
+      await loadUserTags(); // 加载用户标签
 
       const { id } = processPageOptions();
       
@@ -495,6 +530,99 @@ export default {
       reminderTypeIndex.value = defaultIndex !== -1 ? defaultIndex : 0;
     };
 
+    // 加载用户标签
+    const loadUserTags = async () => {
+      try {
+        // 检查标签管理是否启用
+        try {
+          const enabledResponse = await getUserTagManagementEnabled();
+          tagManagementEnabled.value = enabledResponse.value === '1';
+        } catch (error) {
+          console.log('标签管理功能未启用');
+          tagManagementEnabled.value = false;
+          userTags.value = [];
+          return;
+        }
+
+        // 如果启用了标签管理，获取标签列表
+        if (tagManagementEnabled.value) {
+          try {
+            const tagsResponse = await getUserTagList();
+            const tagListString = tagsResponse.value || '';
+            userTags.value = tagListString ? tagListString.split(',').filter(tag => tag.trim()) : [];
+            console.log('加载用户标签成功:', userTags.value);
+          } catch (error) {
+            console.log('获取标签列表失败，使用空列表');
+            userTags.value = [];
+          }
+        } else {
+          userTags.value = [];
+        }
+
+      } catch (error) {
+        console.error('加载用户标签失败:', error);
+        userTags.value = [];
+      }
+    };
+
+    // 添加快捷标签到内容
+    const addQuickTag = (tag) => {
+      if (!reminderForm.description) {
+        reminderForm.description = tag;
+      } else {
+        // 如果内容不为空，在末尾添加标签
+        const currentText = reminderForm.description.trim();
+        // 添加空格分隔符，允许多次添加相同标签
+        reminderForm.description = currentText + (currentText ? ' ' : '') + tag;
+      }
+
+      // 限制长度不超过200字符
+      if (reminderForm.description.length > 200) {
+        reminderForm.description = reminderForm.description.substring(0, 200);
+      }
+
+      // 提供触觉反馈（仅在真机上，开发环境中禁用以避免开发者工具的屏幕放大效果）
+      // #ifdef MP-WEIXIN
+      if (!isDevelopmentVersion()) {
+        uni.vibrateShort({
+          fail: () => {
+            // 忽略失败，不是所有设备都支持震动
+          }
+        });
+      }
+      // #endif
+    };
+
+    // 启动语音输入
+    const startVoiceInput = () => {
+      uni.showToast({
+        title: '语音转文本功能开发中',
+        icon: 'none',
+        duration: 2000
+      });
+
+      // 提供触觉反馈（仅在真机上，开发环境中禁用以避免开发者工具的屏幕放大效果）
+      // #ifdef MP-WEIXIN
+      if (!isDevelopmentVersion()) {
+        uni.vibrateShort({
+          fail: () => {
+            // 忽略失败，不是所有设备都支持震动
+          }
+        });
+      }
+      // #endif
+
+      // TODO: 实现语音转文本功能
+      // 可以使用微信小程序的 wx.startRecord 或第三方语音识别API
+    };
+
+    // 跳转到标签设置页面
+    const goToTagSettings = () => {
+      uni.navigateTo({
+        url: '/pages/settings/notification'
+      });
+    };
+
     return {
       isEdit,
       isDataReady,
@@ -505,6 +633,8 @@ export default {
       reminderTypeOptions,
       reminderTypeIndex,
       dateTimePickerRef,
+      userTags,
+      tagManagementEnabled,
       onDateTimeChange,
       onReminderTypeChange,
       getReminderTypeIcon,
@@ -513,7 +643,11 @@ export default {
       performSave,
       needWechatSubscribe,
       cancel,
-      showReminderTypeSelector
+      showReminderTypeSelector,
+      loadUserTags,
+      addQuickTag,
+      startVoiceInput,
+      goToTagSettings
     };
   }
 };
@@ -587,12 +721,19 @@ export default {
   line-height: 1.4;
 }
 
+/* 文本区域容器 */
+.textarea-container {
+  position: relative;
+  background-color: #f4efe7;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+
 .content-textarea {
   width: 100%;
   min-height: 288rpx;
-  padding: 32rpx;
-  background-color: #f4efe7;
-  border-radius: 24rpx;
+  padding: 32rpx 32rpx 120rpx 32rpx; /* 底部留出空间给标签和语音按钮 */
+  background-color: transparent;
   border: none;
   font-size: 32rpx;
   color: #1c170d;
@@ -602,6 +743,92 @@ export default {
 
 .input-placeholder {
   color: #9d8148;
+}
+
+/* 快捷标签和语音输入区域 */
+.quick-tags-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: transparent;
+  padding: 16rpx 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.quick-tags {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+}
+
+.tag-item {
+  background-color: #f7bd4a;
+  border-radius: 16rpx;
+  padding: 6rpx 12rpx;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.tag-item:active {
+  background-color: #e6a73d;
+  transform: scale(0.95) translateY(1rpx);
+  box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
+}
+
+.tag-text {
+  font-size: 22rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.tag-settings-hint {
+  background-color: #e9e0ce;
+  border: 2rpx dashed #cccccc;
+  border-radius: 16rpx;
+  padding: 6rpx 12rpx;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tag-settings-hint:active {
+  background-color: #f7bd4a;
+  border-color: #f7bd4a;
+}
+
+.hint-text {
+  font-size: 22rpx;
+  color: #9d8148;
+  font-weight: 500;
+}
+
+.voice-input-btn {
+  width: 48rpx;
+  height: 48rpx;
+  background-color: #f7bd4a;
+  border-radius: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.voice-input-btn:active {
+  background-color: #e6a73d;
+  transform: scale(0.95) translateY(1rpx);
+  box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
+}
+
+.voice-icon {
+  width: 100%;
+  height: 100%;
 }
 
 /* 设置项样式 */
@@ -745,10 +972,38 @@ export default {
     font-size: 32rpx;
   }
   
-  .title-input,
-  .content-textarea {
+  .title-input {
     font-size: 28rpx;
     padding: 24rpx;
+  }
+
+  .content-textarea {
+    font-size: 28rpx;
+    padding: 24rpx 24rpx 100rpx 24rpx; /* 小屏幕上减少底部间距 */
+  }
+
+  .quick-tags-section {
+    padding: 12rpx 20rpx;
+    gap: 12rpx;
+  }
+
+  .quick-tags {
+    gap: 12rpx;
+  }
+
+  .tag-item,
+  .tag-settings-hint {
+    padding: 4rpx 10rpx;
+  }
+
+  .tag-text,
+  .hint-text {
+    font-size: 20rpx;
+  }
+
+  .voice-input-btn {
+    width: 40rpx;
+    height: 40rpx;
   }
   
   .setting-label,

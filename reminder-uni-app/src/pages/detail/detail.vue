@@ -104,23 +104,32 @@ export default {
   components: {
     ConfirmDialog
   },
+  onShow() {
+    // 页面显示时刷新数据（从编辑页面返回时会触发）
+    console.log('详情页面: onShow 触发，准备刷新数据');
+    this.refreshReminderData();
+  },
   setup() {
     const reminder = ref({});
     const loading = ref(true);
     const showConfirmDialog = ref(false);
     const reminderId = ref('');
-    
+    const isInitialized = ref(false); // 标记是否已初始化
+
     // 在setup中直接获取页面参数
     const getCurrentPageOptions = () => {
       const pages = getCurrentPages();
       const currentPage = pages[pages.length - 1];
       return currentPage.options || {};
     };
-    
-    onMounted(async () => {
+
+    // 初始化页面数据
+    const initializePage = async () => {
+      if (isInitialized.value) return; // 避免重复初始化
+
       // 首先检查登录状态
       const isAuthenticated = await requireAuth();
-      
+
       if (!isAuthenticated) {
         // 用户未登录且拒绝登录，返回上一页
         console.log('用户未登录，返回上一页');
@@ -134,26 +143,42 @@ export default {
         });
         return;
       }
-      
+
       // 直接获取页面参数
       const options = getCurrentPageOptions();
       const id = options.id || '';
-      
+
       console.log('=== Detail页面调试信息 ===');
       console.log('页面参数options:', options);
       console.log('获取到的ID:', id);
       console.log('ID类型:', typeof id);
       console.log('ID是否为空:', !id);
-      
+
       if (id) {
         console.log('开始加载提醒详情，ID:', id);
         reminderId.value = id;
+        isInitialized.value = true;
         await loadReminderDetail(id);
       } else {
         console.error('无效的提醒ID，停止加载');
         loading.value = false;
         uni.showToast({ title: '无效的提醒ID', icon: 'none' });
       }
+    };
+
+    // 刷新提醒数据（供onShow调用）
+    const refreshReminderData = async () => {
+      if (!isInitialized.value || !reminderId.value) {
+        console.log('详情页面: 页面未初始化或无有效ID，跳过刷新');
+        return;
+      }
+
+      console.log('详情页面: 开始刷新数据，ID:', reminderId.value);
+      await loadReminderDetail(reminderId.value);
+    };
+
+    onMounted(async () => {
+      await initializePage();
     });
     
     const loadReminderDetail = async (id) => {
@@ -264,6 +289,7 @@ export default {
       reminder,
       loading,
       showConfirmDialog,
+      refreshReminderData, // 暴露给onShow使用
       goBack,
       editReminder,
       formatDisplayTime,

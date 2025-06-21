@@ -14,7 +14,7 @@ const CLOUD_CONFIG = cloudConfig;
 const callContainer = (options) => {
     return new Promise((resolve, reject) => {
         const token = uni.getStorageSync('accessToken');
-        
+
         const callOptions = {
             config: {
                 env: CLOUD_CONFIG.env
@@ -33,26 +33,31 @@ const callContainer = (options) => {
             },
             fail: (err) => {
                 console.error('云托管请求失败:', err);
-                
+
                 // 对于特定接口，失败时返回默认值
                 if (options.url.includes('/reminders/simple')) {
                     console.warn('获取提醒数据失败，返回空数组');
                     resolve([]);
                     return;
                 }
-                
+
                 reject({
                     ...err,
                     message: err.errMsg || '云托管请求失败'
                 });
             }
         };
-        
+
         // 添加认证Token
         if (token) {
             callOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
-        
+
+        // 调试日志：显示最终的请求头
+        if (options.header && Object.keys(options.header).length > 0) {
+            console.log('云托管请求头:', callOptions.header);
+        }
+
         wx.cloud.callContainer(callOptions);
     });
 };
@@ -105,27 +110,18 @@ const request = (options) => {
                     
                     // 处理401/403认证错误
                     if (res.statusCode === 401 || res.statusCode === 403) {
-                        console.log('认证失败，清除token');
-                        uni.removeStorageSync('accessToken');
-                        
+                        console.log('认证失败，但保留token以便重试');
+                        // 不再自动清除token，让ReminderCacheService处理
+
                         // 对于日历数据，如果遇到授权错误，返回空数组而不是拒绝 Promise
                         if (options.url.includes('/reminders/simple')) {
                             console.warn('获取提醒数据需要登录，返回空数组');
                             resolve([]);
                             return;
                         }
-                        
-                        // 显示登录提示
-                        uni.showModal({
-                            title: '登录已过期',
-                            content: '请重新登录',
-                            showCancel: false,
-                            success: () => {
-                                uni.switchTab({
-                                    url: '/pages/index/index'
-                                });
-                            }
-                        });
+
+                        // 不再显示登录提示，让页面逻辑处理
+                        // 这样可以避免重复弹窗
                     }
                     
                     reject(res); // 直接 reject 整个响应对象
@@ -293,11 +289,22 @@ export const getComplexReminderById = (id) => request({
     method: 'GET'
 }).catch(handleApiError);
 
-export const createComplexReminder = (reminder) => request({
-    url: '/reminders/complex',
-    method: 'POST',
-    data: reminder
-}).catch(handleApiError);
+export const createComplexReminder = (reminder, idempotencyKey = null) => {
+    const header = {};
+
+    // 如果提供了幂等键，添加到请求头
+    if (idempotencyKey) {
+        header['Idempotency-Key'] = idempotencyKey;
+        console.log('创建复杂任务，使用幂等键:', idempotencyKey);
+    }
+
+    return request({
+        url: '/reminders/complex',
+        method: 'POST',
+        data: reminder,
+        header: header
+    }).catch(handleApiError);
+};
 
 export const updateComplexReminder = (id, reminder) => request({
     url: `/reminders/complex/${id}`,
@@ -470,6 +477,32 @@ export const batchUpdateUserPreferences = (preferences, override = false) => req
 export const deleteUserPreference = (key) => request({ url: `/user/preferences/${key}`, method: 'DELETE' });
 export const initializeUserPreferences = () => request({ url: '/user/preferences/initialize', method: 'POST' });
 export const resetUserPreferences = () => request({ url: '/user/preferences/reset', method: 'POST' });
+
+// 用户反馈相关API
+export const submitUserFeedback = (feedbackData) => {
+    console.log('提交用户反馈:', feedbackData);
+    return request({
+        url: '/feedback/submit',
+        method: 'POST',
+        data: feedbackData
+    }).catch(handleApiError);
+};
+
+// 标签管理相关API
+export const getUserTagManagementEnabled = () => request({ url: '/user/preferences/userTagManagementEnabled', method: 'GET' });
+export const setUserTagManagementEnabled = (enabled) => {
+    const key = 'userTagManagementEnabled';
+    const value = enabled ? '1' : '0';
+    const property = '用户标签管理功能开关，0关闭，1开启';
+    return request({ url: '/user/preferences/userTagManagementEnabled', method: 'PUT', data: { key, value, property } });
+};
+export const getUserTagList = () => request({ url: '/user/preferences/userTagList', method: 'GET' });
+export const setUserTagList = (tagList) => {
+    const key = 'userTagList';
+    const property = '用户标签列表，逗号分隔，最多10个标签，每个标签最多4汉字8字符';
+    return request({ url: '/user/preferences/userTagList', method: 'PUT', data: { key, value: tagList, property } });
+};
+export const deleteUserTagList = () => request({ url: '/user/preferences/userTagList', method: 'DELETE' });
 
 /**
  * 微信小程序工具类
@@ -850,12 +883,150 @@ class WeChatUtils {
     });
   }
 
-  static getSystemInfo() {
-    return new Promise((resolve, reject) => {
-      uni.getSystemInfo({
-        success: resolve,
-        fail: reject
+  /**
+   * 获取系统信息 - 使用新的推荐API
+   * 替代已废弃的 wx.getSystemInfoSync
+   * @returns {Promise<Object>} 系统信息对象
+   */
+  static async getSystemInfo() {
+    try {
+      // #ifdef MP-WEIXIN
+      if (typeof wx !== 'undefined') {
+        // 使用新的推荐API组合获取完整系统信息
+        const [systemSetting, deviceInfo, windowInfo, appBaseInfo] = await Promise.all([
+          // 获取系统设置信息
+          new Promise((resolve) => {
+            try {
+              const setting = wx.getSystemSetting ? wx.getSystemSetting() : {};
+              resolve(setting);
+            } catch (error) {
+              console.warn('获取系统设置失败:', error);
+              resolve({});
+            }
+          }),
+
+          // 获取设备信息
+          new Promise((resolve) => {
+            try {
+              const device = wx.getDeviceInfo ? wx.getDeviceInfo() : {};
+              resolve(device);
+            } catch (error) {
+              console.warn('获取设备信息失败:', error);
+              resolve({});
+            }
+          }),
+
+          // 获取窗口信息
+          new Promise((resolve) => {
+            try {
+              const window = wx.getWindowInfo ? wx.getWindowInfo() : {};
+              resolve(window);
+            } catch (error) {
+              console.warn('获取窗口信息失败:', error);
+              resolve({});
+            }
+          }),
+
+          // 获取应用基础信息
+          new Promise((resolve) => {
+            try {
+              const app = wx.getAppBaseInfo ? wx.getAppBaseInfo() : {};
+              resolve(app);
+            } catch (error) {
+              console.warn('获取应用信息失败:', error);
+              resolve({});
+            }
+          })
+        ]);
+
+        // 组合所有信息，保持与旧API的兼容性
+        const combinedInfo = {
+          // 系统设置信息
+          ...systemSetting,
+
+          // 设备信息
+          ...deviceInfo,
+
+          // 窗口信息
+          ...windowInfo,
+
+          // 应用信息
+          ...appBaseInfo,
+
+          // 添加一些常用的兼容字段
+          platform: deviceInfo.platform || systemSetting.platform || 'unknown',
+          system: deviceInfo.system || 'unknown',
+          model: deviceInfo.model || 'unknown',
+          brand: deviceInfo.brand || 'unknown',
+          screenWidth: windowInfo.screenWidth || 0,
+          screenHeight: windowInfo.screenHeight || 0,
+          windowWidth: windowInfo.windowWidth || 0,
+          windowHeight: windowInfo.windowHeight || 0,
+          pixelRatio: windowInfo.pixelRatio || 1,
+          language: appBaseInfo.language || systemSetting.language || 'zh_CN',
+          version: appBaseInfo.version || 'unknown',
+
+          // 标记使用了新API
+          _apiVersion: 'new'
+        };
+
+        console.log('✅ 使用新API获取系统信息成功');
+        return combinedInfo;
+      }
+      // #endif
+
+      // 降级到uni.getSystemInfo
+      return new Promise((resolve, reject) => {
+        uni.getSystemInfo({
+          success: (info) => {
+            console.log('⚠️ 降级使用 uni.getSystemInfo');
+            resolve({ ...info, _apiVersion: 'fallback' });
+          },
+          fail: reject
+        });
       });
+
+    } catch (error) {
+      console.error('获取系统信息失败:', error);
+
+      // 最终降级方案
+      return new Promise((resolve, reject) => {
+        uni.getSystemInfo({
+          success: (info) => {
+            console.log('⚠️ 异常降级使用 uni.getSystemInfo');
+            resolve({ ...info, _apiVersion: 'error_fallback' });
+          },
+          fail: reject
+        });
+      });
+    }
+  }
+
+  /**
+   * 获取应用授权设置 - 新增方法
+   * @returns {Promise<Object>} 授权设置信息
+   */
+  static getAppAuthorizeSetting() {
+    return new Promise((resolve) => {
+      try {
+        // #ifdef MP-WEIXIN
+        if (typeof wx !== 'undefined' && wx.getAppAuthorizeSetting) {
+          const authSetting = wx.getAppAuthorizeSetting();
+          console.log('✅ 获取应用授权设置成功');
+          resolve(authSetting);
+        } else {
+          console.warn('⚠️ getAppAuthorizeSetting API不可用');
+          resolve({});
+        }
+        // #endif
+        // #ifndef MP-WEIXIN
+        console.warn('⚠️ 非微信环境，无法获取授权设置');
+        resolve({});
+        // #endif
+      } catch (error) {
+        console.error('获取授权设置失败:', error);
+        resolve({});
+      }
     });
   }
 
@@ -1386,6 +1557,7 @@ export const {
   showToast,
   showModal,
   getSystemInfo,
+  getAppAuthorizeSetting,
   isWeChatMiniProgram,
   getVersionInfo,
   updateUserProfile,
