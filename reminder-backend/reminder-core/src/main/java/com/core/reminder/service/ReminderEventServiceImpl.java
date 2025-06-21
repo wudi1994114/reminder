@@ -847,38 +847,55 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             ZonedDateTime nextTime = startTime;
             int count = 0;
             Integer maxExecutions = complexReminder.getMaxExecutions();
-            
+
+            // 用于批量插入的列表
+            List<SimpleReminder> batchToSave = new ArrayList<>();
+            final int BATCH_SIZE = 100;
+
             while (true) {
                 // 计算下一个执行时间
                 nextTime = cron.next(nextTime);
-                
+
                 // 如果超出了指定范围或validUntil，则停止
                 if (nextTime == null || nextTime.isAfter(endTime)) {
                     break;
                 }
-                
+
                 // 如果已经达到最大执行次数限制，则停止
                 if (maxExecutions != null && count >= maxExecutions) {
                     break;
                 }
-                
+
                 // 转换为OffsetDateTime，确保使用中国时区的偏移量
                 OffsetDateTime nextExecutionTime = nextTime.toOffsetDateTime();
-                
+
                 // 检查是否已经存在相同时间的简单任务
                 boolean exists = simpleReminderRepository.existsByOriginatingComplexReminderIdAndEventTime(
                         complexReminder.getId(), nextExecutionTime);
-                
+
                 if (!exists) {
-                    // 创建简单任务（直接保存，不通过createSimpleReminder避免重复缓存清理）
+                    // 创建简单任务（先不保存，加入批量列表）
                     SimpleReminder simpleReminder = createSimpleReminderFromTemplate(complexReminder, nextExecutionTime);
-                    SimpleReminder savedReminder = simpleReminderRepository.save(simpleReminder);
-                    generatedReminders.add(savedReminder);
+                    batchToSave.add(simpleReminder);
                     count++;
-                    
-                    log.info("已生成SimpleReminder (ID: {}) 执行时间: {} (中国时区)", 
-                             savedReminder.getId(), nextExecutionTime);
+
+                    log.debug("准备批量保存SimpleReminder，执行时间: {} (中国时区)", nextExecutionTime);
+
+                    // 当批量列表达到指定大小时，执行批量保存
+                    if (batchToSave.size() >= BATCH_SIZE) {
+                        List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                        generatedReminders.addAll(savedBatch);
+                        log.info("批量保存了 {} 个SimpleReminder", savedBatch.size());
+                        batchToSave.clear();
+                    }
                 }
+            }
+
+            // 保存剩余的记录
+            if (!batchToSave.isEmpty()) {
+                List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                generatedReminders.addAll(savedBatch);
+                log.info("批量保存了剩余的 {} 个SimpleReminder", savedBatch.size());
             }
             
             // 更新lastGeneratedYm字段 - 使用目标月份
