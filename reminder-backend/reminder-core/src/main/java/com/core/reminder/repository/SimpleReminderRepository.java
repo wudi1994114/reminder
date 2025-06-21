@@ -57,6 +57,18 @@ public interface SimpleReminderRepository extends JpaRepository<SimpleReminder, 
     int deleteByOriginatingComplexReminderId(@Param("originatingComplexReminderId") Long originatingComplexReminderId);
 
     /**
+     * 删除指定复杂提醒ID相关的且触发时间大于指定时间的简单提醒
+     * @param originatingComplexReminderId 来源复杂提醒ID
+     * @param currentTime 当前时间，只删除触发时间大于此时间的记录
+     * @return 删除的记录数
+     */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM SimpleReminder sr WHERE sr.originatingComplexReminderId = :originatingComplexReminderId AND sr.eventTime > :currentTime")
+    int deleteByOriginatingComplexReminderIdAndEventTimeAfter(@Param("originatingComplexReminderId") Long originatingComplexReminderId,
+                                                              @Param("currentTime") OffsetDateTime currentTime);
+
+    /**
      * 按年月和用户ID查询简单提醒
      * 查询指定月份内触发的提醒
      * 

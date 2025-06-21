@@ -29,6 +29,7 @@ public class ComplexReminderDTO {
     private LocalDate validUntil;     // 提醒失效日期
     private Integer maxExecutions;    // 最大执行次数限制
     private Integer lastGeneratedYm; // 年月格式：YYYYMM
+    private String idempotencyKey;   // 幂等键，用于防止重复创建
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 } 

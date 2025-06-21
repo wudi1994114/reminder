@@ -25,7 +25,7 @@
 import { computed } from 'vue';
 import { globalAuthState, hideOneClickLogin } from '../utils/auth';
 import { wechatLogin } from '../services/api';
-import { UserService } from '../services/userService';
+import ReminderCacheService from '../services/reminderCache';
 
 export default {
   name: 'GlobalLoginModal',
@@ -86,8 +86,8 @@ export default {
         console.log('✅ 全局登录：微信登录API响应:', response);
         
         if (response && response.accessToken) {
-          // 使用UserService处理登录成功
-          await UserService.onLoginSuccess(response, 'wechat');
+          // 使用ReminderCacheService处理登录成功
+          await ReminderCacheService.onLoginSuccess(response, 'wechat');
           
           console.log('✅ 全局登录：登录处理完成，用户状态已更新');
           

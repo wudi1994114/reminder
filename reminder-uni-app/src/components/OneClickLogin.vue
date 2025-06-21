@@ -44,7 +44,7 @@
 <script>
 import { ref, watch } from 'vue';
 import { isWeChatMiniProgram, smartWechatLogin } from '../services/api';
-import { UserService } from '../services/userService';
+import ReminderCacheService from '../services/reminderCache';
 
 export default {
   name: 'OneClickLogin',
@@ -105,7 +105,7 @@ export default {
         
         if (response && response.accessToken) {
           // 使用用户服务处理登录成功
-          const userInfo = await UserService.onLoginSuccess(response, 'wechat');
+          const userInfo = await ReminderCacheService.onLoginSuccess(response, 'wechat');
           
           console.log('✅ OneClickLogin: 微信登录处理完成，用户信息:', userInfo);
           

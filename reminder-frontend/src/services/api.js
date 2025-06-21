@@ -108,7 +108,7 @@ export const updateProfile = (profileData) => apiClient.put('/auth/profile', pro
 
 // --- 用户信息相关的API调用 ---
 export const fetchUserProfile = () => {
-    return apiClient.get('/users/me');
+    return apiClient.get('/auth/profile');
 };
 
 // --- 提醒事项相关的API调用 ---
@@ -178,8 +178,50 @@ export const getUserPreferences = () => {
     return apiClient.get('/user/preferences');
 };
 
+export const getUserPreference = (key) => {
+    return apiClient.get(`/user/preferences/${key}`);
+};
+
+export const setUserPreference = (key, value, property = null) => {
+    return apiClient.put(`/user/preferences/${key}`, { key, value, property });
+};
+
+export const deleteUserPreference = (key) => {
+    return apiClient.delete(`/user/preferences/${key}`);
+};
+
+export const batchUpdateUserPreferences = (preferences, override = false) => {
+    return apiClient.put('/user/preferences/batch', { preferences, override });
+};
+
 export const updateUserPreferences = (preferences) => {
     return apiClient.put('/user/preferences', preferences);
+};
+
+// --- 标签管理相关的API调用 ---
+export const getUserTagManagementEnabled = () => {
+    return apiClient.get('/user/preferences/userTagManagementEnabled');
+};
+
+export const setUserTagManagementEnabled = (enabled) => {
+    const key = 'userTagManagementEnabled';
+    const value = enabled ? '1' : '0';
+    const property = '用户标签管理功能开关，0关闭，1开启';
+    return apiClient.put('/user/preferences/userTagManagementEnabled', { key, value, property });
+};
+
+export const getUserTagList = () => {
+    return apiClient.get('/user/preferences/userTagList');
+};
+
+export const setUserTagList = (tagList) => {
+    const key = 'userTagList';
+    const property = '用户标签列表，逗号分隔，最多10个标签，每个标签最多4汉字8字符';
+    return apiClient.put('/user/preferences/userTagList', { key, value: tagList, property });
+};
+
+export const deleteUserTagList = () => {
+    return apiClient.delete('/user/preferences/userTagList');
 };
 
 export default apiClient; 

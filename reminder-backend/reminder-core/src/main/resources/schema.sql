@@ -148,6 +148,7 @@ CREATE TABLE complex_reminder (
     valid_until DATE, -- 提醒失效日期
     max_executions INTEGER, -- 最大执行次数限制
     last_generated_ym INTEGER, -- 最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)
+    idempotency_key VARCHAR(255), -- 幂等键，用于防止重复创建
     created_at TIMESTAMP
     WITH
         TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL, -- 记录创建时间
@@ -164,8 +165,8 @@ CREATE INDEX idx_complex_reminder_to_user ON complex_reminder (to_user_id);
 CREATE INDEX idx_complex_reminder_valid_range ON complex_reminder (valid_from, valid_until);
 -- 添加有效期范围索引
 CREATE INDEX idx_complex_reminder_last_generated ON complex_reminder (last_generated_ym);
--- 为新增字段添加索引
--- CREATE INDEX idx_complex_reminder_related ON complex_reminder (related_simple_reminder_id); -- 已移除
+-- 添加幂等键的唯一索引，防止重复创建
+CREATE UNIQUE INDEX idx_complex_reminder_idempotency_key ON complex_reminder (idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- 复杂提醒表注释
 COMMENT ON TABLE complex_reminder IS '存储基于 CRON 表达式的重复提醒模板';
@@ -191,6 +192,8 @@ COMMENT ON COLUMN complex_reminder.valid_until IS '提醒失效的日期，为�
 COMMENT ON COLUMN complex_reminder.max_executions IS '提醒最大执行次数限制，为空则无限制';
 
 COMMENT ON COLUMN complex_reminder.last_generated_ym IS '最后生成简单任务的年月(格式YYYYMM，如202405表示2024年5月)';
+
+COMMENT ON COLUMN complex_reminder.idempotency_key IS '幂等键，用于防止重复创建相同的复杂提醒';
 
 COMMENT ON COLUMN complex_reminder.created_at IS '提醒记录的创建时间戳';
 

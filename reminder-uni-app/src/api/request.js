@@ -28,7 +28,8 @@ export const request = (options) => {
                     
                     // 处理401/403认证错误
                     if (res.statusCode === 401 || res.statusCode === 403) {
-                        uni.removeStorageSync('accessToken');
+                        // 不再自动清除token，保留以便重试
+                        console.log('认证失败，但保留token以便重试');
                         // 对于日历数据，如果遇到授权错误，返回空数组而不是拒绝 Promise
                         if (options.url.includes('/reminders/simple')) {
                             console.warn('获取提醒数据需要登录，返回空数组');

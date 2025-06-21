@@ -32,7 +32,7 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue';
-import { UserService, userState } from '@/services/userService';
+import ReminderCacheService, { userState } from '@/services/reminderCache';
 import { FeatureControl } from '@/config/version';
 import UserInfoEditor from '@/components/UserInfoEditor.vue';
 
@@ -89,7 +89,7 @@ export default {
     const loadUserInfo = async () => {
       try {
         isLoading.value = true;
-        const userInfo = await UserService.getCurrentUser();
+        const userInfo = await ReminderCacheService.getCurrentUser();
         if (userInfo) {
           console.log('编辑资料页面: 获取用户信息成功');
           prepareInitialUserInfo(userInfo);
@@ -144,7 +144,7 @@ export default {
       try {
         // 重新获取用户资料，确保本地状态与服务器同步
         console.log('🔄 重新获取用户资料...');
-        const success = await UserService.refreshUserProfile();
+        const success = await ReminderCacheService.refreshUserProfile();
         
         if (success) {
           console.log('✅ 用户资料已更新');
@@ -199,7 +199,7 @@ export default {
 
 .header-section {
   background-color: #fcfbf8;
-  padding: 32rpx 32rpx 16rpx;
+  padding: calc(var(--status-bar-height, 44rpx) + 40rpx) 32rpx 24rpx;
   flex-shrink: 0;
 }
 
@@ -287,7 +287,7 @@ export default {
 
 @media (max-width: 750rpx) {
   .header-section {
-    padding: 24rpx 24rpx 12rpx;
+    padding: calc(var(--status-bar-height, 44rpx) + 32rpx) 24rpx 16rpx;
   }
   
   .nav-container {

@@ -1,13 +1,13 @@
 <script>
 import { onMounted } from 'vue';
-import { UserService } from './services/userService';
+import ReminderCacheService from './services/reminderCache';
 
 export default {
   setup() {
     onMounted(() => {
       console.log('🚀 App: onMounted - 全局应用挂载');
     });
-    
+
     return {};
   },
   onLaunch: function () {
@@ -24,9 +24,9 @@ export default {
     async initUserService() {
       try {
         console.log('🚀 App: 初始化用户服务');
-        await UserService.init();
-        
-        if (UserService.getUserState().isAuthenticated) {
+        await ReminderCacheService.init();
+
+        if (ReminderCacheService.getUserState().isAuthenticated) {
           console.log('✅ App: 用户服务初始化成功，用户已登录');
         } else {
           console.log('📝 App: 用户未登录，等待用户操作时弹出登录框');

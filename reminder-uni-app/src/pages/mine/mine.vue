@@ -75,6 +75,14 @@
               <text class="menu-arrow">›</text>
             </view>
             <view class="menu-divider"></view>
+            <view class="menu-item" @click="navToContactAuthor">
+              <view class="menu-icon">
+                <text class="icon-text">✉️</text>
+              </view>
+              <text class="menu-label">联系作者</text>
+              <text class="menu-arrow">›</text>
+            </view>
+            <view class="menu-divider"></view>
             <view class="menu-item" @click="navToAbout">
               <view class="menu-icon">
                 <text class="icon-text">ℹ️</text>
@@ -113,7 +121,7 @@
 
 <script>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue';
-import { UserService, userState } from '@/services/userService';
+import ReminderCacheService, { userState } from '@/services/reminderCache';
 import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '@/utils/auth';
 import { wechatLogin } from '@/services/api';
 import { FeatureControl } from '@/config/version';
@@ -184,7 +192,7 @@ export default {
 
     const checkUserSession = async () => {
       try {
-        const userInfo = await UserService.getCurrentUser();
+        const userInfo = await ReminderCacheService.getCurrentUser();
         if (userInfo) {
           fetchUserStats();
         } else {
@@ -262,8 +270,8 @@ export default {
         console.log('✅ 个人中心：微信登录API响应:', response);
         
         if (response && response.accessToken) {
-          // 使用UserService处理登录成功
-          await UserService.onLoginSuccess(response, 'wechat');
+          // 使用ReminderCacheService处理登录成功
+          await ReminderCacheService.onLoginSuccess(response, 'wechat');
           
           console.log('✅ 个人中心：登录处理完成，用户状态已更新');
           
@@ -327,6 +335,11 @@ export default {
       }
     };
 
+    const navToContactAuthor = () => {
+      // 联系作者不需要登录验证，直接跳转
+      uni.navigateTo({ url: '/pages/contact/author' });
+    };
+
     const navToAbout = () => {
       // 关于应用不需要登录验证，直接跳转
       uni.navigateTo({ url: '/pages/settings/about' });
@@ -374,6 +387,7 @@ export default {
       handleWechatLogin,
       goToUserProfile,
       navTo,
+      navToContactAuthor,
       navToAbout,
       onAvatarError
     };

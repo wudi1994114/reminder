@@ -72,6 +72,14 @@
 				"navigationBarTitleText": "提醒设置",
 				"navigationStyle": "custom"
 			}
+		},
+		{
+			"path": "pages/contact/author",
+			"style": {
+				"navigationBarTitleText": "联系作者",
+				"enablePullDownRefresh": false,
+				"navigationStyle": "custom"
+			}
 		}
 	],
 	"globalStyle": {

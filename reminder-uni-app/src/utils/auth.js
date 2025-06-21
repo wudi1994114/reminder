@@ -3,7 +3,7 @@
  * 提供统一的登录检查和一键登录弹窗功能
  */
 import { reactive } from 'vue';
-import { userState, UserService } from '../services/userService';
+import ReminderCacheService, { userState } from '../services/reminderCache';
 import { reminderState } from '../store/index';
 
 // 响应式的全局认证状态
@@ -145,24 +145,24 @@ export function getLoginModalVisible() {
 
 /**
  * 清空所有用户相关数据（全局工具函数）
- * 可在各个页面的初始化时调用，确保登出后数据清理干净
+ * 仅用于用户主动登出，会清理包括Token在内的所有数据
  */
 export function clearAllUserData() {
-  console.log('🧹 开始清理所有用户数据...');
-  
+  console.log('🧹 开始清理所有用户数据（包括Token）...');
+
   try {
     // 清理存储的用户数据
     uni.removeStorageSync('user');
     uni.removeStorageSync('accessToken');
     uni.removeStorageSync('refreshToken');
-    
+
     // 安全地清理用户状态
     try {
-      if (UserService && typeof UserService.clearUserInfo === 'function') {
-        UserService.clearUserInfo();
+      if (ReminderCacheService && typeof ReminderCacheService.clearUserInfo === 'function') {
+        ReminderCacheService.clearUserInfo();
         console.log('✅ 用户状态已清理');
       } else {
-        console.warn('⚠️ UserService.clearUserInfo 不可用，跳过用户状态清理');
+        console.warn('⚠️ ReminderCacheService.clearUserInfo 不可用，跳过用户状态清理');
       }
     } catch (userError) {
       console.error('❌ 清理用户状态时出错:', userError);
@@ -209,6 +209,50 @@ export function clearAllUserData() {
 }
 
 /**
+ * 重置用户状态但保留Token（用于网络错误等临时问题）
+ */
+export function resetUserState() {
+  console.log('🔄 重置用户状态，保留Token...');
+
+  try {
+    // 只清理用户数据，不清理Token
+    uni.removeStorageSync('user');
+
+    // 安全地清理用户状态
+    try {
+      if (ReminderCacheService && typeof ReminderCacheService.clearUserState === 'function') {
+        ReminderCacheService.clearUserState();
+        console.log('✅ 用户状态已重置，Token保留');
+      } else {
+        console.warn('⚠️ ReminderCacheService.clearUserState 不可用，跳过用户状态重置');
+      }
+    } catch (userError) {
+      console.error('❌ 重置用户状态时出错:', userError);
+    }
+
+    // 安全地清理提醒数据状态
+    try {
+      if (reminderState && typeof reminderState === 'object') {
+        reminderState.upcomingReminders = [];
+        reminderState.complexReminders = [];
+        reminderState.loading = false;
+        console.log('✅ 提醒数据状态已清理');
+      } else {
+        console.warn('⚠️ reminderState 不可用，跳过提醒数据清理');
+      }
+    } catch (reminderError) {
+      console.error('❌ 清理提醒数据时出错:', reminderError);
+    }
+
+    console.log('✅ 用户状态重置完成，Token已保留');
+    return true;
+  } catch (error) {
+    console.error('❌ 重置用户状态时出错:', error);
+    return false;
+  }
+}
+
+/**
  * 检查登录状态并清空数据（页面初始化专用）
  * @param {string} pageName 页面名称，用于日志
  * @returns {boolean} 是否已登录
@@ -227,17 +271,17 @@ export function checkAuthAndClearData(pageName = '未知页面') {
     }
     
     if (!authenticated) {
-      console.log(`❌ [${pageName}] 用户未登录，尝试清空所有数据`);
+      console.log(`❌ [${pageName}] 用户未登录，重置用户状态但保留Token`);
       try {
-        const clearResult = clearAllUserData();
-        if (clearResult) {
-          console.log(`✅ [${pageName}] 数据清理成功`);
+        const resetResult = resetUserState();
+        if (resetResult) {
+          console.log(`✅ [${pageName}] 用户状态重置成功，Token已保留`);
         } else {
-          console.warn(`⚠️ [${pageName}] 数据清理部分失败，但继续执行`);
+          console.warn(`⚠️ [${pageName}] 用户状态重置部分失败，但继续执行`);
         }
-      } catch (clearError) {
-        console.error(`❌ [${pageName}] 清理数据时出错:`, clearError);
-        // 即使清理失败，也要继续执行，避免页面卡死
+      } catch (resetError) {
+        console.error(`❌ [${pageName}] 重置用户状态时出错:`, resetError);
+        // 即使重置失败，也要继续执行，避免页面卡死
       }
       return false;
     }
