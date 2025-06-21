@@ -28,6 +28,11 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
 
     private static final Logger log = LoggerFactory.getLogger(ReminderEventServiceImpl.class);
 
+    /**
+     * 用户最大复杂提醒数量限制
+     */
+    private static final int MAX_COMPLEX_REMINDERS_PER_USER = 20;
+
     private final SimpleReminderRepository simpleReminderRepository;
     private final ComplexReminderRepository complexReminderRepository;
     private final Scheduler scheduler;
@@ -245,6 +250,32 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
                 .withSchedule(SimpleScheduleBuilder.simpleSchedule()
                         .withMisfireHandlingInstructionFireNow()) // If missed, fire immediately
                 .build();
+    }
+
+    // === 验证方法 ===
+
+    /**
+     * 验证用户复杂提醒数量限制
+     * @param userId 用户ID
+     * @throws IllegalStateException 当用户复杂提醒数量超过限制时抛出
+     */
+    private void validateUserComplexReminderLimit(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+
+        long currentCount = complexReminderRepository.countByFromUserId(userId);
+
+        if (currentCount >= MAX_COMPLEX_REMINDERS_PER_USER) {
+            log.warn("用户[{}]尝试创建复杂提醒，但已达到最大限制。当前数量: {}, 最大限制: {}",
+                    userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
+            throw new IllegalStateException(
+                String.format("用户复杂提醒数量已达到最大限制(%d条)，无法创建新的复杂提醒", MAX_COMPLEX_REMINDERS_PER_USER)
+            );
+        }
+
+        log.debug("用户[{}]复杂提醒数量验证通过。当前数量: {}, 最大限制: {}",
+                userId, currentCount, MAX_COMPLEX_REMINDERS_PER_USER);
     }
 
     @Transactional
