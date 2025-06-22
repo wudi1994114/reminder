@@ -1,6 +1,19 @@
-# 最终运行镜像，不再需要多阶段构建
-# 使用和您原来一致的基础镜像
-FROM docker-0.unsee.tech/openjdk:8-jre-slim
+# 微信使用的dockerfile
+# 第一阶段：Maven构建阶段
+FROM maven:3.8.1-openjdk-8-slim AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制整个项目结构
+COPY . .
+
+# 清理并构建整个项目
+# 使用Maven reactor模式，自动处理模块间依赖关系
+RUN mvn clean package -DskipTests -B
+
+# 第二阶段：运行时镜像
+FROM openjdk:8-jre-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -11,16 +24,10 @@ RUN mkdir -p /var/log/reminder
 # 创建非root用户运行应用（安全最佳实践）
 RUN groupadd -r spring && useradd -r -g spring spring
 
-# --- 关键修改 ---
-# 定义一个变量来指向 JAR 文件的路径
-# 这个路径是相对于 docker build 命令的执行目录 (即 Jenkinsfile 中的 'reminder-backend')
-ARG JAR_FILE=reminder-core/target/*.jar
+# 从构建阶段复制编译好的jar文件
+COPY --from=builder /app/reminder-core/target/*.jar app.jar
 
-# 直接从构建上下文（Jenkins 工作区）复制由 Jenkins 的 Maven 阶段构建好的 jar 文件
-COPY ${JAR_FILE} app.jar
-
-# 更改文件所有者为新创建的非 root 用户
-# 这一步必须在 COPY 之后，确保 app.jar 的权限也正确
+# 更改文件所有者
 RUN chown -R spring:spring /app /var/log/reminder
 
 # 切换到非root用户
@@ -34,3 +41,5 @@ ENV JAVA_OPTS="-Xms512m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
 
 # 启动应用
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+
+
