@@ -1,0 +1,64 @@
+# 微信云托管专用 Dockerfile
+# 针对微信云托管的 Jenkins 构建环境优化
+
+# 第一阶段：Maven构建阶段
+FROM docker-0.unsee.tech/maven:3.8.1-openjdk-8-slim AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制整个项目结构
+COPY . .
+
+# 清理并构建整个项目
+# 添加详细的调试信息，帮助定位问题
+RUN echo "=== 环境信息 ===" && \
+    java -version && \
+    mvn -version && \
+    echo "=== 项目结构 ===" && \
+    ls -la && \
+    echo "=== 开始 Maven 构建 ===" && \
+    mvn clean package -DskipTests -B -X && \
+    echo "=== 构建完成，检查所有产物 ===" && \
+    find . -name "*.jar" -type f && \
+    echo "=== reminder-core target 目录 ===" && \
+    ls -la reminder-core/target/ && \
+    echo "=== 所有 target 目录 ===" && \
+    find . -name "target" -type d -exec ls -la {} \; && \
+    echo "=== 验证关键文件 ===" && \
+    ls -la reminder-core/target/reminder-core-*.jar || echo "关键 JAR 文件不存在！"
+
+# 第二阶段：运行时镜像
+FROM docker-0.unsee.tech/openjdk:8-jre-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 创建日志目录
+RUN mkdir -p /var/log/reminder
+
+# 创建非root用户运行应用（安全最佳实践）
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# 从构建阶段复制编译好的jar文件
+# 使用最具体的路径，确保文件存在
+COPY --from=builder /app/reminder-core/target/reminder-core-0.0.1-SNAPSHOT.jar app.jar
+
+# 验证复制的文件
+RUN ls -la app.jar && \
+    echo "JAR 文件复制成功"
+
+# 更改文件所有者
+RUN chown -R spring:spring /app /var/log/reminder
+
+# 切换到非root用户
+USER spring
+
+# 暴露应用端口
+EXPOSE 8080
+
+# 设置JVM参数优化
+ENV JAVA_OPTS="-Xms512m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
+
+# 启动应用
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
