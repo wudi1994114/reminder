@@ -1,5 +1,5 @@
-# 最终运行镜像，不再需要多阶段构建
-# 使用和您原来一致的基础镜像
+# 微信云托管专用 Dockerfile
+# 针对 Jenkins 构建流程优化
 FROM docker-0.unsee.tech/openjdk:8-jre-slim
 
 # 设置工作目录
@@ -11,13 +11,9 @@ RUN mkdir -p /var/log/reminder
 # 创建非root用户运行应用（安全最佳实践）
 RUN groupadd -r spring && useradd -r -g spring spring
 
-# --- 关键修改 ---
-# 定义一个变量来指向 JAR 文件的路径
-# 这个路径是相对于 docker build 命令的执行目录 (即 Jenkinsfile 中的 'reminder-backend')
-ARG JAR_FILE=reminder-core/target/*.jar
-
-# 直接从构建上下文（Jenkins 工作区）复制由 Jenkins 的 Maven 阶段构建好的 jar 文件
-COPY ${JAR_FILE} app.jar
+# 复制 JAR 文件 - 尝试多种可能的路径
+# 方案1：直接指定文件名（最常见）
+COPY reminder-core/target/reminder-core-0.0.1-SNAPSHOT.jar app.jar
 
 # 更改文件所有者为新创建的非 root 用户
 # 这一步必须在 COPY 之后，确保 app.jar 的权限也正确

@@ -1,0 +1,53 @@
+# 微信云托管专用 Dockerfile - 健壮版本
+# 支持多种构建场景：Jenkins 预构建 或 Docker 内构建
+
+# 第一阶段：确保构建产物存在
+FROM maven:3.8.1-openjdk-8-slim AS builder
+
+# 设置工作目录
+WORKDIR /build
+
+# 复制项目文件
+COPY . .
+
+# 检查是否已有构建产物，如果没有则进行构建
+RUN echo "=== 检查构建产物 ===" && \
+    if ls reminder-core/target/reminder-core-*.jar 1> /dev/null 2>&1; then \
+        echo "发现已存在的 JAR 文件，跳过构建"; \
+        ls -la reminder-core/target/; \
+    else \
+        echo "未发现 JAR 文件，开始 Maven 构建..."; \
+        mvn clean package -DskipTests -B; \
+        echo "构建完成，检查结果:"; \
+        ls -la reminder-core/target/ || echo "构建失败"; \
+    fi
+
+# 第二阶段：运行时镜像
+FROM docker-0.unsee.tech/openjdk:8-jre-slim
+
+# 设置工作目录
+WORKDIR /app
+
+# 创建日志目录
+RUN mkdir -p /var/log/reminder
+
+# 创建非root用户运行应用（安全最佳实践）
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# 从构建阶段复制 JAR 文件
+COPY --from=builder /build/reminder-core/target/reminder-core-*.jar app.jar
+
+# 更改文件所有者为新创建的非 root 用户
+RUN chown -R spring:spring /app /var/log/reminder
+
+# 切换到非root用户
+USER spring
+
+# 暴露应用端口
+EXPOSE 8080
+
+# 设置JVM参数优化
+ENV JAVA_OPTS="-Xms512m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
+
+# 启动应用
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
