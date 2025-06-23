@@ -9,11 +9,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -27,23 +29,44 @@ public class ApplicationInitializer implements ApplicationRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(ApplicationInitializer.class);
 
+    /**
+     * 初始化时间戳Redis key前缀
+     */
+    private static final String INIT_TIMESTAMP_KEY = "init:data:";
+
+    /**
+     * 日期格式化器
+     */
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     @Autowired
     private LegalHolidayService legalHolidayService;
 
     @Autowired
     private HolidayCacheConfig holidayCacheConfig;
-    
+
     @Autowired
     private SimpleReminderRepository simpleReminderRepository;
-    
+
     @Autowired
     private CacheUtils cacheUtils;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         logger.info("开始执行应用初始化操作...");
-        
+
         try {
+            String today = LocalDate.now().format(DATE_FORMATTER);
+
+            // 检查今天是否已经初始化过
+            if (isAlreadyInitializedToday(today)) {
+                logger.info("今天({})已经初始化过，跳过初始化操作", today);
+                return;
+            }
+
             // 预加载节假日缓存
             if (holidayCacheConfig.isEnabled()) {
                 if (holidayCacheConfig.isAsyncPreload()) {
@@ -57,12 +80,15 @@ public class ApplicationInitializer implements ApplicationRunner {
             } else {
                 logger.info("节假日缓存预加载已禁用");
             }
-            
+
             // 同步数据库和Redis ZSet
             syncDatabaseToRedisAsync();
             logger.info("数据库与Redis ZSet异步同步已启动");
-            
-            logger.info("应用初始化操作完成");
+
+            // 标记今天已初始化
+            markInitializedToday(today);
+
+            logger.info("应用初始化操作完成，已标记今天({})为已初始化", today);
         } catch (Exception e) {
             logger.error("应用初始化过程中发生错误", e);
             // 不抛出异常，避免影响应用启动
@@ -179,12 +205,55 @@ public class ApplicationInitializer implements ApplicationRunner {
                     .distinct()
                     .count();
                 
-                logger.info("数据库与Redis ZSet同步完成，共同步{}个用户的{}条提醒，耗时{}ms", 
+                logger.info("数据库与Redis ZSet同步完成，共同步{}个用户的{}条提醒，耗时{}ms",
                            totalUsers, futureReminders.size(), duration);
-                
+
             } catch (Exception e) {
                 logger.error("同步数据库和Redis ZSet失败", e);
             }
         });
     }
-} 
+
+    /**
+     * 检查今天是否已经初始化过
+     * @param today 今天的日期字符串 (yyyy-MM-dd)
+     * @return true表示已初始化，false表示未初始化
+     */
+    private boolean isAlreadyInitializedToday(String today) {
+        try {
+            String key = INIT_TIMESTAMP_KEY + today;
+            String value = stringRedisTemplate.opsForValue().get(key);
+            boolean initialized = value != null;
+
+            if (initialized) {
+                logger.info("发现初始化标记: {} = {}", key, value);
+            } else {
+                logger.info("未发现今天的初始化标记: {}", key);
+            }
+
+            return initialized;
+        } catch (Exception e) {
+            logger.error("检查初始化状态失败", e);
+            // 出错时返回false，允许重新初始化
+            return false;
+        }
+    }
+
+    /**
+     * 标记今天已初始化
+     * @param today 今天的日期字符串 (yyyy-MM-dd)
+     */
+    private void markInitializedToday(String today) {
+        try {
+            String key = INIT_TIMESTAMP_KEY + today;
+            String value = OffsetDateTime.now().toString();
+
+            // 设置过期时间为2天，避免Redis中积累过多的标记
+            stringRedisTemplate.opsForValue().set(key, value, java.time.Duration.ofDays(2));
+
+            logger.info("已标记今天初始化完成: {} = {}", key, value);
+        } catch (Exception e) {
+            logger.error("标记初始化状态失败", e);
+        }
+    }
+}
