@@ -11,22 +11,22 @@ import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.PostConstruct;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
+
 /**
  * Nacos配置管理器 - 启动时获取所有配置，通过key获取配置值
  */
 @Slf4j
-@Component
 public class NacosConfigManager {
 
-    @Autowired(required = false)
+    @Autowired
     private ConfigService configService;
-
 
     /**
      * 原始配置缓存，key为"dataId:group"格式
@@ -55,29 +55,6 @@ public class NacosConfigManager {
         {"secret", "DEFAULT_GROUP"}
     };
 
-    @PostConstruct
-    public void init() {
-        if (configService != null) {
-            log.info("NacosConfigManager initializing...");
-            // 加载所有配置
-            loadAllConfigs();
-            log.info("NacosConfigManager initialized with {} flat configs", configCache.size());
-            log.info("NacosConfigManager initialized with {} flat configs", JacksonUtils.toJson(configCache));
-        }
-    }
-
-    /**
-     * 手动初始化方法，用于在Spring容器外部使用
-     */
-    public void initWithConfigService(ConfigService configService) {
-        this.configService = configService;
-        log.info("NacosConfigManager manually initializing...");
-        // 加载所有配置
-        loadAllConfigs();
-        log.info("NacosConfigManager manually initialized with {} flat configs", configCache.size());
-        log.info("NacosConfigManager manually initialized with {} flat configs", JacksonUtils.toJson(configCache));
-    }
-
     /**
      * 通过key获取配置值，提供默认值
      * @param key 配置key
@@ -104,11 +81,17 @@ public class NacosConfigManager {
         return new HashMap<>(configCache);
     }
 
+    /**
+     * 设置ConfigService（用于前置处理）
+     */
+    public void setConfigService(ConfigService configService) {
+        this.configService = configService;
+    }
 
     /**
      * 加载所有配置
      */
-    private void loadAllConfigs() {
+    public void loadAllConfigs() {
         for (String[] config : CONFIG_LIST) {
             String dataId = config[0];
             String group = config[1];
@@ -121,22 +104,20 @@ public class NacosConfigManager {
      */
     private void loadSingleConfig(String dataId, String group) {
         try {
-            log.info("loadSingleConfig: {}, group: {}", dataId, group);
             String configInfo = configService.getConfig(dataId, group, 5000);
             if (StringUtils.hasText(configInfo)) {
-                log.info("secret:{}", JacksonUtils.toJson(configInfo));
                 Yaml yaml = new Yaml();
                 Map<String, Object> data = yaml.load(configInfo);
                 Map<String, String> flattenedMap = flattenMap(data, null);
                 configCache.putAll(flattenedMap);
-                log.info("123" + JacksonUtils.toJson(configCache));
+                log.info("成功加载配置 {}:{}, 配置项数量: {}", dataId, group, flattenedMap.size());
                 // 添加监听器
                 addNacosListener(dataId, group);
             } else {
-                log.warn("Config not found or empty: {}:{}", dataId, group);
+                log.warn("配置不存在或为空: {}:{}", dataId, group);
             }
         } catch (NacosException e) {
-            log.error("Failed to load config: {}:{}", dataId, group, e);
+            log.error("加载配置失败: {}:{}", dataId, group, e);
         }
     }
 
@@ -174,18 +155,20 @@ public class NacosConfigManager {
 
             @Override
             public void receiveConfigInfo(String configInfo) {
-                log.info("secret:{} changed", JacksonUtils.toJson(configInfo));
+                log.info("配置发生变更 {}:{}", dataId, group);
                 Yaml yaml = new Yaml();
                 Map<String, Object> data = yaml.load(configInfo);
                 Map<String, String> flattenedMap = flattenMap(data, null);
                 configCache.putAll(flattenedMap);
+                log.info("配置更新完成，当前配置项数量: {}", configCache.size());
             }
         };
 
         try {
-            configService.addListener("secret", "DEFAULT_GROUP", nacosListener);
+            configService.addListener(dataId, group, nacosListener);
+            log.info("成功添加配置监听器: {}:{}", dataId, group);
         } catch (NacosException e) {
-            log.error("Failed to add nacos listener ", e);
+            log.error("添加配置监听器失败: {}:{}", dataId, group, e);
         }
     }
 

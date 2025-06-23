@@ -100,7 +100,7 @@ gmail:
 
 nacos:
   config:
-    server-addr: 123.57.175.66:8848
+    server-addr: 42.192.53.240:8848
     namespace: reminder
 
 # 提醒应用配置
