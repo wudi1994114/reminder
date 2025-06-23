@@ -15,11 +15,17 @@ const callContainer = (options) => {
     return new Promise((resolve, reject) => {
         const token = uni.getStorageSync('accessToken');
 
+        // 智能处理路径，防止重复添加 '/api'
+        let requestPath = options.url.replace(API_URL, '');
+        if (!requestPath.startsWith('/api/')) {
+          requestPath = '/api' + (requestPath.startsWith('/') ? '' : '/') + requestPath;
+        }
+
         const callOptions = {
             config: {
                 env: CLOUD_CONFIG.env
             },
-            path: '/api' + options.url.replace(API_URL, ''), // 在路径前追加/api
+            path: requestPath, 
             method: options.method || 'GET',
             header: {
                 'X-WX-SERVICE': CLOUD_CONFIG.serviceName,
@@ -1568,3 +1574,17 @@ export const {
   deleteCloudFile, // 新增：删除云文件
   deleteOldAvatarAsync // 新增：异步删除旧头像
 } = WeChatUtils;
+
+/**
+ * 测试 allcontainer 的专用API方法
+ * @returns Promise
+ */
+export const testAllContainer = () => {
+    return request({
+        url: '/sts/speech-credentials',
+        method: 'GET'
+    });
+};
+
+// --- 动态配置API ---
+let dynamicApiConfig = {};

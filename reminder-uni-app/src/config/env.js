@@ -25,7 +25,7 @@ export default {
     env,
     ...configs[env],
     // 通用配置
-    APP_NAME: '提醒助手',
+    APP_NAME: '备忘鸡',
     VERSION: '1.0.0',
     STORAGE_PREFIX: 'reminder_',
     REQUEST_TIMEOUT: 10000,

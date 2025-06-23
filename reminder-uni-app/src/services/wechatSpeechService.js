@@ -4,22 +4,41 @@
  */
 
 import { SPEECH_STATUS, SPEECH_ERROR_TYPES, TENCENT_ASR_CONFIG } from '@/config/speech.js';
-import { request } from '@/api/request.js';
+import { request } from '@/services/api.js';
 
 // 腾讯云语音识别SDK导入
 let AsrRealTime = null;
+let sdkLoadError = null;
+
+// 尝试加载腾讯云SDK
 try {
-  // 动态导入腾讯云SDK
   // #ifdef MP-WEIXIN
-  AsrRealTime = require('tencentcloud-speech-sdk-js/asr/AsrRealTime');
+  // 在小程序环境中，直接require可能会有问题，改用动态加载
+  try {
+    AsrRealTime = require('tencentcloud-speech-sdk-js/dist/AsrRealTime');
+  } catch (err) {
+    try {
+      // 尝试其他路径
+      AsrRealTime = require('tencentcloud-speech-sdk-js/app/AsrRealTime');
+    } catch (err2) {
+      console.warn('⚠️ 腾讯云语音SDK在小程序环境下加载失败，将使用备用方案');
+      sdkLoadError = err2;
+    }
+  }
   // #endif
+  
   // #ifndef MP-WEIXIN
-  import('tencentcloud-speech-sdk-js/asr/AsrRealTime').then(module => {
+  // 在非小程序环境中使用动态import
+  import('tencentcloud-speech-sdk-js/dist/AsrRealTime').then(module => {
     AsrRealTime = module.default || module;
+  }).catch(error => {
+    console.warn('⚠️ 腾讯云语音SDK加载失败:', error);
+    sdkLoadError = error;
   });
   // #endif
 } catch (error) {
-  console.warn('⚠️ 腾讯云语音SDK加载失败:', error);
+  console.warn('⚠️ 腾讯云语音SDK初始化失败:', error);
+  sdkLoadError = error;
 }
 
 /**
@@ -46,6 +65,7 @@ export class WechatSpeechRecognitionService {
     this.asrClient = null; // 腾讯云实时语音识别客户端
     this.asrConnected = false; // ASR连接状态
     this.audioBuffer = []; // 音频数据缓冲区
+    this.useBackupMode = false; // 是否使用备用模式（录音后上传）
   }
 
   /**
@@ -65,21 +85,29 @@ export class WechatSpeechRecognitionService {
       }
 
       // 检查腾讯云SDK是否加载成功
-      if (!AsrRealTime) {
-        throw new Error('腾讯云语音SDK未正确加载');
+      if (!AsrRealTime || sdkLoadError) {
+        console.warn('⚠️ 腾讯云语音SDK未正确加载，将使用备用模式（录音后上传识别）');
+        this.useBackupMode = true;
       }
 
       // 初始化录音管理器
       this.initRecorderManager();
 
-      // 获取STS临时凭证
-      await this.getStsCredentials();
-
-      // 初始化腾讯云ASR客户端
-      await this.initAsrClient();
+      // 如果不是备用模式，尝试获取STS凭证和初始化ASR客户端
+      if (!this.useBackupMode) {
+        try {
+          // 获取STS临时凭证
+          await this.getStsCredentials();
+          // 初始化腾讯云ASR客户端
+          await this.initAsrClient();
+        } catch (error) {
+          console.warn('⚠️ 实时语音识别初始化失败，将使用备用模式:', error);
+          this.useBackupMode = true;
+        }
+      }
 
       this.isInitialized = true;
-      console.log('✅ 微信语音识别服务初始化完成');
+      console.log('✅ 微信语音识别服务初始化完成', this.useBackupMode ? '(备用模式)' : '(实时模式)');
       
     } catch (error) {
       console.error('❌ 微信语音识别服务初始化失败:', error);
@@ -143,8 +171,10 @@ export class WechatSpeechRecognitionService {
 
     // 录音帧数据事件（实时音频数据）
     this.recorderManager.onFrameRecorded((res) => {
-      // 实时发送音频数据到腾讯云ASR
-      this.sendAudioDataToAsr(res.frameBuffer);
+      // 只在实时模式下发送音频数据到腾讯云ASR
+      if (!this.useBackupMode && this.asrConnected) {
+        this.sendAudioDataToAsr(res.frameBuffer);
+      }
     });
     // #endif
   }
@@ -171,11 +201,19 @@ export class WechatSpeechRecognitionService {
       // 检查录音权限
       await this.checkRecordPermission();
 
-      // 检查并刷新STS凭证
-      await this.checkAndRefreshCredentials();
+      // 如果不是备用模式，进行实时识别准备
+      if (!this.useBackupMode) {
+        try {
+          // 检查并刷新STS凭证
+          await this.checkAndRefreshCredentials();
 
-      // 启动腾讯云ASR连接
-      await this.startAsrConnection();
+          // 启动腾讯云ASR连接
+          await this.startAsrConnection();
+        } catch (error) {
+          console.warn('⚠️ 实时识别模式启动失败，切换到备用模式:', error);
+          this.useBackupMode = true;
+        }
+      }
 
       // 开始录音
       this.startRecording();
@@ -399,23 +437,36 @@ export class WechatSpeechRecognitionService {
     }
   }
 
-
-
   /**
    * 开始录音
    */
   startRecording() {
     // #ifdef MP-WEIXIN
-    const options = {
-      duration: Math.min(this.maxRecordingTime, 30000), // 限制最大30秒
-      sampleRate: 16000, // 降低采样率以减少文件大小
-      numberOfChannels: 1,
-      encodeBitRate: 24000, // 降低比特率以减少文件大小
-      format: 'mp3',
-      frameSize: 1280
-    };
+    let options;
+    
+    if (this.useBackupMode) {
+      // 备用模式：使用wav格式便于后端处理
+      options = {
+        duration: Math.min(this.maxRecordingTime, 30000), // 限制最大30秒
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        encodeBitRate: 24000,
+        format: 'wav', // 备用模式使用wav格式
+        frameSize: 1280
+      };
+    } else {
+      // 实时模式：使用mp3格式，支持帧数据回调
+      options = {
+        duration: Math.min(this.maxRecordingTime, 30000),
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        encodeBitRate: 24000,
+        format: 'mp3',
+        frameSize: 1280
+      };
+    }
 
-    console.log('🎤 开始录音，配置:', options);
+    console.log('🎤 开始录音，配置:', options, this.useBackupMode ? '(备用模式)' : '(实时模式)');
     this.recorderManager.start(options);
     // #endif
   }
@@ -460,19 +511,76 @@ export class WechatSpeechRecognitionService {
    * 处理录音完成
    */
   handleRecordingComplete(recordResult) {
-    console.log('🎤 录音完成，等待ASR最终结果...');
-    
-    // ASR连接会在OnRecognitionComplete回调中自动处理最终结果
-    // 这里只需要等待结果即可
-    
-    // 如果录音时间过短，可能没有识别结果
-    const recordingDuration = Date.now() - this.recordingStartTime;
-    if (recordingDuration < 1000) {
-      console.warn('⚠️ 录音时间过短，可能影响识别效果');
+    console.log('🎤 录音完成，处理结果:', recordResult);
+
+    if (this.useBackupMode) {
+      // 备用模式：录音后上传识别
+      this.handleBackupModeRecognition(recordResult);
+    } else {
+      // 实时模式：等待WebSocket返回最终结果
+      // 结果会通过WebSocket回调处理
+      console.log('📡 等待实时识别最终结果...');
     }
   }
 
+  /**
+   * 备用模式语音识别处理
+   */
+  async handleBackupModeRecognition(recordResult) {
+    try {
+      console.log('🔄 使用备用模式进行语音识别...');
+      
+      // 上传音频文件并获取识别结果
+      const recognitionResult = await this.uploadAndRecognize(recordResult.tempFilePath);
+      
+      if (recognitionResult && recognitionResult.text) {
+        this.recognitionResult = recognitionResult.text;
+        this.triggerCallback('onResult', recognitionResult.text, true);
+        this.triggerCallback('onComplete', recognitionResult.text);
+        this.updateStatus(SPEECH_STATUS.COMPLETED);
+      } else {
+        throw new Error('识别结果为空');
+      }
+      
+    } catch (error) {
+      console.error('❌ 备用模式语音识别失败:', error);
+      this.handleError(SPEECH_ERROR_TYPES.RECOGNITION_ERROR, error.message);
+    }
+  }
 
+  /**
+   * 上传音频文件并进行识别
+   */
+  async uploadAndRecognize(filePath) {
+    try {
+      console.log('📤 上传音频文件进行识别:', filePath);
+      
+      // 如果没有STS凭证，获取一下
+      if (!this.stsCredentials) {
+        await this.getStsCredentials();
+      }
+
+      // 上传音频文件到后端进行识别
+      const response = await request({
+        url: '/api/speech/recognize',
+        method: 'POST',
+        filePath: filePath,
+        name: 'audio',
+        formData: {
+          format: 'wav',
+          sampleRate: '16000',
+          appId: TENCENT_ASR_CONFIG.appId,
+          engineModelType: TENCENT_ASR_CONFIG.engineModelType
+        }
+      });
+
+      return response;
+      
+    } catch (error) {
+      console.error('❌ 上传识别失败:', error);
+      throw new Error('语音识别服务暂时不可用');
+    }
+  }
 
   /**
    * 停止腾讯云ASR连接
@@ -550,13 +658,14 @@ export class WechatSpeechRecognitionService {
    * 清理资源
    */
   cleanup() {
-    // 停止录音
+    // 停止录音，仅当处于录音状态时
     // #ifdef MP-WEIXIN
-    if (this.recorderManager) {
+    if (this.recorderManager && this.status === SPEECH_STATUS.RECORDING) {
       try {
+        console.log('🧹 cleanup: 正在停止录音...');
         this.recorderManager.stop();
       } catch (error) {
-        console.warn('停止录音失败:', error);
+        console.warn('🧹 cleanup: 停止录音失败（可能已被停止）:', error);
       }
     }
     // #endif
@@ -565,6 +674,7 @@ export class WechatSpeechRecognitionService {
     this.stopAsrConnection();
     
     // 清理状态
+    console.log('🧹 cleanup: 重置服务状态...');
     this.status = SPEECH_STATUS.IDLE;
     this.recognitionResult = '';
     this.audioBuffer = [];

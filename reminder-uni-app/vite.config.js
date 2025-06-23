@@ -29,7 +29,12 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-    cors: true
+    cors: true,
+    // 添加 SharedArrayBuffer 支持的 headers
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
   },
   // 构建配置
   build: {

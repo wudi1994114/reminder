@@ -49,7 +49,11 @@
             "lazyCodeLoading": "requiredComponents"
         },
         "usingComponents": true,
-        "permission": {},
+        "permission": {
+            "scope.record": {
+                "desc": "您的录音权限将用于语音识别功能"
+            }
+        },
         "requiredBackgroundModes": ["audio"],
         "networkTimeout": {
             "request": 10000,
@@ -64,6 +68,27 @@
     },
     "mp-toutiao" : {
         "usingComponents" : true
+    },
+    "h5": {
+        "devServer": {
+            "https": false,
+            "disableHostCheck": true,
+            "headers": {
+                "Cross-Origin-Opener-Policy": "same-origin",
+                "Cross-Origin-Embedder-Policy": "require-corp"
+            }
+        },
+        "template": "index.html",
+        "router": {
+            "mode": "hash",
+            "base": "./"
+        },
+        "optimization": {
+            "treeShaking": {
+                "enable": true
+            }
+        },
+        "title": "备忘鸡"
     },
     "uniStatistics": {  
         "enable": false

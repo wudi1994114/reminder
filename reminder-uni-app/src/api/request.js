@@ -8,6 +8,51 @@ export const request = (options) => {
     return new Promise((resolve, reject) => {
         const token = uni.getStorageSync('accessToken');
         
+        // 如果是文件上传请求
+        if (options.filePath) {
+            const uploadOptions = {
+                url: options.url.startsWith('http') ? options.url : API_URL + options.url,
+                filePath: options.filePath,
+                name: options.name || 'file',
+                formData: options.formData || {},
+                timeout: config.REQUEST_TIMEOUT,
+                header: {
+                    ...options.header
+                },
+                success: (res) => {
+                    if(res.statusCode >= 200 && res.statusCode < 300) {
+                        // 尝试解析返回的JSON数据
+                        try {
+                            const data = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+                            resolve(data);
+                        } catch (e) {
+                            resolve(res.data);
+                        }
+                    } else {
+                        if (config.DEBUG) {
+                            console.error('文件上传错误:', res.statusCode, res);
+                        }
+                        reject(res);
+                    }
+                },
+                fail: (err) => {
+                    if (config.DEBUG) {
+                        console.error('文件上传失败:', err);
+                    }
+                    reject(err);
+                }
+            };
+
+            // 添加认证Token
+            if (token) {
+                uploadOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+            }
+
+            uni.uploadFile(uploadOptions);
+            return;
+        }
+        
+        // 普通请求逻辑
         const requestOptions = {
             ...options,
             url: options.url.startsWith('http') ? options.url : API_URL + options.url,

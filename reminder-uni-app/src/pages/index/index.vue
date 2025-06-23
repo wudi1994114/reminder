@@ -6,6 +6,11 @@
         <text class="page-title">我的提醒</text>
       </view>
       <view class="action-buttons">
+        <!-- 
+        <button class="action-btn" @click="testAllContainer">
+          <text class="btn-text">测试allcontainer</text>
+        </button>
+         -->
         <button class="action-btn primary-btn" @click="handleCreateNew">
           <text class="btn-text">{{ createButtonText }}</text>
         </button>
@@ -123,7 +128,7 @@
 <script>
 import { ref, computed, nextTick, onUnmounted } from 'vue';
 import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '@/services/cachedApi';
-import { wechatLogin } from '@/services/api';
+import { wechatLogin, testAllContainer as testAllContainerApi } from '@/services/api';
 import { reminderState, reminderActions } from '@/store/modules/reminder';
 import ReminderCacheService, { userState } from '@/services/reminderCache';
 import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
@@ -200,6 +205,25 @@ export default {
         return '点击右上角"+"创建你的第一个复杂提醒吧！';
       }
     });
+
+    // 测试 allcontainer
+    const testAllContainer = async () => {
+      console.log('触发 allcontainer 测试');
+      try {
+        const result = await testAllContainerApi();
+        console.log('✅ allcontainer测试成功:', result);
+        uni.showToast({
+          title: '测试成功',
+          icon: 'success'
+        });
+      } catch (error) {
+        console.error('❌ allcontainer测试失败:', error);
+        uni.showToast({
+          title: '测试失败，请看日志',
+          icon: 'none'
+        });
+      }
+    };
 
     // 创建按钮文字
     const createButtonText = computed(() => {
@@ -544,7 +568,8 @@ export default {
       handleWechatLogin,
       goToDetail,
       goToComplexDetail,
-      clearPageData
+      clearPageData,
+      testAllContainer
     };
   }
 };
