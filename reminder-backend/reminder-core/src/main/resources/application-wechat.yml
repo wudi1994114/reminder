@@ -22,10 +22,15 @@ wechat:
     # 点击消息跳转的小程序页面路径（相对于小程序根目录）
     page: pages/index/index
 
-# 日志配置
-logging:
-  level:
-    com.core.reminder.service.WechatApiService: DEBUG
-    com.core.reminder.service.WechatAuthService: DEBUG
-    com.core.reminder.controller.WechatAuthController: DEBUG
-    com.task.reminder.sender.WechatNotificationSender: DEBUG 
+# 腾讯云STS配置
+tencent:
+  cloud:
+    # 腾讯云永久密钥（请在生产环境中使用环境变量或加密配置）
+    secret-id: ""
+    secret-key: ""
+    # STS临时密钥配置
+    sts:
+      # 临时密钥有效期（秒）
+      duration-seconds: 1800
+      # 服务地域
+      region: "ap-beijing"

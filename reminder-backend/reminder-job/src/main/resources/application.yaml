@@ -3,9 +3,9 @@ spring:
     active: local # 默认激活 local profile，以便加载 application-local.yaml
   # Redis配置
   redis:
-    host: 123.57.175.66
+    host:
     port: 6379
-    password: Wd941140
+    password:
     database: 0
     timeout: 10000
     lettuce:
@@ -16,10 +16,10 @@ spring:
         min-idle: 0
   # PostgreSQL 数据库配置
   datasource:
-    url: jdbc:postgresql://123.57.175.66:5432/remind # 指向你的 PostgreSQL 数据库
+    url:
     driverClassName: org.postgresql.Driver # PostgreSQL 驱动
-    username: your_username # 你的数据库用户名
-    password: '123456' # 你的数据库密码
+    username:
+    password:
     # 使用Druid连接池配置
     type: com.alibaba.druid.pool.DruidDataSource
     druid:
@@ -102,6 +102,59 @@ spring:
       org.quartz.dataSource.quartzDS.idleConnectionTestPeriod: 60
 email:
   provider: tencent
+
+nacos:
+  config:
+    server-addr: 42.192.53.240:8848
+    namespace: reminder
+
+# Local specific configurations (this file SHOULD BE in .gitignore)
+# Actual Gmail Credentials
+gmail:
+  client:
+    id:
+    secret:
+  refresh:
+    # 当前令牌是在测试状态下生成的，仍有7天限制
+    # 需要在应用发布到生产环境后重新生成
+    token:
+  sender:
+    email:
+      address:
+tencent:
+  email:
+    username:
+    password:
+    host:
+    ssl:
+    port:
+    fromName:
+    senderType:
+    sslEnabled:
+
+# 微信小程序配置
+wechat:
+  miniprogram:
+    # 小程序AppID（请替换为实际值）
+    appid:
+    # 小程序AppSecret（请替换为实际值）
+    secret:
+    # 微信API基础URL
+    api-base-url:
+    # 获取session_key的URL路径
+    jscode2session-url:
+    # 连接超时时间（毫秒）
+    connect-timeout: 5000
+    # 读取超时时间（毫秒）
+    read-timeout: 10000
+
+  # 微信通知配置
+  notification:
+    # 订阅消息模板ID（请替换为实际的模板ID）
+    template-id:
+    # 点击消息跳转的页面
+    page: "pages/index/index"
+
 
 
 

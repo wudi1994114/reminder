@@ -85,7 +85,7 @@ public class WechatNotificationSender implements NotificationSender {
 
             // 构建订阅消息数据
             Map<String, Object> messageData = buildMessageData(recipient, title, content, extraData);
-            
+            log.info("构建订阅消息数据: {}", messageData);
             // 发送订阅消息
             return sendSubscribeMessage(accessToken, messageData);
 

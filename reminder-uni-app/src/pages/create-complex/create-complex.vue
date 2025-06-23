@@ -57,9 +57,13 @@
                   <text class="hint-text">设置标签</text>
                 </view>
               </view>
-              <view class="voice-input-btn" @click="startVoiceInput">
-                <image class="voice-icon" src="/static/images/voice.png" mode="aspectFit"></image>
-              </view>
+              <VoiceInput
+                @result="handleVoiceResult"
+                @complete="handleVoiceComplete"
+                @error="handleVoiceError"
+                :showStatusText="false"
+                :showResult="false"
+              />
             </view>
           </view>
         </view>
@@ -264,12 +268,14 @@ import cronstrue from 'cronstrue/i18n';
 import CronExpressionPicker from '@/components/CronExpressionPicker.vue';
 import TriggerPreview from '@/components/trigger-preview/trigger-preview.vue';
 import TimePickerModal from '@/components/TimePickerModal.vue';
+import VoiceInput from '@/components/VoiceInput.vue';
 
 export default {
   components: {
     CronExpressionPicker,
     TriggerPreview,
-    TimePickerModal
+    TimePickerModal,
+    VoiceInput
   },
   data() {
     return {
@@ -1063,27 +1069,51 @@ export default {
       // #endif
     },
 
-    // 启动语音输入
-    startVoiceInput() {
-      uni.showToast({
-        title: '语音转文本功能开发中',
-        icon: 'none',
-        duration: 2000
-      });
+    // 处理语音识别结果
+    handleVoiceResult(resultData) {
+      console.log('语音识别结果:', resultData);
 
-      // 提供触觉反馈（仅在真机上，开发环境中禁用以避免开发者工具的屏幕放大效果）
-      // #ifdef MP-WEIXIN
-      if (!isDevelopmentVersion()) {
-        uni.vibrateShort({
-          fail: () => {
-            // 忽略失败，不是所有设备都支持震动
-          }
+      // 实时更新内容（中间结果）
+      if (!resultData.isFinal && resultData.text) {
+        // 可以选择是否显示中间结果
+        console.log('中间结果:', resultData.text);
+      }
+    },
+
+    // 处理语音识别完成
+    handleVoiceComplete(finalText) {
+      console.log('语音识别完成:', finalText);
+
+      if (finalText && finalText.trim()) {
+        // 将识别结果添加到内容中
+        if (!this.reminderData.description) {
+          this.reminderData.description = finalText.trim();
+        } else {
+          // 如果内容不为空，在末尾添加识别结果
+          const currentText = this.reminderData.description.trim();
+          this.reminderData.description = currentText + (currentText ? ' ' : '') + finalText.trim();
+        }
+
+        // 限制长度不超过200字符
+        if (this.reminderData.description.length > 200) {
+          this.reminderData.description = this.reminderData.description.substring(0, 200);
+        }
+
+        // 显示成功提示
+        uni.showToast({
+          title: '语音识别成功',
+          icon: 'success',
+          duration: 1500
         });
       }
-      // #endif
+    },
 
-      // TODO: 实现语音转文本功能
-      // 可以使用微信小程序的 wx.startRecord 或第三方语音识别API
+    // 处理语音识别错误
+    handleVoiceError(error) {
+      console.error('语音识别错误:', error);
+
+      // 错误已经在VoiceInput组件中处理了，这里可以做额外的处理
+      // 比如记录错误日志等
     },
 
     // 加载用户标签
