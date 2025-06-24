@@ -109,6 +109,22 @@ export default {
     console.log('详情页面: onShow 触发，准备刷新数据');
     this.refreshReminderData();
   },
+  onShareAppMessage(res) {
+    if (res.from === 'button') {
+      // 来自页面内分享按钮
+      console.log(res.target)
+    }
+    return {
+      title: `提醒: ${this.reminder.title}`,
+      path: `/pages/detail/detail?id=${this.reminderId}`
+    }
+  },
+  onShareTimeline() {
+    return {
+      title: `提醒: ${this.reminder.title}`,
+      query: `id=${this.reminderId}`
+    }
+  },
   setup() {
     const reminder = ref({});
     const loading = ref(true);
@@ -147,12 +163,6 @@ export default {
       // 直接获取页面参数
       const options = getCurrentPageOptions();
       const id = options.id || '';
-
-      console.log('=== Detail页面调试信息 ===');
-      console.log('页面参数options:', options);
-      console.log('获取到的ID:', id);
-      console.log('ID类型:', typeof id);
-      console.log('ID是否为空:', !id);
 
       if (id) {
         console.log('开始加载提醒详情，ID:', id);
@@ -265,31 +275,34 @@ export default {
       showConfirmDialog.value = true;
     };
 
+    const confirmDelete = async () => {
+      if (reminder.value.id) {
+        try {
+          await deleteEvent(reminder.value.id);
+          uni.showToast({ title: '删除成功', icon: 'success' });
+          showConfirmDialog.value = false;
+          // 删除成功后返回上一页
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 1500);
+        } catch (error) {
+          console.error('删除提醒失败:', error);
+          uni.showToast({ title: '删除失败', icon: 'none' });
+          showConfirmDialog.value = false;
+        }
+      }
+    };
+    
     const cancelDelete = () => {
       showConfirmDialog.value = false;
-    };
-
-    const confirmDelete = async () => {
-      showConfirmDialog.value = false;
-      if (!reminder.value.id) return;
-      try {
-        await deleteEvent(reminder.value.id);
-        uni.showToast({
-          title: '删除成功',
-          icon: 'success'
-        });
-        uni.navigateBack();
-      } catch (error) {
-        console.error('删除提醒失败:', error);
-        uni.showToast({ title: '删除失败', icon: 'none' });
-      }
     };
     
     return {
       reminder,
       loading,
       showConfirmDialog,
-      refreshReminderData, // 暴露给onShow使用
+      reminderId,
+      isInitialized,
       goBack,
       editReminder,
       formatDisplayTime,
@@ -299,7 +312,8 @@ export default {
       getReminderTypeText,
       handleDelete,
       confirmDelete,
-      cancelDelete
+      cancelDelete,
+      refreshReminderData
     };
   }
 };

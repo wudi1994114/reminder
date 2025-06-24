@@ -20,22 +20,24 @@ export const TENCENT_ASR_CONFIG = {
   region: 'ap-beijing',
   
   // ASR引擎类型
-  engineModelType: '16k_zh', // 中文普通话
+  engine_model_type: '16k_zh', // 中文普通话
   
   // 音频格式
   voiceFormat: 1, // 1: wav, 4: speex, 6: silk, 8: mp3, 12: opus, 14: m4a
   
   // 其他配置
-  filterDirty: 1, // 过滤脏词
-  filterModal: 1, // 过滤语气词
-  filterPunc: 0, // 过滤句尾标点
-  convertNumMode: 1, // 数字转换模式
+  filter_dirty: 1, // 过滤脏词
+  filter_modal: 1, // 过滤语气词
+  filter_punc: 1, // 智能添加标点
+  convert_num_mode: 1, // 阿拉伯数字智能转换
+  need_vad: 1, // 语音活动检测，开启后服务器会在检测到静音末点时主动断开连接
 };
 
 // 语音识别状态枚举
 export const SPEECH_STATUS = {
   IDLE: 'idle',           // 空闲状态
   CONNECTING: 'connecting', // 连接中
+  CONNECTED: 'connected', // 连接成功，等待录音
   RECORDING: 'recording',   // 录音中
   PROCESSING: 'processing', // 处理中
   COMPLETED: 'completed',   // 完成
