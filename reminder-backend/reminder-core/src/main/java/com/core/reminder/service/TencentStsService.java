@@ -85,10 +85,7 @@ public class TencentStsService {
                "    {\n" +
                "      \"effect\": \"allow\",\n" +
                "      \"action\": [\n" +
-               "        \"asr:CreateRecTask\",\n" +
-               "        \"asr:DescribeTaskStatus\",\n" +
-               "        \"asr:SentenceRecognition\",\n" +
-               "        \"asr:FlashRecognition\"\n" +
+               "        \"asr:*\"\n" +
                "      ],\n" +
                "      \"resource\": \"*\"\n" +
                "    }\n" +
