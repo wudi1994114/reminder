@@ -3,6 +3,7 @@ package com.core.reminder.config;
 import com.alibaba.nacos.api.config.ConfigService;
 import com.alibaba.nacos.api.config.listener.Listener;
 import com.alibaba.nacos.api.exception.NacosException;
+import com.common.reminder.utils.JacksonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
@@ -157,6 +158,7 @@ public class NacosConfigManager {
                 Map<String, String> flattenedMap = flattenMap(data, null);
                 configCache.putAll(flattenedMap);
                 log.info("配置更新完成，当前配置项数量: {}", configCache.size());
+                log.info("配置更新完成，当前配置项: {}", JacksonUtils.toJson(configCache));
             }
         };
 
