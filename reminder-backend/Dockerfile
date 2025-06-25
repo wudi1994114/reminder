@@ -1,6 +1,5 @@
-# 微信使用的dockerfile
 # 第一阶段：Maven构建阶段
-FROM maven:3.9.5-openjdk-17-slim AS builder
+FROM maven:3.8.5-openjdk-17 AS builder
 
 # 设置工作目录
 WORKDIR /app
