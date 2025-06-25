@@ -35,20 +35,23 @@ export class SpeechRecognitionService {
     }
 
     try {
-      console.log('🚀 初始化智能语音识别服务...');
+      console.log('@@ SpeechService - Lifecycle: 初始化智能语音识别服务...');
 
       // 选择合适的语音服务实现
       this.activeService = this.selectSpeechService();
 
       // 设置回调转发
+      console.log('@@ SpeechService - Lifecycle: 设置回调转发');
       this.activeService.setCallbacks({
         onStatusChange: (status) => {
           this.status = status;
           this.triggerCallback('onStatusChange', status);
         },
-        onResult: (result, isFinal) => {
-          this.recognitionResult = result;
-          this.triggerCallback('onResult', result, isFinal);
+        onResult: (result) => {
+          if (result && result.text) {
+            this.recognitionResult = result.text;
+          }
+          this.triggerCallback('onResult', result);
         },
         onError: (error) => {
           this.triggerCallback('onError', error);
@@ -59,14 +62,14 @@ export class SpeechRecognitionService {
         }
       });
 
-      // 初始化选中的服务
-      await this.activeService.init();
+      // 初始化步骤已移至 wechatSpeechService 内部，此处不再需要
+      // await this.activeService.init();
 
       this.isInitialized = true;
-      console.log('✅ 智能语音识别服务初始化完成');
+      console.log('@@ SpeechService - Lifecycle: 智能语音识别服务初始化完成');
 
     } catch (error) {
-      console.error('❌ 智能语音识别服务初始化失败:', error);
+      console.error('@@ SpeechService - Lifecycle: 智能语音识别服务初始化失败:', error);
       this.handleError(SPEECH_ERROR_TYPES.UNKNOWN_ERROR, error.message);
       throw error;
     }
@@ -76,10 +79,11 @@ export class SpeechRecognitionService {
    * 选择合适的语音服务实现
    */
   selectSpeechService() {
+    console.log('@@ SpeechService - Lifecycle: 选择语音服务实现...');
     // 检查是否为微信小程序环境
     // #ifdef MP-WEIXIN
     if (typeof wx !== 'undefined' && wx.getRecorderManager) {
-      console.log('🎯 选择微信小程序语音服务');
+      console.log('@@ SpeechService - Lifecycle: 选择微信小程序语音服务');
       return wechatSpeechService;
     }
     // #endif
@@ -87,7 +91,7 @@ export class SpeechRecognitionService {
     // 检查是否支持浏览器语音API
     // #ifndef MP-WEIXIN
     if (this.checkBrowserSupport()) {
-      console.log('🎯 选择浏览器语音服务');
+      console.log('@@ SpeechService - Lifecycle: 选择浏览器语音服务');
       return this.createBrowserSpeechService();
     }
     // #endif
@@ -141,6 +145,9 @@ export class SpeechRecognitionService {
       destroy: () => {
         console.log('🗑️ 浏览器语音服务销毁');
       },
+      cancelRecognition: () => {
+        console.log('🗑️ 浏览器语音服务取消');
+      },
       getStatus: () => SPEECH_STATUS.IDLE,
       getResult: () => ''
     };
@@ -152,8 +159,10 @@ export class SpeechRecognitionService {
    * 开始录音识别
    */
   async startRecognition() {
+    console.log('@@ SpeechService - Lifecycle: 请求开始录音识别...');
     try {
-      if (!this.isInitialized) {
+      if (!this.activeService) {
+        // Lazily initialize the service if it hasn't been.
         await this.init();
       }
 
@@ -162,15 +171,15 @@ export class SpeechRecognitionService {
         return;
       }
 
-      console.log('🚀 开始录音识别...');
+      console.log('@@ SpeechService - Lifecycle: 委托给 activeService 开始识别');
       this.recognitionResult = '';
 
       // 委托给具体的服务实现
       await this.activeService.startRecognition();
 
     } catch (error) {
-      console.error('❌ 开始录音失败:', error);
-      this.handleError(SPEECH_ERROR_TYPES.PERMISSION_DENIED, error.message);
+      console.error('@@ SpeechService - Lifecycle: 开始录音失败', error);
+      this.handleError(SPEECH_ERROR_TYPES.PERMISSION_DENIED, error.message || '开始录音失败');
     }
   }
 
@@ -178,13 +187,14 @@ export class SpeechRecognitionService {
    * 停止录音识别
    */
   stopRecognition() {
+    console.log('@@ SpeechService - Lifecycle: 请求停止录音识别...');
     try {
       if (this.status !== SPEECH_STATUS.RECORDING) {
-        console.warn('⚠️ 当前没有在录音');
+        console.warn('@@ SpeechService - Lifecycle: 当前没有在录音，取消停止操作');
         return;
       }
 
-      console.log('⏹️ 停止录音识别...');
+      console.log('@@ SpeechService - Lifecycle: 委托给 activeService 停止识别');
 
       // 委托给具体的服务实现
       if (this.activeService) {
@@ -192,7 +202,28 @@ export class SpeechRecognitionService {
       }
 
     } catch (error) {
-      console.error('❌ 停止录音失败:', error);
+      console.error('@@ SpeechService - Lifecycle: 停止录音失败', error);
+      this.handleError(SPEECH_ERROR_TYPES.UNKNOWN_ERROR, error.message);
+    }
+  }
+
+  /**
+   * 取消录音识别
+   */
+  cancelRecognition() {
+    console.log('@@ SpeechService - Lifecycle: 请求取消录音识别...');
+    try {
+      if (this.status !== SPEECH_STATUS.RECORDING) {
+        console.warn('@@ SpeechService - Lifecycle: 当前没有在录音，无法取消');
+        return;
+      }
+
+      if (this.activeService) {
+        this.activeService.cancelRecognition();
+      }
+
+    } catch (error) {
+      console.error('@@ SpeechService - Lifecycle: 取消录音失败', error);
       this.handleError(SPEECH_ERROR_TYPES.UNKNOWN_ERROR, error.message);
     }
   }
@@ -219,6 +250,7 @@ export class SpeechRecognitionService {
    * 触发回调
    */
   triggerCallback(callbackName, ...args) {
+    console.log(`@@ SpeechService - Lifecycle: 触发回调 -> ${callbackName}`, args);
     if (this.callbacks[callbackName] && typeof this.callbacks[callbackName] === 'function') {
       this.callbacks[callbackName](...args);
     }
@@ -228,6 +260,7 @@ export class SpeechRecognitionService {
    * 设置回调函数
    */
   setCallbacks(callbacks) {
+    console.log('@@ SpeechService - Lifecycle: 设置外部回调');
     this.callbacks = { ...this.callbacks, ...callbacks };
 
     // 如果已经有活跃服务，也设置其回调
@@ -237,9 +270,11 @@ export class SpeechRecognitionService {
           this.status = status;
           this.triggerCallback('onStatusChange', status);
         },
-        onResult: (result, isFinal) => {
-          this.recognitionResult = result;
-          this.triggerCallback('onResult', result, isFinal);
+        onResult: (result) => {
+          if (result && result.text) {
+            this.recognitionResult = result.text;
+          }
+          this.triggerCallback('onResult', result);
         },
         onError: (error) => {
           this.triggerCallback('onError', error);

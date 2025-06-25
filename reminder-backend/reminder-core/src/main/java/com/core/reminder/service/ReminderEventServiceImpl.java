@@ -7,7 +7,7 @@ import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.aspect.ActivityLogAspect.LogActivity;
 import com.core.reminder.repository.ComplexReminderRepository;
 import com.core.reminder.repository.SimpleReminderRepository;
-import com.core.reminder.util.IdempotencyUtils;
+import com.core.reminder.utils.IdempotencyUtils;
 import com.core.reminder.utils.CacheUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

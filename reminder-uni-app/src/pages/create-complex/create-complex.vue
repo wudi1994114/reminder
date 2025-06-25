@@ -1071,18 +1071,18 @@ export default {
 
     // 处理语音识别结果
     handleVoiceResult(resultData) {
-      console.log('语音识别结果:', resultData);
+      console.log('@@ ComplexCreate - VoiceLifecycle: 接收到语音识别中间结果', resultData);
 
       // 实时更新内容（中间结果）
       if (!resultData.isFinal && resultData.text) {
         // 可以选择是否显示中间结果
-        console.log('中间结果:', resultData.text);
+        console.log('@@ ComplexCreate - VoiceLifecycle: 中间文本:', resultData.text);
       }
     },
 
     // 处理语音识别完成
     handleVoiceComplete(finalText) {
-      console.log('语音识别完成:', finalText);
+      console.log('@@ ComplexCreate - VoiceLifecycle: 语音识别流程完成', finalText);
 
       if (finalText && finalText.trim()) {
         // 将识别结果添加到内容中
@@ -1110,7 +1110,7 @@ export default {
 
     // 处理语音识别错误
     handleVoiceError(error) {
-      console.error('语音识别错误:', error);
+      console.error('@@ ComplexCreate - VoiceLifecycle: 语音识别流程出错', error);
 
       // 错误已经在VoiceInput组件中处理了，这里可以做额外的处理
       // 比如记录错误日志等

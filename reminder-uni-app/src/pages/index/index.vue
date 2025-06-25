@@ -162,6 +162,22 @@ export default {
     );
   },
   
+  onShareAppMessage(res) {
+    return {
+      title: '快来使用提醒助手，再也不会忘记重要事情！',
+      path: '/pages/index/index?from=share',
+      // imageUrl: '自定义分享图片路径' 
+    };
+  },
+
+  onShareTimeline() {
+    return {
+      title: '我发现一个超好用的提醒助手，推荐给你！',
+      query: 'from=timeline',
+      // imageUrl: '自定义分享图片路径'
+    };
+  },
+  
   setup() {
     // 响应式数据
     const activeTab = ref('simple');

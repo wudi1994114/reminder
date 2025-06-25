@@ -1,6 +1,6 @@
 # 最终运行镜像，不再需要多阶段构建
 # 使用和您原来一致的基础镜像
-FROM docker-0.unsee.tech/openjdk:8-jre-slim
+FROM openjdk:8-jre-slim
 
 # 设置工作目录
 WORKDIR /app
@@ -14,7 +14,7 @@ RUN groupadd -r spring && useradd -r -g spring spring
 # --- 关键修改 ---
 # 定义一个变量来指向 JAR 文件的路径
 # 这个路径是相对于 docker build 命令的执行目录 (即 Jenkinsfile 中的 'reminder-backend')
-ARG JAR_FILE=reminder-core/target/*.jar
+ARG JAR_FILE=reminder-job/target/*.jar
 
 # 直接从构建上下文（Jenkins 工作区）复制由 Jenkins 的 Maven 阶段构建好的 jar 文件
 COPY ${JAR_FILE} app.jar
@@ -30,7 +30,7 @@ USER spring
 EXPOSE 8080
 
 # 设置JVM参数优化
-ENV JAVA_OPTS="-Xms512m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
+ENV JAVA_OPTS="-Xms1024m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
 
 # 启动应用
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

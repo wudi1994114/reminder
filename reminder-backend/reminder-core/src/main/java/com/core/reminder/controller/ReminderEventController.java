@@ -7,7 +7,7 @@ import com.common.reminder.dto.UserProfileDto;
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.service.ReminderEventServiceImpl; // 暂时使用具体类，后续最好使用接口
-import com.core.reminder.util.IdempotencyUtils;
+import com.core.reminder.utils.IdempotencyUtils;
 import com.core.reminder.utils.ReminderMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -247,7 +247,7 @@ public class ReminderEventController {
             complexReminder.setIdempotencyKey(idempotencyKey);
 
             // 使用事务方法创建复杂提醒并生成简单任务(默认三个月)
-            ComplexReminder created = reminderService.createComplexReminderWithSimpleReminders(complexReminder, 3);
+            ComplexReminder created = reminderService.createComplexReminderWithSimpleReminders(complexReminder, 1);
 
             // 转换实体为DTO并返回
             ComplexReminderDTO responseDTO = reminderMapper.toDTO(created);

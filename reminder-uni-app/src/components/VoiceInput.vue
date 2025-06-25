@@ -1,5 +1,5 @@
 <template>
-  <view class="voice-input-container">
+  <view v-if="false" class="voice-input-container">
     <!-- 语音按钮 -->
     <view 
       class="voice-input-btn" 
@@ -30,8 +30,10 @@
     </view>
 
     <!-- 识别结果预览 -->
-    <view v-if="showResult && currentResult" class="result-preview">
-      <text class="result-text">{{ currentResult }}</text>
+    <view v-if="showResult && (interimResult || currentResult)" class="result-preview">
+      <text class="result-text" :class="{'interim': interimResult}">
+        {{ interimResult || currentResult }}
+      </text>
     </view>
   </view>
 </template>
@@ -69,6 +71,7 @@ export default {
       isRecording: false,
       isProcessing: false,
       currentResult: '',
+      interimResult: '',
       statusText: '',
       recordingTimer: null,
       recordingDuration: 0
@@ -90,6 +93,7 @@ export default {
      * 初始化语音服务
      */
     initSpeechService() {
+      console.log('@@ VoiceInput - Lifecycle: 初始化语音服务');
       speechService.setCallbacks({
         onStatusChange: this.handleStatusChange,
         onResult: this.handleResult,
@@ -102,7 +106,9 @@ export default {
      * 处理语音按钮点击
      */
     async handleVoiceClick() {
+      console.log('@@ VoiceInput - Lifecycle: 用户点击语音按钮');
       if (this.isDisabled) {
+        console.log('@@ VoiceInput - Lifecycle: 按钮禁用，操作取消');
         return;
       }
 
@@ -110,10 +116,11 @@ export default {
         if (!this.isRecording) {
           await this.startRecording();
         } else {
-          this.stopRecording();
+          // 如果正在录音，再次点击则为取消
+          this.cancelRecording();
         }
       } catch (error) {
-        console.error('语音操作失败:', error);
+        console.error('@@ VoiceInput - Lifecycle: 语音操作失败', error);
         this.showErrorToast(error.message);
       }
     },
@@ -123,7 +130,7 @@ export default {
      */
     async startRecording() {
       try {
-        console.log('🎤 开始录音...');
+        console.log('@@ VoiceInput - Lifecycle: 开始录音流程...');
         
         // 检查权限提示
         this.statusText = '正在请求麦克风权限...';
@@ -137,7 +144,7 @@ export default {
         this.vibrate();
         
       } catch (error) {
-        console.error('开始录音失败:', error);
+        console.error('@@ VoiceInput - Lifecycle: 开始录音失败', error);
         throw error;
       }
     },
@@ -146,13 +153,37 @@ export default {
      * 停止录音
      */
     stopRecording() {
-      console.log('⏹️ 停止录音...');
-      
+      console.log('@@ VoiceInput - Lifecycle: 停止录音流程（正常完成）...');
+
       speechService.stopRecognition();
       this.stopRecordingTimer();
-      
+
       // 提供触觉反馈
       this.vibrate();
+    },
+
+    /**
+     * 取消录音 (用户主动中断)
+     */
+    cancelRecording() {
+        console.log('@@ VoiceInput - Lifecycle: 用户取消录音...');
+
+        speechService.cancelRecognition();
+        this.stopRecordingTimer();
+
+        // 立即更新UI状态，因为底层的onStatusChange可能不会立即触发
+        this.isRecording = false;
+        this.isProcessing = false;
+        this.statusText = '已取消';
+
+        // 2秒后清除"已取消"的状态文本
+        setTimeout(() => {
+            if (this.statusText === '已取消') {
+                this.statusText = '';
+            }
+        }, 2000);
+
+        this.vibrate();
     },
 
     /**
@@ -186,7 +217,7 @@ export default {
      * 处理状态变化
      */
     handleStatusChange(status) {
-      console.log('语音状态变化:', status);
+      console.log('@@ VoiceInput - Lifecycle: 状态变更', status);
       
       switch (status) {
         case SPEECH_STATUS.CONNECTING:
@@ -195,10 +226,17 @@ export default {
           this.statusText = '连接中...';
           break;
           
+        case SPEECH_STATUS.CONNECTED:
+          this.isRecording = false;
+          this.isProcessing = false;
+          this.statusText = '请开始说话';
+          break;
+          
         case SPEECH_STATUS.RECORDING:
           this.isRecording = true;
           this.isProcessing = false;
           this.statusText = '录音中...';
+          console.log('@@ VoiceInput - Lifecycle: 状态变为 -> 录音中');
           break;
           
         case SPEECH_STATUS.PROCESSING:
@@ -206,6 +244,7 @@ export default {
           this.isProcessing = true;
           this.statusText = '识别中...';
           this.stopRecordingTimer();
+          console.log('@@ VoiceInput - Lifecycle: 状态变为 -> 识别中');
           break;
           
         case SPEECH_STATUS.COMPLETED:
@@ -213,6 +252,7 @@ export default {
           this.isProcessing = false;
           this.statusText = '识别完成';
           this.stopRecordingTimer();
+          console.log('@@ VoiceInput - Lifecycle: 状态变为 -> 完成');
           break;
           
         case SPEECH_STATUS.ERROR:
@@ -220,6 +260,7 @@ export default {
           this.isProcessing = false;
           this.statusText = '识别失败';
           this.stopRecordingTimer();
+          console.log('@@ VoiceInput - Lifecycle: 状态变为 -> 错误');
           break;
           
         default:
@@ -233,40 +274,38 @@ export default {
     /**
      * 处理识别结果
      */
-    handleResult(result, isFinal) {
-      console.log('识别结果:', result, '是否最终结果:', isFinal);
+    handleResult(result) {
+      if (!result || !result.text) return;
       
-      this.currentResult = result;
+      const { text, slice_type, isFinal } = result;
+      // console.log(`@@ VoiceInput - handleResult: text="${text}", slice_type=${slice_type}, isFinal=${isFinal}`);
       
-      // 触发结果事件
-      this.$emit('result', {
-        text: result,
-        isFinal: isFinal
-      });
+      // 更新临时结果用于界面展示
+      this.interimResult = text;
+
+      // 当一段话说完(slice_type===2)或者整个识别流结束时，我们认为这是一个"稳定"结果
+      if (slice_type === 2 || isFinal) {
+        this.currentResult = text;
+        this.$emit('result', this.currentResult);
+        console.log(`@@ VoiceInput - Emitted final result: ${this.currentResult}`);
+      }
     },
 
     /**
      * 处理识别完成
      */
     handleComplete(finalResult) {
-      console.log('识别完成:', finalResult);
-      
-      this.statusText = '';
-      
-      // 触发完成事件
-      this.$emit('complete', finalResult);
-      
-      // 清空结果预览
-      setTimeout(() => {
-        this.currentResult = '';
-      }, 2000);
+      console.log('@@ VoiceInput - Lifecycle: 识别全部完成', finalResult);
+      this.currentResult = finalResult;
+      this.interimResult = ''; // 清空临时结果
+      this.$emit('result', finalResult);
     },
 
     /**
      * 处理错误
      */
     handleError(error) {
-      console.error('语音识别错误:', error);
+      console.error('@@ VoiceInput - Lifecycle: 语音识别流程出错', error);
       
       this.stopRecordingTimer();
       
@@ -296,6 +335,7 @@ export default {
       this.showErrorToast(errorMessage);
       
       // 触发错误事件
+      console.log('@@ VoiceInput - Lifecycle: 发送 error 事件到父组件');
       this.$emit('error', error);
     },
 
@@ -340,6 +380,7 @@ export default {
      * 清理资源
      */
     cleanup() {
+      console.log('@@ VoiceInput - Lifecycle: 组件销毁，清理资源');
       this.stopRecordingTimer();
       if (this.isRecording) {
         speechService.stopRecognition();
@@ -450,18 +491,22 @@ export default {
 
 /* 结果预览 */
 .result-preview {
-  max-width: 300rpx;
-  padding: 8rpx 12rpx;
-  background-color: #f8f9fa;
-  border-radius: 8rpx;
-  border: 1rpx solid #e9ecef;
+  margin-top: 15px;
+  padding: 10px 15px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
 }
 
 .result-text {
-  font-size: 24rpx;
-  color: #333333;
-  line-height: 1.4;
-  word-break: break-all;
+  color: #333;
+  font-size: 16px;
+}
+
+.result-text.interim {
+  color: #999;
 }
 
 /* 动画定义 */
