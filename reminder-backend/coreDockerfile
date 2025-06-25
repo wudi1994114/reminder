@@ -1,6 +1,4 @@
-# 最终运行镜像，不再需要多阶段构建
-# 使用和您原来一致的基础镜像
-FROM openjdk:8-jre-slim
+FROM openjdk:17-jre-slim
 
 # 设置工作目录
 WORKDIR /app

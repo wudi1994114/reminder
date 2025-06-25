@@ -14,10 +14,6 @@
     <name>reminder-stream-consumer</name>
     <description>Stream consumer module for Reminder application</description>
 
-    <properties>
-        <java.version>1.8</java.version>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.wwmty</groupId>
@@ -49,12 +45,12 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid-spring-boot-starter</artifactId>
-            <version>1.2.16</version>
+            <version>1.2.20</version>
         </dependency>
         <dependency>
             <groupId>com.alibaba.boot</groupId>
             <artifactId>nacos-config-spring-boot-starter</artifactId>
-            <version>0.2.11</version>
+            <version>0.2.12</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

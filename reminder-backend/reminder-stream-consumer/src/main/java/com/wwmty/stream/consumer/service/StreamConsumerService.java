@@ -1,5 +1,6 @@
 package com.wwmty.stream.consumer.service;
 
+import com.wwmty.stream.consumer.handler.StreamEventHandler;
 import com.wwmty.stream.consumer.handler.StreamEventHandlerFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
