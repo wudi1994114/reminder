@@ -95,6 +95,7 @@
 <script>
 import { ref, onMounted, getCurrentInstance } from 'vue';
 import { getSimpleReminderById, deleteEvent } from '@/services/api';
+import { globalDataVersion } from '@/services/reminderCache';
 import { DateFormatter } from '@/utils/dateFormat';
 import cronstrue from 'cronstrue/i18n';
 import { requireAuth } from '@/utils/auth';
@@ -105,9 +106,13 @@ export default {
     ConfirmDialog
   },
   onShow() {
-    // 页面显示时刷新数据（从编辑页面返回时会触发）
-    console.log('详情页面: onShow 触发，准备刷新数据');
-    this.refreshReminderData();
+    console.log('详情页面: onShow 触发，检查数据版本');
+    if (this.localDataVersion !== globalDataVersion.value) {
+      console.log(`%c[Data Sync] Version mismatch on detail page. Refreshing.`, 'color: #f44336;');
+      this.refreshReminderData();
+    } else {
+      console.log('[Data Sync] Version match on detail page. No refresh needed.');
+    }
   },
   onShareAppMessage(res) {
     if (res.from === 'button') {
@@ -131,6 +136,7 @@ export default {
     const showConfirmDialog = ref(false);
     const reminderId = ref('');
     const isInitialized = ref(false); // 标记是否已初始化
+    const localDataVersion = ref(0); // 本地数据版本
 
     // 在setup中直接获取页面参数
     const getCurrentPageOptions = () => {
@@ -205,7 +211,9 @@ export default {
         
         if (result) {
           reminder.value = result;
-          console.log('提醒详情设置成功:', reminder.value);
+          // 数据加载成功，同步版本号
+          localDataVersion.value = globalDataVersion.value;
+          console.log(`[Detail Page] Data loaded, version synced to: ${localDataVersion.value}`);
         } else {
           console.warn('API返回空结果');
         }
@@ -303,6 +311,7 @@ export default {
       showConfirmDialog,
       reminderId,
       isInitialized,
+      localDataVersion,
       goBack,
       editReminder,
       formatDisplayTime,

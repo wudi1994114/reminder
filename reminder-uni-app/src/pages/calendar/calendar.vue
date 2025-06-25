@@ -90,6 +90,7 @@ import { getAllSimpleReminders, getHolidaysByYearRange } from '@/services/api';
 import { formatTime } from '@/utils/dateFormat';
 import { getLunarInfo } from '@/utils/lunarManager';
 import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import { globalDataVersion } from '@/services/reminderCache';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 
 export default {
@@ -124,11 +125,11 @@ export default {
       month: new Date().getMonth() + 1,
     });
     const selectedDate = ref(new Date());
-    const selectedDateReminders = ref([]);
     const loadingRemindersForDate = ref(false);
     const allRemindersInCurrentMonth = shallowRef([]);
     const holidaysInCurrentYear = shallowRef([]);
     const forceRefreshKey = ref(0);
+    const localDataVersion = ref(0);
 
     const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
@@ -138,15 +139,13 @@ export default {
       '七月', '八月', '九月', '十月', '十一月', '十二月'
     ];
 
+    const calendarCache = new Map();
+
     const calendarDates = computed(() => {
       const { year, month } = currentCalendarDisplayTime.value;
       const cacheKey = `${year}-${month}-${allRemindersInCurrentMonth.value.length}`;
-      if (typeof window !== 'undefined' && window._calendarCache) {
-        if (window._calendarCache.has(cacheKey)) {
-          return window._calendarCache.get(cacheKey);
-        }
-      } else if (typeof window !== 'undefined') {
-        window._calendarCache = new Map();
+      if (calendarCache.has(cacheKey)) {
+          return calendarCache.get(cacheKey);
       }
       
       const firstDay = new Date(year, month - 1, 1);
@@ -157,10 +156,8 @@ export default {
       const selectedDateStr = selectedDate.value ? 
         `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
       
-      const reminders = allRemindersInCurrentMonth.value;
       const reminderDateMap = new Map();
-      
-      reminders.forEach(reminder => {
+      allRemindersInCurrentMonth.value.forEach(reminder => {
         if (!reminder.eventTime) return;
         let reminderDateTime = reminder.eventTime.replace(' ', 'T');
         const reminderDate = new Date(reminderDateTime);
@@ -186,14 +183,27 @@ export default {
         });
       }
       
-      if (typeof window !== 'undefined') {
-        if (window._calendarCache.size > 10) {
-          window._calendarCache.delete(window._calendarCache.keys().next().value);
-        }
-        window._calendarCache.set(cacheKey, dates);
+      if (calendarCache.size > 10) {
+        calendarCache.delete(calendarCache.keys().next().value);
       }
+      calendarCache.set(cacheKey, dates);
       
       return dates;
+    });
+
+    const selectedDateReminders = computed(() => {
+        if (!selectedDate.value) return [];
+        const selected = selectedDate.value;
+        return allRemindersInCurrentMonth.value
+            .filter(r => {
+                if (!r.eventTime) return false;
+                const d = new Date(r.eventTime.replace(' ', 'T'));
+                return d.getFullYear() === selected.getFullYear() &&
+                       d.getMonth() === selected.getMonth() &&
+                       d.getDate() === selected.getDate();
+            })
+            .sort((a, b) => a._timestamp - b._timestamp)
+            .map(r => ({...r, isPast: r._timestamp < Date.now()}));
     });
 
     const loadRemindersForMonth = async (year, month) => {
@@ -202,26 +212,18 @@ export default {
         return;
       }
       
-      console.log(`正在加载 ${year}-${month} 的提醒事项`);
       try {
         const simpleReminders = await getAllSimpleReminders(year, month);
         const rawReminders = Array.isArray(simpleReminders) ? simpleReminders : [];
-        const processedReminders = rawReminders.map(reminder => {
+        allRemindersInCurrentMonth.value = rawReminders.map(reminder => {
           if (!reminder.eventTime) return { ...reminder, _timestamp: 0 };
           let dateTime = reminder.eventTime.replace(' ', 'T');
           const timestamp = new Date(dateTime).getTime();
           return { ...reminder, _timestamp: isNaN(timestamp) ? 0 : timestamp };
         });
-        
-        allRemindersInCurrentMonth.value = processedReminders;
-        console.log(`成功加载 ${processedReminders.length} 个提醒事项`);
       } catch (error) {
         console.error('加载提醒事项失败:', error);
         allRemindersInCurrentMonth.value = [];
-        uni.showToast({
-          title: '加载提醒失败',
-          icon: 'none'
-        });
       }
     };
     

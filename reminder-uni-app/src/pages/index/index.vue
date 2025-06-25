@@ -130,7 +130,7 @@ import { ref, computed, nextTick, onUnmounted } from 'vue';
 import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '@/services/cachedApi';
 import { wechatLogin, testAllContainer as testAllContainerApi } from '@/services/api';
 import { reminderState, reminderActions } from '@/store/modules/reminder';
-import ReminderCacheService, { userState } from '@/services/reminderCache';
+import ReminderCacheService, { userState, globalDataVersion } from '@/services/reminderCache';
 import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
 import { usePageDataSync, checkDataSyncOnShow, createSmartDataLoader } from '@/utils/dataSync';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
@@ -152,9 +152,15 @@ export default {
   },
   
   onShow() {
-    console.log('Index页面显示，检查登录状态并加载数据');
-
-    // 使用数据同步工具检查状态
+    console.log('Index页面显示，检查数据版本');
+    if (this.localDataVersion !== globalDataVersion.value) {
+      console.log(`%c[Data Sync] Version mismatch (local: ${this.localDataVersion}, global: ${globalDataVersion.value}). Refreshing data.`, 'color: #f44336;');
+      this.loadCurrentTabData();
+    } else {
+      console.log('[Data Sync] Version match. No need to refresh.');
+    }
+    
+    // 原有的逻辑也保留，用于处理登录状态变化等
     checkDataSyncOnShow(
       'IndexPage',
       () => this.loadCurrentTabData(),
@@ -187,6 +193,7 @@ export default {
     const refreshing = ref(false);
     const showLoginPopup = ref(false);
     const newUserInfo = ref({});
+    const localDataVersion = ref(0); // 本地数据版本
 
     // 页面数据清理函数
     const clearPageData = () => {
@@ -265,12 +272,19 @@ export default {
         } else {
           await loadComplexReminders();
         }
+        // 数据加载成功后，同步版本号
+        localDataVersion.value = globalDataVersion.value;
+        console.log(`[IndexPage] Data loaded, version synced to: ${localDataVersion.value}`);
       },
-      clearPageData
+      isLoading
     );
 
     // 加载当前标签页数据
     const loadCurrentTabData = async () => {
+      if (!isAuthenticated()) {
+        console.log('用户未认证，跳过加载');
+        return;
+      }
       await smartLoadCurrentTabData();
     };
 
@@ -400,15 +414,11 @@ export default {
       });
     };
     
-    const handleCreateNew = async () => {
-      const authenticated = await requireAuth();
-      if (authenticated) {
-        if (activeTab.value === 'simple') {
-          navigateToCreate();
-        } else {
-          goTocreateComplex();
-        }
-      }
+    const handleCreateNew = () => {
+      const url = activeTab.value === 'simple'
+        ? '/pages/create/create'
+        : '/pages/create-complex/create-complex';
+      uni.navigateTo({ url });
     };
     
     const closeLoginModal = () => {
@@ -559,6 +569,7 @@ export default {
       refreshing,
       showLoginPopup,
       newUserInfo,
+      localDataVersion,
       
       // 计算属性  
       currentReminders,

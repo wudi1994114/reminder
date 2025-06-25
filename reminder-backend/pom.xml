@@ -19,6 +19,7 @@
         <module>reminder-core</module>
         <module>reminder-common</module>
         <module>reminder-job</module>
+        <module>reminder-stream-consumer</module>
     </modules>
 
     <properties>
