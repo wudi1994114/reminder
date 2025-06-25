@@ -1,4 +1,4 @@
-package com.core.reminder.util;
+package com.core.reminder.utils;
 
 import com.common.reminder.model.ComplexReminder;
 import com.common.reminder.model.ReminderType;
