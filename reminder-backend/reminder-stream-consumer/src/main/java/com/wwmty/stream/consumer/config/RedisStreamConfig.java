@@ -21,10 +21,10 @@ import java.time.Duration;
 @Configuration
 public class RedisStreamConfig {
 
-    @Value("${reminder.stream.key:user-activity-stream}")
+    @Value("${reminder.stream.key:complex-reminder-stream}")
     private String streamKey;
 
-    @Value("${reminder.stream.group:user-activity-group}")
+    @Value("${reminder.stream.group:complex-reminder-group}")
     private String consumerGroup;
 
     @Value("${reminder.stream.consumer:consumer-1}")
