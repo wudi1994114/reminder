@@ -129,7 +129,6 @@ export default {
     const allRemindersInCurrentMonth = shallowRef([]);
     const holidaysInCurrentYear = shallowRef([]);
     const forceRefreshKey = ref(0);
-    const localDataVersion = ref(0);
 
     const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];

@@ -14,15 +14,34 @@ import java.util.Optional;
 @Repository
 public interface ComplexReminderRepository extends JpaRepository<ComplexReminder, Long> {
 
-    // 可能需要的查询方法示例
+    /**
+     * 根据创建用户ID查询复杂提醒
+     * @param fromUserId 创建用户ID
+     * @return 复杂提醒列表
+     */
     List<ComplexReminder> findByFromUserId(Long fromUserId);
 
     List<ComplexReminder> findByToUserId(Long toUserId);
     
-    // 查询lastGeneratedYm小于指定值的所有记录
-    List<ComplexReminder> findByLastGeneratedYmLessThanOrLastGeneratedYmIsNull(Integer targetYearMonth);
+    /**
+     * 查询需要生成简单任务的复杂提醒
+     * 查找lastGeneratedYm小于指定年月或为null的记录
+     * 
+     * @param targetYearMonth 目标年月(格式：YYYYMM)
+     * @return 需要更新的复杂提醒列表
+     */
+    @Query("SELECT cr FROM ComplexReminder cr WHERE cr.lastGeneratedYm < :targetYearMonth OR cr.lastGeneratedYm IS NULL")
+    List<ComplexReminder> findByLastGeneratedYmLessThanOrLastGeneratedYmIsNull(@Param("targetYearMonth") Integer targetYearMonth);
 
     // 可以根据需要添加更多查询方法，例如按 cronExpression 查询等
+
+    /**
+     * 根据用户ID和幂等键查询复杂提醒
+     * @param fromUserId 创建用户ID
+     * @param idempotencyKey 幂等键
+     * @return 复杂提醒
+     */
+    ComplexReminder findByFromUserIdAndIdempotencyKey(Long fromUserId, String idempotencyKey);
 
     /**
      * 根据幂等键查找复杂提醒
@@ -105,10 +124,9 @@ public interface ComplexReminderRepository extends JpaRepository<ComplexReminder
     );
 
     /**
-     * 统计用户创建的复杂提醒数量
+     * 统计用户的复杂提醒数量
      * @param fromUserId 创建用户ID
      * @return 复杂提醒数量
      */
-    @Query("SELECT COUNT(cr) FROM ComplexReminder cr WHERE cr.fromUserId = :fromUserId")
-    long countByFromUserId(@Param("fromUserId") Long fromUserId);
+    long countByFromUserId(Long fromUserId);
 }

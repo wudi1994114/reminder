@@ -56,9 +56,15 @@ spring:
 
 reminder:
   stream:
-    key: user-activity-stream
-    group: user-activity-group
+    key: complex-reminder-stream
+    group: complex-reminder-group
     consumer: consumer-1
+    # 线程池配置
+    thread-pool:
+      core-size: 5          # 核心线程数
+      max-size: 20          # 最大线程数
+      queue-capacity: 100   # 队列容量
+      keep-alive-seconds: 60 # 线程空闲时间（秒）
 
 nacos:
   config:

@@ -105,6 +105,9 @@ nacos:
 
 # 提醒应用配置
 reminder:
+  # Redis Stream配置
+  stream:
+    key: complex-reminder-stream
   # 节假日缓存配置
   holiday:
     cache:
