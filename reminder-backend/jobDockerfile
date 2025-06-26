@@ -1,6 +1,6 @@
 # 最终运行镜像，不再需要多阶段构建
 # 使用JDK 17基础镜像
-FROM openjdk:17-jre-slim
+FROM eclipse-temurin:17-jre-jammy
 
 # 设置工作目录
 WORKDIR /app
