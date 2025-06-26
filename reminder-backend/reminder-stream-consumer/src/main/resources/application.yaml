@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: reminder-stream-consumer
+  profiles:
+    active: local # 默认激活 local profile
+  # Redis配置
+  redis:
+    host:
+    port: 6379
+    password:
+    database: 0
+    timeout: 10000
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1
+        max-idle: 8
+        min-idle: 0
+  # PostgreSQL 数据库配置
+  datasource:
+    url:
+    driverClassName: org.postgresql.Driver # PostgreSQL 驱动
+    username:
+    password:
+    # 使用Druid连接池配置
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      # 连接池配置
+      initial-size: 5 # 初始连接数
+      min-idle: 5 # 最小连接池数量
+      max-active: 20 # 最大连接池数量
+      max-wait: 60000 # 获取连接时最大等待时间，单位毫秒
+      time-between-eviction-runs-millis: 60000 # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位毫秒
+      min-evictable-idle-time-millis: 300000 # 配置一个连接在池中最小生存的时间，单位毫秒
+      validation-query: SELECT 1 # 用来检测连接是否有效的sql
+      test-while-idle: true # 建议配置为true，不影响性能，并且保证安全性
+      test-on-borrow: false # 申请连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能
+      test-on-return: false # 归还连接时执行validationQuery检测连接是否有效，做了这个配置会降低性能
+      # 打开PSCache，并且指定每个连接上PSCache的大小
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      # 配置监控统计拦截的filters
+      filters: stat,wall # 监控统计用的filter:stat，日志用的filter:log4j，防御sql注入的filter:wall
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect # PostgreSQL 方言
+    # 禁用自动 DDL (因为我们使用 schema.sql), 推荐 validate 或 none
+    hibernate:
+      ddl-auto: validate # 或 none
+      naming:
+        physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy # 显式指定命名策略
+    # 关闭SQL语句显示
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+reminder:
+  stream:
+    key: user-activity-stream
+    group: user-activity-group
+    consumer: consumer-1
+
+nacos:
+  config:
+    server-addr: 42.192.53.240:8848
+    namespace: reminder 

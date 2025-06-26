@@ -3,7 +3,7 @@
  * 在现有API基础上添加智能缓存层，不破坏现有逻辑
  */
 
-import ReminderCacheService from './reminderCache.js';
+import ReminderCacheService, { updateDataVersion } from './reminderCache.js';
 import * as originalApi from './api.js';
 
 /**
@@ -159,8 +159,10 @@ export const CachedApiService = {
       
       // 清理相关缓存
       this.invalidateSimpleReminderCaches(reminder);
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 简单提醒创建成功，已清理相关缓存');
+      console.log('✅ 简单提醒创建成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('创建简单提醒失败:', error);
@@ -180,8 +182,10 @@ export const CachedApiService = {
       
       // 清理相关缓存
       this.invalidateSimpleReminderCaches(reminder);
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 简单提醒更新成功，已清理相关缓存');
+      console.log('✅ 简单提醒更新成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('更新简单提醒失败:', error);
@@ -200,8 +204,10 @@ export const CachedApiService = {
       
       // 清理所有简单提醒缓存（因为不知道具体的年月）
       this.invalidateAllSimpleReminderCaches();
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 简单提醒删除成功，已清理相关缓存');
+      console.log('✅ 简单提醒删除成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('删除简单提醒失败:', error);
@@ -221,8 +227,10 @@ export const CachedApiService = {
       
       // 清理复杂提醒缓存
       this.invalidateComplexReminderCaches();
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 复杂提醒创建成功，已清理相关缓存');
+      console.log('✅ 复杂提醒创建成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('创建复杂提醒失败:', error);
@@ -242,8 +250,10 @@ export const CachedApiService = {
       
       // 清理复杂提醒缓存
       this.invalidateComplexReminderCaches();
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 复杂提醒更新成功，已清理相关缓存');
+      console.log('✅ 复杂提醒更新成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('更新复杂提醒失败:', error);
@@ -262,8 +272,10 @@ export const CachedApiService = {
       
       // 清理复杂提醒缓存
       this.invalidateComplexReminderCaches();
+      // 更新数据版本
+      updateDataVersion();
       
-      console.log('✅ 复杂提醒删除成功，已清理相关缓存');
+      console.log('✅ 复杂提醒删除成功，已清理相关缓存并更新数据版本');
       return response;
     } catch (error) {
       console.error('删除复杂提醒失败:', error);
@@ -321,7 +333,8 @@ export const CachedApiService = {
     if (!userId) return;
     
     ReminderCacheService.clearCache('complex', { userId });
-    console.log('🧹 已清理复杂提醒缓存');
+    ReminderCacheService.clearCache('upcoming', { userId });
+    console.log('🧹 已清理复杂提醒及即将到来提醒的缓存');
   },
   
   /**

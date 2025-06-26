@@ -4,8 +4,15 @@
  * 现在也包含用户状态管理和认证功能
  */
 
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import { request } from './api';
+
+// 全局数据版本管理
+export const globalDataVersion = ref(Date.now());
+export const updateDataVersion = () => {
+  globalDataVersion.value = Date.now();
+  console.log(`%c[Data Version] Updated to: ${globalDataVersion.value}`, 'color: #4CAF50; font-weight: bold;');
+};
 
 // 缓存配置
 const CACHE_CONFIG = {
@@ -152,6 +159,11 @@ class ReminderCacheService {
         console.log('✅ ReminderCacheService: 更新用户信息成功');
         this.setUserInfo(response);
         this.setUserProfileCache(response.id.toString(), response);
+        
+        // 更新全局数据版本
+        updateDataVersion();
+        console.log('✅ ReminderCacheService: 用户信息更新，数据版本已更新');
+        
         return { success: true, data: response };
       } else {
         throw new Error('服务器返回的更新后数据无效');
