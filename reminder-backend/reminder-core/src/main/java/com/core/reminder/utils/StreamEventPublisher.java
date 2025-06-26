@@ -4,8 +4,6 @@ import com.common.reminder.utils.JacksonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.connection.stream.ObjectRecord;
-import org.springframework.data.redis.connection.stream.StreamRecords;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -42,12 +40,8 @@ public class StreamEventPublisher {
             eventData.put("userId", userId.toString());
             eventData.put("timestamp", String.valueOf(System.currentTimeMillis()));
             
-            // 发送到Redis Stream
-            ObjectRecord<String, Map<String, String>> record = StreamRecords
-                .objectBacked(eventData)
-                .withStreamKey(streamKey);
-            
-            String messageId = redisTemplate.opsForStream().add(record).getValue();
+            // 发送到Redis Stream - 使用更直接的方式避免序列化问题
+            String messageId = redisTemplate.opsForStream().add(streamKey, eventData).getValue();
             
             log.info("成功发送复杂提醒生成事件到Stream - 消息ID: {}, 复杂提醒ID: {}, 月数: {}", 
                     messageId, complexReminderId, monthsAhead);
@@ -75,12 +69,8 @@ public class StreamEventPublisher {
             eventData.put("userId", userId.toString());
             eventData.put("timestamp", String.valueOf(System.currentTimeMillis()));
             
-            // 发送到Redis Stream
-            ObjectRecord<String, Map<String, String>> record = StreamRecords
-                .objectBacked(eventData)
-                .withStreamKey(streamKey);
-            
-            String messageId = redisTemplate.opsForStream().add(record).getValue();
+            // 发送到Redis Stream - 使用更直接的方式避免序列化问题
+            String messageId = redisTemplate.opsForStream().add(streamKey, eventData).getValue();
             
             log.info("成功发送复杂提醒更新事件到Stream - 消息ID: {}, 复杂提醒ID: {}, 月数: {}", 
                     messageId, complexReminderId, monthsAhead);
@@ -103,12 +93,8 @@ public class StreamEventPublisher {
             eventData.put("command", command);
             eventData.put("timestamp", String.valueOf(System.currentTimeMillis()));
             
-            // 发送到Redis Stream
-            ObjectRecord<String, Map<String, String>> record = StreamRecords
-                .objectBacked(eventData)
-                .withStreamKey(streamKey);
-            
-            String messageId = redisTemplate.opsForStream().add(record).getValue();
+            // 发送到Redis Stream - 使用更直接的方式避免序列化问题
+            String messageId = redisTemplate.opsForStream().add(streamKey, eventData).getValue();
             
             log.info("成功发送事件到Stream - 消息ID: {}, 命令: {}, 数据: {}", 
                     messageId, command, JacksonUtils.toJson(eventData));

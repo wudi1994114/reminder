@@ -6,7 +6,7 @@ import com.wwmty.stream.consumer.repository.ComplexReminderRepository;
 import com.wwmty.stream.consumer.repository.SimpleReminderRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.stream.MapRecord;
+
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,16 +42,14 @@ public class ComplexReminderUpdateHandler implements StreamEventHandler {
 
     @Override
     @Transactional
-    public void handle(MapRecord<String, String, String> record) {
-        log.info("开始处理复杂提醒更新事件 - 消息ID: {}", record.getId());
+    public void handle(Map<String, String> eventData, String messageId) {
+        log.info("开始处理复杂提醒更新事件 - 消息ID: {}", messageId);
         
         try {
-            Map<String, String> data = record.getValue();
-            
-            // 提取事件数据
-            Long complexReminderId = Long.parseLong(data.get("complexReminderId"));
-            int monthsAhead = Integer.parseInt(data.get("monthsAhead"));
-            Long userId = Long.parseLong(data.get("userId"));
+            // 提取事件数据（数据已经在StreamConsumerService中清理过了）
+            Long complexReminderId = Long.parseLong(eventData.get("complexReminderId"));
+            int monthsAhead = Integer.parseInt(eventData.get("monthsAhead"));
+            Long userId = Long.parseLong(eventData.get("userId"));
             
             log.info("处理复杂提醒更新 - ID: {}, 月数: {}, 用户: {}", complexReminderId, monthsAhead, userId);
             
@@ -80,7 +78,7 @@ public class ComplexReminderUpdateHandler implements StreamEventHandler {
             log.info("成功重新生成 {} 个简单提醒 - 复杂提醒ID: {}", generatedReminders.size(), complexReminderId);
             
         } catch (Exception e) {
-            log.error("处理复杂提醒更新事件失败 - 消息ID: {}", record.getId(), e);
+            log.error("处理复杂提醒更新事件失败 - 消息ID: {}", messageId, e);
             throw e; // 重新抛出异常以触发重试机制
         }
     }

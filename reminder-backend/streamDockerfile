@@ -1,0 +1,36 @@
+# 最终运行镜像，不再需要多阶段构建
+# 使用JDK 17基础镜像
+FROM eclipse-temurin:17-jre-jammy
+
+# 设置工作目录
+WORKDIR /app
+
+# 创建日志目录
+RUN mkdir -p /var/log/reminder
+
+# 创建非root用户运行应用（安全最佳实践）
+RUN groupadd -r spring && useradd -r -g spring spring
+
+# --- 关键修改 ---
+# 定义一个变量来指向 JAR 文件的路径
+# 这个路径是相对于 docker build 命令的执行目录 (即 Jenkinsfile 中的 'reminder-backend')
+ARG JAR_FILE=reminder-stream-consumer/target/*.jar
+
+# 直接从构建上下文（Jenkins 工作区）复制由 Jenkins 的 Maven 阶段构建好的 jar 文件
+COPY ${JAR_FILE} app.jar
+
+# 更改文件所有者为新创建的非 root 用户
+# 这一步必须在 COPY 之后，确保 app.jar 的权限也正确
+RUN chown -R spring:spring /app /var/log/reminder
+
+# 切换到非root用户
+USER spring
+
+# 暴露应用端口
+EXPOSE 8080
+
+# 设置JVM参数优化
+ENV JAVA_OPTS="-Xms1024m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
+
+# 启动应用
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

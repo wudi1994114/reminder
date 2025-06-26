@@ -1,6 +1,6 @@
 package com.wwmty.stream.consumer.handler;
 
-import org.springframework.data.redis.connection.stream.MapRecord;
+import java.util.Map;
 
 /**
  * 用于处理 Redis Stream 事件的接口。
@@ -10,9 +10,10 @@ public interface StreamEventHandler {
     /**
      * 处理流事件。
      *
-     * @param record 流消息记录
+     * @param eventData 清理后的事件数据
+     * @param messageId 消息ID
      */
-    void handle(MapRecord<String, String, String> record);
+    void handle(Map<String, String> eventData, String messageId);
 
     /**
      * 此处理器支持的命令字符串。

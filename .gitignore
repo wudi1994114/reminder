@@ -36,3 +36,5 @@ desktop.ini
 *.sqlite
 
 *local.yaml 
+
+*java-version
