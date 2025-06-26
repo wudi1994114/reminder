@@ -11,6 +11,8 @@ import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
 
@@ -90,7 +92,7 @@ public class StreamConsumerService {
      * @param record The message record from Redis Stream.
      */
     public void handleStreamEvent(MapRecord<String, String, String> record) {
-        log.debug("Received message from stream [{}]: {}", record.getStream(), record.getValue());
+        log.info("Received message from stream [{}]: {}", record.getStream(), record.getValue());
 
         // 提交到线程池异步处理
         threadPoolExecutor.submit(() -> {
@@ -107,15 +109,18 @@ public class StreamConsumerService {
      * @param record The message record from Redis Stream.
      */
     private void processStreamEvent(MapRecord<String, String, String> record) {
-        // The command is expected to be in a field named "command" in the stream message payload.
-        final String command = record.getValue().get("command");
+        // 清理所有字段的序列化问题
+        Map<String, String> cleanedData = cleanSerializationIssues(record.getValue());
+        
+        String command = cleanedData.get("command");
 
         if (!StringUtils.hasText(command)) {
-            log.error("消息 id {} 中的 command 字段缺失或为空。无法处理。 负载: {}", record.getId(), record.getValue());
-            // 在这里你可能需要添加处理格式错误消息的逻辑，
-            // 例如，发送到死信队列。
+            log.error("消息 id {} 中的 command 字段缺失或为空。无法处理。 原始负载: {} 清理后负载: {}", 
+                    record.getId(), record.getValue(), cleanedData);
             return;
         }
+        
+        log.debug("处理命令: [{}] (清理后)", command);
 
         Optional<StreamEventHandler> handlerOptional = handlerFactory.getHandler(command);
         if (handlerOptional.isPresent()) {
@@ -123,7 +128,7 @@ public class StreamConsumerService {
             try {
                 log.info("发现命令 [{}] 的处理器。正在处理消息 id {} [线程: {}]", 
                         command, record.getId(), Thread.currentThread().getName());
-                handler.handle(record);
+                handler.handle(cleanedData, record.getId().getValue());
                 log.info("使用命令 [{}] 的处理器成功处理了消息 id {} [线程: {}]", 
                         command, record.getId(), Thread.currentThread().getName());
             } catch (Exception e) {
@@ -153,5 +158,33 @@ public class StreamConsumerService {
                 threadPoolExecutor.getMaximumPoolSize(),
                 threadPoolExecutor.getQueue().size(),
                 threadPoolExecutor.getCompletedTaskCount());
+    }
+    
+    /**
+     * 清理Redis序列化问题，移除多余的双引号
+     * @param originalData 原始数据
+     * @return 清理后的数据
+     */
+    private Map<String, String> cleanSerializationIssues(Map<String, String> originalData) {
+        Map<String, String> cleanedData = new HashMap<>();
+        
+        for (Map.Entry<String, String> entry : originalData.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            
+            // 清理值中的多余引号
+            if (value != null) {
+                value = value.trim();
+                // 移除前后的双引号（如果存在）
+                while (value.startsWith("\"") && value.endsWith("\"") && value.length() > 1) {
+                    value = value.substring(1, value.length() - 1);
+                }
+            }
+            
+            cleanedData.put(key, value);
+        }
+        
+        log.debug("清理序列化问题 - 原始: {} -> 清理后: {}", originalData, cleanedData);
+        return cleanedData;
     }
 } 
