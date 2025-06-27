@@ -86,7 +86,6 @@
               v-for="item in complexReminders" 
               :key="item.id" 
               :reminder="item"
-              @click="goToComplexDetail"
               @edit="editComplexReminder"
               @delete="deleteComplexReminder"
             />
@@ -587,12 +586,6 @@ export default {
       });
     };
 
-    const goToComplexDetail = (reminder) => {
-      uni.navigateTo({
-        url: `/pages/create-complex/create-complex?id=${reminder.id}`
-      });
-    };
-
     return {
       // 响应式数据
       activeTab,
@@ -627,7 +620,6 @@ export default {
       closeLoginModal,
       handleWechatLogin,
       goToDetail,
-      goToComplexDetail,
       clearPageData,
       testAllContainer,
       handlePageShow

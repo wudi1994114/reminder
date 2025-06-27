@@ -353,13 +353,18 @@ export default {
     this.isEdit = !!options.id;
     this.reminderId = options.id; // 保存ID供onShow使用
 
+    // 先初始化提醒方式选项
+    this.initReminderTypes();
+
     if (this.isEdit) {
       this.activeTab = 'advanced'; // 编辑模式默认进入高级模式
       await this.loadReminderData(options.id);
+      // 加载数据后重新初始化提醒类型索引
+      this.initReminderTypes();
     } else {
       this.resetAndSetupNewReminder();
     }
-    this.initReminderTypes(); // 在这里初始化提醒方式
+    
     await this.loadUserTags(); // 加载用户标签
     this.isInitialized = true; // 标记已初始化
   },
@@ -408,8 +413,18 @@ export default {
       this.reminderTypeOptions = options;
       this.reminderTypeValues = values;
 
-      const defaultIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
-      this.reminderTypeIndex = defaultIndex !== -1 ? defaultIndex : 0;
+      // 设置当前选中的索引
+      if (this.isEdit && this.reminderData.reminderType) {
+        // 编辑模式：使用已加载的提醒类型
+        const existingIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
+        this.reminderTypeIndex = existingIndex !== -1 ? existingIndex : 0;
+        console.log('编辑模式：保持现有提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
+      } else {
+        // 创建模式：使用默认提醒类型
+        const defaultIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
+        this.reminderTypeIndex = defaultIndex !== -1 ? defaultIndex : 0;
+        console.log('创建模式：设置默认提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
+      }
     },
 
     showReminderTypeSelector() {
@@ -461,14 +476,39 @@ export default {
       try {
         const data = await getComplexReminderById(id);
         if (data) {
+          console.log('加载复杂提醒数据:', data);
+          
+          // 设置表单数据
           reminderState.form = data;
           this.originalReminderType = data.reminderType;
-          // ... 其他数据恢复逻辑
-          this.updateSimpleInputsFromCron(data.cronExpression);
-          this.updatePreview();
+          
+          // 设置提醒类型索引
+          const typeIndex = this.reminderTypeValues.indexOf(data.reminderType);
+          this.reminderTypeIndex = typeIndex !== -1 ? typeIndex : 0;
+          console.log('设置提醒类型索引:', this.reminderTypeIndex, '对应类型:', data.reminderType);
+          
+          // 从Cron表达式恢复简单模式的输入
+          if (data.cronExpression) {
+            this.updateSimpleInputsFromCron(data.cronExpression);
+            this.updatePreview();
+          }
+          
+          console.log('复杂提醒数据加载完成:', {
+            title: data.title,
+            description: data.description,
+            cronExpression: data.cronExpression,
+            reminderType: data.reminderType,
+            reminderTypeIndex: this.reminderTypeIndex,
+            simpleTime: this.simpleTime,
+            repeatIndex: this.repeatIndex
+          });
         }
       } catch (error) {
         console.error('加载复杂提醒失败:', error);
+        uni.showToast({
+          title: '加载数据失败',
+          icon: 'none'
+        });
       }
     },
 
