@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StopWatch;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -89,6 +90,8 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
     private List<SimpleReminder> generateSimpleRemindersForMonths(ComplexReminder complexReminder, int monthsAhead) {
         log.info("为复杂提醒ID: {} 生成{}个月内的简单任务", complexReminder.getId(), monthsAhead);
         
+        StopWatch stopWatch = new StopWatch("复杂提醒生成-" + complexReminder.getId());
+        
         List<SimpleReminder> generatedReminders = new ArrayList<>();
         String cronExpression = complexReminder.getCronExpression();
         
@@ -104,7 +107,9 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
         }
         
         try {
+            stopWatch.start("解析CRON表达式");
             CronExpression cron = CronExpression.parse(cronExpression);
+            stopWatch.stop();
             
             // 使用中国时区(Asia/Shanghai)确保时间一致性
             ZoneId chinaZone = ZoneId.of("Asia/Shanghai");
@@ -142,6 +147,7 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
             log.info("为复杂提醒ID: {} 生成简单任务的时间范围: {} 至 {} (使用中国时区)", 
                      complexReminder.getId(), startTime, endTime);
             
+            stopWatch.start("计算CRON执行时间");
             // 开始计算执行时间并生成简单任务
             ZonedDateTime nextTime = startTime;
             int count = 0;
@@ -168,11 +174,6 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
                 // 转换为OffsetDateTime，确保使用中国时区的偏移量
                 OffsetDateTime nextExecutionTime = nextTime.toOffsetDateTime();
 
-                // 检查是否已经存在相同时间的简单任务
-                boolean exists = simpleReminderRepository.existsByOriginatingComplexReminderIdAndEventTime(
-                        complexReminder.getId(), nextExecutionTime);
-
-                if (!exists) {
                     // 创建简单任务（先不保存，加入批量列表）
                     SimpleReminder simpleReminder = createSimpleReminderFromTemplate(complexReminder, nextExecutionTime);
                     batchToSave.add(simpleReminder);
@@ -182,17 +183,28 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
 
                     // 当批量列表达到指定大小时，执行批量保存
                     if (batchToSave.size() >= BATCH_SIZE) {
+                        if (!stopWatch.isRunning()) {
+                            stopWatch.start("批量入库-" + batchToSave.size() + "条");
+                        }
                         List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                        if (stopWatch.isRunning()) {
+                            stopWatch.stop();
+                        }
                         generatedReminders.addAll(savedBatch);
                         log.info("批量保存了 {} 个SimpleReminder", savedBatch.size());
                         batchToSave.clear();
                     }
-                }
+            }
+            
+            if (stopWatch.isRunning()) {
+                stopWatch.stop();
             }
 
             // 保存剩余的记录
             if (!batchToSave.isEmpty()) {
+                stopWatch.start("最后批量入库-" + batchToSave.size() + "条");
                 List<SimpleReminder> savedBatch = simpleReminderRepository.saveAll(batchToSave);
+                stopWatch.stop();
                 generatedReminders.addAll(savedBatch);
                 log.info("批量保存了剩余的 {} 个SimpleReminder", savedBatch.size());
             }
@@ -217,10 +229,17 @@ public class ComplexReminderGenerationHandler implements StreamEventHandler {
                 log.info("更新复杂提醒ID: {} 的lastGeneratedYm为: {}", complexReminder.getId(), targetYearMonth);
             }
             
+            // 输出性能统计
+            log.info("复杂提醒ID: {} 生成完成，性能统计:\n{}", complexReminder.getId(), stopWatch.prettyPrint());
+            
             return generatedReminders;
             
         } catch (Exception e) {
             log.error("为复杂提醒ID: {} 生成简单任务时出错: {}", complexReminder.getId(), e.getMessage());
+            if (stopWatch.isRunning()) {
+                stopWatch.stop();
+            }
+            log.info("复杂提醒ID: {} 异常退出前的性能统计:\n{}", complexReminder.getId(), stopWatch.prettyPrint());
             return generatedReminders;
         }
     }
