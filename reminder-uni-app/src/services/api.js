@@ -513,7 +513,17 @@ export const setUserTagManagementEnabled = (enabled) => {
 };
 
 // 用户标签列表，|-|分隔不同标签，|分隔标题和内容，总长度不超过100个字符
-export const getUserTagList = () => request({ url: '/user/preferences/userTagList', method: 'GET' });
+export const getUserTagList = () => {
+    return request({ url: '/user/preferences/userTagList', method: 'GET' })
+        .then(response => {
+            // 在API层面过滤掉所有反斜杠字符
+            if (response && response.value && typeof response.value === 'string') {
+                response.value = response.value.replace(/\\/g, '');
+                console.log('🏷️ API层面 - 过滤反斜杠后的标签字符串:', response.value);
+            }
+            return response;
+        });
+};
 export const setUserTagList = (tagList) => {
     const key = 'userTagList';
     const property = '';

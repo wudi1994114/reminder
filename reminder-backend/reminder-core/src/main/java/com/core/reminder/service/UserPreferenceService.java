@@ -135,6 +135,12 @@ public class UserPreferenceService {
         return convertToDto(savedPreference);
     }
 
+
+
+    public static void main(String[] args) {
+        System.out.println(UserTagValidator.validateTagList("123|312|-|1234|321"));
+    }
+
     /**
      * 设置用户偏好设置（重载方法）
      * @param userId 用户ID

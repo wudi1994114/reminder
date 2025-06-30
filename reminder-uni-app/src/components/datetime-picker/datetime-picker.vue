@@ -148,7 +148,7 @@ export default {
       default: 'datetime'
     }
   },
-  emits: ['change', 'dateChange', 'timeChange', 'weekdayChange'],
+  emits: ['change', 'dateChange', 'timeChange', 'weekdayChange', 'picker-show', 'picker-hide'],
   setup(props, { emit }) {
     const reminderDate = ref('');
     const reminderTime = ref('');
