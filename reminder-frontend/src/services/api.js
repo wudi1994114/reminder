@@ -216,7 +216,7 @@ export const getUserTagList = () => {
 
 export const setUserTagList = (tagList) => {
     const key = 'userTagList';
-    const property = '用户标签列表，逗号分隔，最多10个标签，每个标签最多4汉字8字符';
+    const property = '用户标签列表，|||分隔不同标签，|分隔标题和内容，总长度不超过100个字符';
     return apiClient.put('/user/preferences/userTagList', { key, value: tagList, property });
 };
 

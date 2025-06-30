@@ -116,7 +116,7 @@ export default {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  z-index: 1001;
+  z-index: 9999;
 }
 
 .time-picker-modal {

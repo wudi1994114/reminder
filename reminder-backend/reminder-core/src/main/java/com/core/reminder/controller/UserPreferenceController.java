@@ -93,6 +93,9 @@ public class UserPreferenceController {
             
             return ResponseEntity.ok(updatedPreference);
             
+        } catch (IllegalArgumentException e) {
+            log.error("用户偏好设置验证失败, key: {}, error: {}", key, e.getMessage());
+            return ResponseEntity.badRequest().body(null);
         } catch (Exception e) {
             log.error("设置用户偏好设置失败, key: {}", key, e);
             return ResponseEntity.internalServerError().build();

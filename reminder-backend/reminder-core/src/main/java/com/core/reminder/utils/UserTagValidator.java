@@ -23,7 +23,7 @@ public class UserTagValidator {
     /**
      * 标签分隔符
      */
-    public static final String TAG_SEPARATOR = "|||";
+    public static final String TAG_SEPARATOR = "|-|";
     
     /**
      * 标题和内容分隔符

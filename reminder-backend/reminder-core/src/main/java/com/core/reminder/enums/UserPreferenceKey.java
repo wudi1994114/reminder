@@ -37,7 +37,7 @@ public enum UserPreferenceKey {
     
     // ==================== 用户标签管理 ====================
     USER_TAG_MANAGEMENT_ENABLED("userTagManagementEnabled", "0", "用户标签管理功能开关，0关闭，1开启"),
-    USER_TAG_LIST("userTagList", "", "用户标签列表，|||分隔不同标签，|分隔标题和内容，总长度不超过100个字符");
+    USER_TAG_LIST("userTagList", "", "用户标签列表，|-|分隔不同标签，|分隔标题和内容，总长度不超过100个字符");
     
     /**
      * 配置项键名

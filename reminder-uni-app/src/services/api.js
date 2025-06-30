@@ -32,7 +32,6 @@ const callContainer = (options) => {
                 'Content-Type': 'application/json',
                 ...options.header
             },
-            data: options.data,
             success: (res) => {
                 console.log('云托管请求成功:', options.url, res);
                 resolve(res.data || res);
@@ -54,15 +53,25 @@ const callContainer = (options) => {
             }
         };
 
+        // 添加请求数据（如果有的话）
+        if (options.data) {
+            callOptions.data = options.data;
+            console.log('云托管请求数据:', options.data);
+        }
+
         // 添加认证Token
         if (token) {
             callOptions.header['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         }
 
-        // 调试日志：显示最终的请求头
-        if (options.header && Object.keys(options.header).length > 0) {
-            console.log('云托管请求头:', callOptions.header);
-        }
+        // 调试日志：显示最终的请求头和数据
+        console.log('云托管最终请求配置:', {
+            path: callOptions.path,
+            method: callOptions.method,
+            hasData: !!callOptions.data,
+            dataKeys: callOptions.data ? Object.keys(callOptions.data) : [],
+            hasAuth: !!callOptions.header['Authorization']
+        });
 
         wx.cloud.callContainer(callOptions);
     });
@@ -494,19 +503,30 @@ export const submitUserFeedback = (feedbackData) => {
     }).catch(handleApiError);
 };
 
-// 标签管理相关API
+// 标签管理相关API 用户标签管理功能开关，0关闭，1开启
 export const getUserTagManagementEnabled = () => request({ url: '/user/preferences/userTagManagementEnabled', method: 'GET' });
 export const setUserTagManagementEnabled = (enabled) => {
     const key = 'userTagManagementEnabled';
     const value = enabled ? '1' : '0';
-    const property = '用户标签管理功能开关，0关闭，1开启';
+    const property = '';
     return request({ url: '/user/preferences/userTagManagementEnabled', method: 'PUT', data: { key, value, property } });
 };
+
+// 用户标签列表，|-|分隔不同标签，|分隔标题和内容，总长度不超过100个字符
 export const getUserTagList = () => request({ url: '/user/preferences/userTagList', method: 'GET' });
 export const setUserTagList = (tagList) => {
     const key = 'userTagList';
-    const property = '用户标签列表，逗号分隔，最多10个标签，每个标签最多4汉字8字符';
-    return request({ url: '/user/preferences/userTagList', method: 'PUT', data: { key, value: tagList, property } });
+    const property = '';
+    const requestData = { key, value: tagList, property };
+    
+    console.log('🏷️ setUserTagList 调用参数:', {
+        tagList,
+        requestData,
+        tagListLength: tagList ? tagList.length : 0,
+        tagListType: typeof tagList
+    });
+    
+    return request({ url: '/user/preferences/userTagList', method: 'PUT', data: requestData });
 };
 export const deleteUserTagList = () => request({ url: '/user/preferences/userTagList', method: 'DELETE' });
 

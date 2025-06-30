@@ -56,7 +56,7 @@
               <view class="tag-editor">
                 <view class="tag-editor-header">
                   <text class="tag-editor-title">我的标签</text>
-                  <text class="tag-count">{{ userTags.length }}/10</text>
+                  <text class="tag-count">{{ getTotalLength() }}/100</text>
                 </view>
 
                 <!-- 标签列表 -->
@@ -66,7 +66,9 @@
                     :key="index"
                     class="tag-item"
                   >
-                    <text class="tag-text">{{ tag }}</text>
+                    <view class="tag-content">
+                      <text class="tag-text">{{ getTagTitle(tag) }}</text>
+                    </view>
                     <view class="tag-remove" @click="removeTag(index)">
                       <text class="remove-icon">×</text>
                     </view>
@@ -74,7 +76,7 @@
 
                   <!-- 添加标签按钮 -->
                   <view
-                    v-if="userTags.length < 10"
+                    v-if="getTotalLength() < 100"
                     class="tag-add"
                     @click="showAddTagDialog"
                   >
@@ -84,9 +86,8 @@
 
                 <!-- 标签说明 -->
                 <view class="tag-tips">
-                  <text class="tip-text">• 最多10个标签，每个标签最多4汉字和8字符</text>
+                  <text class="tip-text">• 标签总长度不超过100个字符</text>
                   <text class="tip-text">• 标签用于快速输入常用提醒内容</text>
-                  <text class="tip-text">• 可以混合使用汉字和字符，如"工作123"</text>
                 </view>
               </view>
             </view>
@@ -132,15 +133,35 @@
           <text class="dialog-title">添加标签</text>
         </view>
         <view class="dialog-content">
-          <input
-            v-model="newTagText"
-            class="tag-input"
-            placeholder="输入标签名称"
-            @confirm="addTag"
-            :focus="showAddDialog"
-          />
+          <view class="input-wrapper">
+            <view class="input-label">
+              <text class="label-text">标题</text>
+              <text class="required-mark">*</text>
+            </view>
+            <input
+              v-model="newTagTitle"
+              class="tag-input"
+              placeholder="请输入标签标题"
+              maxlength="20"
+              :focus="showAddDialog"
+            />
+          </view>
+          
+          <view class="input-wrapper">
+            <view class="input-label">
+              <text class="label-text">内容</text>
+            </view>
+            <input
+              v-model="newTagContent"
+              class="tag-input"
+              placeholder="请输入标签内容（可选）"
+              maxlength="50"
+              @confirm="addTag"
+            />
+          </view>
+          
           <view class="input-tips">
-            <text class="tip-text">最多4汉字和8字符，可以混合使用</text>
+            <text class="tip-text">标题用于显示，内容用于快速填入提醒</text>
           </view>
         </view>
         <view class="dialog-actions">
@@ -168,7 +189,8 @@ export default {
     const tagManagementEnabled = ref(false);
     const userTags = ref([]);
     const showAddDialog = ref(false);
-    const newTagText = ref('');
+    const newTagTitle = ref('');
+    const newTagContent = ref('');
     const loading = ref(false);
 
     // 页面加载时获取用户设置
@@ -195,7 +217,7 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
-            userTags.value = tagListString ? tagListString.split(',').filter(tag => tag.trim()) : [];
+            userTags.value = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
             userTags.value = [];
@@ -243,31 +265,28 @@ export default {
       }
     };
 
+    // 计算标签列表总长度
+    const getTotalLength = () => {
+      return userTags.value.join('|-|').length;
+    };
+
+    // 获取标签的标题部分用于显示
+    const getTagTitle = (tag) => {
+      return tag.includes('|') ? tag.split('|')[0].trim() : tag;
+    };
+
     // 验证标签格式 - 根据后端验证规则
-    const validateTag = (tag) => {
-      if (!tag || !tag.trim()) {
-        return { valid: false, message: '标签不能为空' };
+    const validateTag = (title, content) => {
+      if (!title || !title.trim()) {
+        return { valid: false, message: '标题不能为空' };
       }
 
-      const trimmedTag = tag.trim();
+      const trimmedTitle = title.trim();
+      const trimmedContent = content ? content.trim() : '';
 
-      // 检查长度：最多4个汉字和8个字符（可以混合）
-      const chineseCount = (trimmedTag.match(/[\u4e00-\u9fa5]/g) || []).length;
-      const otherCharCount = trimmedTag.length - chineseCount; // 除汉字外的所有字符
-
-      // 必须包含汉字或其他字符
-      if (chineseCount === 0 && otherCharCount === 0) {
-        return { valid: false, message: '标签不能为空' };
-      }
-
-      // 汉字不能超过4个
-      if (chineseCount > 4) {
-        return { valid: false, message: '汉字不能超过4个' };
-      }
-
-      // 其他字符不能超过8个
-      if (otherCharCount > 8) {
-        return { valid: false, message: '字符不能超过8个' };
+      // 标题是必须的
+      if (!trimmedTitle) {
+        return { valid: false, message: '标题不能为空' };
       }
 
       return { valid: true, message: '格式正确' };
@@ -275,59 +294,72 @@ export default {
 
     // 显示添加标签对话框
     const showAddTagDialog = () => {
-      if (userTags.value.length >= 10) {
+      if (getTotalLength() >= 100) {
         uni.showToast({
-          title: '最多只能添加10个标签',
+          title: '标签总长度已达到100字符限制',
           icon: 'none'
         });
         return;
       }
-      newTagText.value = '';
+      newTagTitle.value = '';
+      newTagContent.value = '';
       showAddDialog.value = true;
     };
 
     // 隐藏添加标签对话框
     const hideAddTagDialog = () => {
       showAddDialog.value = false;
-      newTagText.value = '';
+      newTagTitle.value = '';
+      newTagContent.value = '';
     };
 
     // 添加标签
     const addTag = async () => {
-      const tag = newTagText.value.trim();
+      const title = newTagTitle.value.trim();
+      const content = newTagContent.value.trim();
 
       // 基本检查
-      if (!tag) {
+      if (!title) {
         uni.showToast({
-          title: '请输入标签名称',
+          title: '请输入标签标题',
           icon: 'none',
           duration: 2000
         });
         return;
       }
 
-      // 检查数量限制
-      if (userTags.value.length >= 10) {
+      // 构建完整标签（后台自动拼接）
+      const fullTag = content ? `${title}|${content}` : title;
+
+              // 检查长度限制
+        const currentLength = getTotalLength();
+        const newTotalLength = currentLength + (currentLength > 0 ? 3 : 0) + fullTag.length; // +3是|-|分隔符
+      
+      if (newTotalLength > 100) {
         uni.showToast({
-          title: '最多只能添加10个标签',
+          title: `添加此标签将超过100字符限制（当前${currentLength}，添加后${newTotalLength}）`,
+          icon: 'none',
+          duration: 3000
+        });
+        return;
+      }
+
+      // 检查是否重复（只检查标题部分）
+      const existingTitles = userTags.value.map(tag => {
+        return tag.includes('|') ? tag.split('|')[0].trim() : tag;
+      });
+      
+      if (existingTitles.includes(title)) {
+        uni.showToast({
+          title: '相同标题的标签已存在',
           icon: 'none',
           duration: 2000
         });
         return;
       }
 
-      // 检查是否重复
-      if (userTags.value.includes(tag)) {
-        uni.showToast({
-          title: '标签已存在',
-          icon: 'none',
-          duration: 2000
-        });
-        return;
-      }
-
-      // 验证标签格式（只在确定时验证）
-      const validation = validateTag(tag);
+      // 验证标签格式
+      const validation = validateTag(title, content);
       if (!validation.valid) {
         uni.showToast({
           title: validation.message,
@@ -339,10 +371,10 @@ export default {
 
       try {
         // 添加到本地列表
-        const newTags = [...userTags.value, tag];
+        const newTags = [...userTags.value, fullTag];
 
         // 保存到服务器
-        await setUserTagList(newTags.join(','));
+        await setUserTagList(newTags.join('|-|'));
 
         // 更新本地状态
         userTags.value = newTags;
@@ -382,7 +414,7 @@ export default {
         const newTags = userTags.value.filter((_, i) => i !== index);
 
         // 保存到服务器
-        await setUserTagList(newTags.join(','));
+        await setUserTagList(newTags.join('|-|'));
 
         // 更新本地状态
         userTags.value = newTags;
@@ -420,13 +452,16 @@ export default {
       tagManagementEnabled,
       userTags,
       showAddDialog,
-      newTagText,
+      newTagTitle,
+      newTagContent,
       loading,
 
       // 方法
       goBack,
       navigateToReminderMethod,
       onTagManagementToggle,
+      getTotalLength,
+      getTagTitle,
       showAddTagDialog,
       hideAddTagDialog,
       addTag,
@@ -672,18 +707,25 @@ export default {
   border-radius: 20rpx;
   padding: 12rpx 16rpx;
   gap: 8rpx;
-  max-width: 200rpx;
+  max-width: 300rpx;
+}
+
+.tag-content {
+  flex: 1;
+  overflow: hidden;
 }
 
 .tag-text {
   font-size: 24rpx;
   color: #1c170d;
   font-weight: 500;
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: block;
 }
+
+
 
 .tag-remove {
   display: flex;
@@ -777,6 +819,33 @@ export default {
   padding: 32rpx;
 }
 
+.input-wrapper {
+  margin-bottom: 24rpx;
+}
+
+.input-wrapper:last-of-type {
+  margin-bottom: 16rpx;
+}
+
+.input-label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8rpx;
+  gap: 4rpx;
+}
+
+.label-text {
+  font-size: 28rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.required-mark {
+  font-size: 28rpx;
+  color: #ff4757;
+  font-weight: 600;
+}
+
 .tag-input {
   width: 100%;
   height: 80rpx;
@@ -795,7 +864,7 @@ export default {
 }
 
 .input-tips {
-  margin-top: 16rpx;
+  margin-top: 8rpx;
 }
 
 .dialog-actions {
