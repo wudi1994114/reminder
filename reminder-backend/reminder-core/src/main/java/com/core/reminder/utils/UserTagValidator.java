@@ -16,29 +16,19 @@ import java.util.stream.Collectors;
 public class UserTagValidator {
     
     /**
-     * 最大标签数量
+     * 标签列表最大总长度
      */
-    public static final int MAX_TAG_COUNT = 10;
+    public static final int MAX_TOTAL_LENGTH = 100;
     
     /**
-     * 每个标签最大汉字数量
+     * 标签分隔符
      */
-    public static final int MAX_CHINESE_CHARS = 4;
+    public static final String TAG_SEPARATOR = "|||";
     
     /**
-     * 每个标签最大字母数量
+     * 标题和内容分隔符
      */
-    public static final int MAX_ENGLISH_CHARS = 8;
-    
-    /**
-     * 汉字正则表达式
-     */
-    private static final Pattern CHINESE_PATTERN = Pattern.compile("[\u4e00-\u9fa5]");
-    
-    /**
-     * 英文字母正则表达式
-     */
-    private static final Pattern ENGLISH_PATTERN = Pattern.compile("[a-zA-Z]");
+    public static final String TITLE_CONTENT_SEPARATOR = "|";
     
     /**
      * 验证标签列表字符串
@@ -50,17 +40,17 @@ public class UserTagValidator {
             return ValidationResult.success("标签列表为空，验证通过");
         }
         
+        // 检查总长度
+        if (tagListStr.length() > MAX_TOTAL_LENGTH) {
+            return ValidationResult.error(String.format("标签列表总长度超过限制，最多允许%d个字符，当前有%d个", 
+                    MAX_TOTAL_LENGTH, tagListStr.length()));
+        }
+        
         // 分割标签
-        List<String> tags = Arrays.stream(tagListStr.split(","))
+        List<String> tags = Arrays.stream(tagListStr.split(TAG_SEPARATOR))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toList());
-        
-        // 检查标签数量
-        if (tags.size() > MAX_TAG_COUNT) {
-            return ValidationResult.error(String.format("标签数量超过限制，最多允许%d个标签，当前有%d个", 
-                    MAX_TAG_COUNT, tags.size()));
-        }
         
         // 检查每个标签的格式
         for (int i = 0; i < tags.size(); i++) {
@@ -71,7 +61,7 @@ public class UserTagValidator {
             }
         }
         
-        return ValidationResult.success(String.format("标签列表验证通过，共%d个标签", tags.size()));
+        return ValidationResult.success(String.format("标签列表验证通过，共%d个标签，总长度%d个字符", tags.size(), tagListStr.length()));
     }
     
     /**
@@ -84,35 +74,33 @@ public class UserTagValidator {
             return ValidationResult.error("标签不能为空");
         }
         
-        // 统计汉字和英文字母数量
-        int chineseCount = 0;
-        int englishCount = 0;
+        // 检查标签是否包含标签分隔符（不允许在单个标签中使用）
+        if (tag.contains(TAG_SEPARATOR)) {
+            return ValidationResult.error(String.format("标签'%s'不能包含标签分隔符'%s'", tag, TAG_SEPARATOR));
+        }
         
-        for (char c : tag.toCharArray()) {
-            if (CHINESE_PATTERN.matcher(String.valueOf(c)).matches()) {
-                chineseCount++;
-            } else if (ENGLISH_PATTERN.matcher(String.valueOf(c)).matches()) {
-                englishCount++;
+        // 检查标签是否包含分隔符（标题|内容格式）
+        if (tag.contains(TITLE_CONTENT_SEPARATOR)) {
+            String[] parts = tag.split("\\" + TITLE_CONTENT_SEPARATOR, 2);
+            if (parts.length == 2) {
+                String title = parts[0].trim();
+                String content = parts[1].trim();
+                
+                if (!StringUtils.hasText(title)) {
+                    return ValidationResult.error(String.format("标签'%s'的标题部分不能为空", tag));
+                }
+                
+                if (!StringUtils.hasText(content)) {
+                    return ValidationResult.error(String.format("标签'%s'的内容部分不能为空", tag));
+                }
+                
+                return ValidationResult.success(String.format("标签'%s'验证通过（标题|内容格式）", tag));
+            } else {
+                return ValidationResult.error(String.format("标签'%s'格式错误，|分隔符使用不正确", tag));
             }
         }
         
-        // 检查汉字数量
-        if (chineseCount > MAX_CHINESE_CHARS) {
-            return ValidationResult.error(String.format("标签'%s'汉字数量超过限制，最多允许%d个汉字，当前有%d个", 
-                    tag, MAX_CHINESE_CHARS, chineseCount));
-        }
-        
-        // 检查英文字母数量
-        if (englishCount > MAX_ENGLISH_CHARS) {
-            return ValidationResult.error(String.format("标签'%s'英文字母数量超过限制，最多允许%d个字母，当前有%d个", 
-                    tag, MAX_ENGLISH_CHARS, englishCount));
-        }
-        
-        // 检查是否只包含汉字和英文字母
-        if (chineseCount == 0 && englishCount == 0) {
-            return ValidationResult.error(String.format("标签'%s'必须包含汉字或英文字母", tag));
-        }
-        
+        // 普通标签（没有|分隔符）
         return ValidationResult.success(String.format("标签'%s'验证通过", tag));
     }
     
@@ -127,13 +115,13 @@ public class UserTagValidator {
             return "";
         }
         
-        List<String> tags = Arrays.stream(tagListStr.split(","))
+        List<String> tags = Arrays.stream(tagListStr.split(TAG_SEPARATOR))
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .distinct() // 去重
                 .collect(Collectors.toList());
         
-        return String.join(",", tags);
+        return String.join(TAG_SEPARATOR, tags);
     }
     
     /**
