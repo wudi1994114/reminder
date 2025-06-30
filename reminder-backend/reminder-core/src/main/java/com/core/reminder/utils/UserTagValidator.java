@@ -23,12 +23,12 @@ public class UserTagValidator {
     /**
      * 标签分隔符
      */
-    public static final String TAG_SEPARATOR = "|-|";
+    public static final String TAG_SEPARATOR = "\\|-\\|";
     
     /**
      * 标题和内容分隔符
      */
-    public static final String TITLE_CONTENT_SEPARATOR = "|";
+    public static final String TITLE_CONTENT_SEPARATOR = "\\|";
     
     /**
      * 验证标签列表字符串
@@ -81,7 +81,7 @@ public class UserTagValidator {
         
         // 检查标签是否包含分隔符（标题|内容格式）
         if (tag.contains(TITLE_CONTENT_SEPARATOR)) {
-            String[] parts = tag.split("\\" + TITLE_CONTENT_SEPARATOR, 2);
+            String[] parts = tag.split(TITLE_CONTENT_SEPARATOR, 2);
             if (parts.length == 2) {
                 String title = parts[0].trim();
                 String content = parts[1].trim();
