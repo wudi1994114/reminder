@@ -1,11 +1,17 @@
 <template>
   <view 
     class="reminder-card complex-card" 
-    @click="handleClick"
+    @click="handleCardClick"
   >
     <view class="card-content">
       <view class="reminder-main">
         <text class="reminder-title">{{ reminder.title }}</text>
+        
+        <!-- 倒计时显示 -->
+        <view v-if="countdownText" class="countdown-container">
+          <text class="countdown-text">{{ countdownText }}</text>
+        </view>
+        
         <view class="reminder-cron-container">
           <text class="reminder-cron" :class="{ 'marquee': isLongText(formatCronDescription(reminder.cronExpression)) }">
             {{ formatCronDescription(reminder.cronExpression) }}
@@ -32,6 +38,9 @@
 </template>
 
 <script>
+import { ref, onMounted, onUnmounted } from 'vue';
+import { createCountdownUpdater } from '@/utils/countdown';
+
 export default {
   name: 'ComplexReminderCard',
   props: {
@@ -42,8 +51,14 @@ export default {
   },
   emits: ['click', 'edit', 'delete'],
   setup(props, { emit }) {
-    const handleClick = () => {
-      emit('click', props.reminder.id);
+    // 倒计时相关状态
+    const countdownText = ref('');
+    let countdownUpdater = null;
+    
+    const handleCardClick = () => {
+      // 只提供视觉反馈，不触发任何实际功能
+      // 点击动画效果由CSS的:active伪类处理
+      console.log('复杂提醒卡片被点击:', props.reminder.title);
     };
     
     const handleEdit = () => {
@@ -95,52 +110,70 @@ export default {
         
         // 解析时间
         const timeStr = formatTime(hour, minute);
-        console.log('格式化时间结果:', timeStr);
         
-        // 解析重复模式 - 修复逻辑顺序
-        if (month !== '*' && month !== '?' && month.trim() !== '') {
-          // 按年重复 - 优先检查年重复
-          const months = parseMonths(month);
-          
-          if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
-            // 年重复 + 星期模式
-            const weekdays = parseWeekdays(weekday);
-            description = `每年${months}的${weekdays}${timeStr}`;
-          } else if (day !== '?' && day !== '*' && day.trim() !== '') {
-            // 年重复 + 日期模式
-            description = `每年${months}${day}日${timeStr}`;
+        // 解析重复模式
+        if (weekday !== '*' && weekday !== '?') {
+          // 按星期重复
+          const weekdayStr = parseWeekdays(weekday);
+          if (month !== '*' && month !== '?') {
+            // 特定月份的特定星期
+            const monthStr = parseMonths(month);
+            description = `${monthStr}的${weekdayStr} ${timeStr}`;
           } else {
-            // 年重复但日期和星期都为通配符
-            description = `每年${months}${timeStr}`;
+            // 每周的特定星期
+            description = `每${weekdayStr} ${timeStr}`;
           }
-          console.log('识别为年重复:', description);
-        } else if (weekday !== '?' && weekday !== '*' && weekday.trim() !== '') {
-          // 按周重复
-          const weekdays = parseWeekdays(weekday);
-          description = `每${weekdays}${timeStr}`;
-          console.log('识别为周重复:', description);
-        } else if (day !== '?' && day !== '*' && day.trim() !== '') {
-          // 按月重复
-          if (day.includes(',')) {
-            const days = day.split(',').join('日、');
-            description = `每月${days}日${timeStr}`;
+        } else if (day !== '*' && day !== '?') {
+          // 按日期重复
+          if (month !== '*' && month !== '?') {
+            // 特定月份的特定日期（每年）
+            const monthStr = parseMonths(month);
+            description = `每年${monthStr}${day}日 ${timeStr}`;
           } else {
-            description = `每月${day}日${timeStr}`;
+            // 每月的特定日期
+            description = `每月${day}日 ${timeStr}`;
           }
-          console.log('识别为月重复:', description);
+        } else if (month !== '*' && month !== '?') {
+          // 特定月份（每年）
+          const monthStr = parseMonths(month);
+          description = `每年${monthStr} ${timeStr}`;
         } else {
-          // 每天重复
-          description = `每天${timeStr}`;
-          console.log('识别为每天重复:', description);
+          // 每天
+          description = `每天 ${timeStr}`;
         }
         
-        console.log('最终描述:', description);
+        console.log('生成的描述:', description);
         return description;
-      } catch (error) {
-        console.error('解析Cron表达式失败:', error);
+        
+      } catch (e) {
+        console.error('解析Cron表达式失败:', e);
         return '无效的Cron表达式';
       }
     };
+    
+    // 初始化倒计时
+    const initCountdown = () => {
+      if (countdownUpdater) {
+        countdownUpdater.stop();
+      }
+      
+      countdownUpdater = createCountdownUpdater((text) => {
+        countdownText.value = text;
+      }, props.reminder);
+      
+      countdownUpdater.start();
+    };
+    
+    // 生命周期钩子
+    onMounted(() => {
+      initCountdown();
+    });
+    
+    onUnmounted(() => {
+      if (countdownUpdater) {
+        countdownUpdater.stop();
+      }
+    });
     
     // 格式化时间
     const formatTime = (hour, minute) => {
@@ -220,13 +253,14 @@ export default {
     };
     
     return {
-      handleClick,
+      handleCardClick,
       handleEdit,
       handleDelete,
       formatCronDescription,
       getReminderTypeText,
       formatDateRange,
-      isLongText
+      isLongText,
+      countdownText
     };
   }
 };
@@ -245,6 +279,7 @@ export default {
 .reminder-card:active {
   transform: scale(0.98);
   border-color: #f7bd4a;
+  background-color: #fefefe;
 }
 
 .complex-card {
@@ -271,6 +306,22 @@ export default {
   color: #1c170d;
   line-height: 1.3;
   word-break: break-word;
+}
+
+/* 倒计时样式 */
+.countdown-container {
+  margin-top: 8rpx;
+  padding: 8rpx 16rpx;
+  background-color: #fff3e0;
+  border-radius: 12rpx;
+  border-left: 4rpx solid #ff9800;
+}
+
+.countdown-text {
+  font-size: 24rpx;
+  color: #e65100;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .reminder-cron-container {
@@ -346,6 +397,7 @@ export default {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .action-icon-btn:active {

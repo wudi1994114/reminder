@@ -46,13 +46,7 @@
                 <text class="hint-text">设置标签</text>
               </view>
             </view>
-            <VoiceInput
-              @result="handleVoiceResult"
-              @complete="handleVoiceComplete"
-              @error="handleVoiceError"
-              :showStatusText="false"
-              :showResult="false"
-            />
+
           </view>
         </view>
       </view>
@@ -113,7 +107,7 @@ import { requireAuth } from '@/utils/auth';
 import { FeatureControl, isProductionVersion, isDevelopmentVersion } from '@/config/version';
 import UnifiedTimePicker from '@/components/unified-time-picker/unified-time-picker.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
-import VoiceInput from '@/components/VoiceInput.vue';
+
 
 export default {
   onLoad(options) {
@@ -598,52 +592,7 @@ export default {
       // #endif
     };
 
-    // 处理语音识别结果
-    const handleVoiceResult = (resultData) => {
-      console.log('语音识别结果:', resultData);
 
-      // 实时更新内容（中间结果）
-      if (!resultData.isFinal && resultData.text) {
-        // 可以选择是否显示中间结果
-        console.log('中间结果:', resultData.text);
-      }
-    };
-
-    // 处理语音识别完成
-    const handleVoiceComplete = (finalText) => {
-      console.log('语音识别完成:', finalText);
-
-      if (finalText && finalText.trim()) {
-        // 将识别结果添加到内容中
-        if (!reminderForm.description) {
-          reminderForm.description = finalText.trim();
-        } else {
-          // 如果内容不为空，在末尾添加识别结果
-          const currentText = reminderForm.description.trim();
-          reminderForm.description = currentText + (currentText ? ' ' : '') + finalText.trim();
-        }
-
-        // 限制长度不超过200字符
-        if (reminderForm.description.length > 200) {
-          reminderForm.description = reminderForm.description.substring(0, 200);
-        }
-
-        // 显示成功提示
-        uni.showToast({
-          title: '语音识别成功',
-          icon: 'success',
-          duration: 1500
-        });
-      }
-    };
-
-    // 处理语音识别错误
-    const handleVoiceError = (error) => {
-      console.error('语音识别错误:', error);
-
-      // 错误已经在VoiceInput组件中处理了，这里可以做额外的处理
-      // 比如记录错误日志等
-    };
 
     // 跳转到标签设置页面
     const goToTagSettings = () => {
@@ -675,9 +624,7 @@ export default {
       showReminderTypeSelector,
       loadUserTags,
       addQuickTag,
-      handleVoiceResult,
-      handleVoiceComplete,
-      handleVoiceError,
+
       goToTagSettings
     };
   }
@@ -763,7 +710,7 @@ export default {
 .content-textarea {
   width: 100%;
   min-height: 288rpx;
-  padding: 32rpx 32rpx 120rpx 32rpx; /* 底部留出空间给标签和语音按钮 */
+  padding: 32rpx 32rpx 120rpx 32rpx; /* 底部留出空间给标签 */
   background-color: transparent;
   border: none;
   font-size: 32rpx;
@@ -776,7 +723,7 @@ export default {
   color: #9d8148;
 }
 
-/* 快捷标签和语音输入区域 */
+/* 快捷标签区域 */
 .quick-tags-section {
   position: absolute;
   bottom: 0;
@@ -1010,10 +957,7 @@ export default {
     font-size: 20rpx;
   }
 
-  .voice-input-btn {
-    width: 40rpx;
-    height: 40rpx;
-  }
+
   
   .setting-label,
   .setting-value {

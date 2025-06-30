@@ -10,8 +10,18 @@ import { request } from './api';
 // 全局数据版本管理
 export const globalDataVersion = ref(Date.now());
 export const updateDataVersion = () => {
+  const oldVersion = globalDataVersion.value;
   globalDataVersion.value = Date.now();
-  console.log(`%c[Data Version] Updated to: ${globalDataVersion.value}`, 'color: #4CAF50; font-weight: bold;');
+  
+  // 获取调用栈信息
+  const stack = new Error().stack;
+  const caller = stack.split('\n')[2]?.trim() || 'unknown';
+  
+  console.log(`%c[Data Version] 数据版本更新`, 'color: #4CAF50; font-weight: bold;');
+  console.log(`%c[Data Version] 旧版本: ${oldVersion}`, 'color: #666;');
+  console.log(`%c[Data Version] 新版本: ${globalDataVersion.value}`, 'color: #4CAF50; font-weight: bold;');
+  console.log(`%c[Data Version] 调用者: ${caller}`, 'color: #2196F3;');
+  console.log(`%c[Data Version] 版本差异: ${globalDataVersion.value - oldVersion}ms`, 'color: #FF9800;');
 };
 
 // 缓存配置
@@ -397,46 +407,57 @@ class ReminderCacheService {
   
   /**
    * 获取缓存数据
-   * @param {string} type - 缓存类型
-   * @param {Object} params - 参数
-   * @returns {Object|null} 缓存的数据或null
+   * @param {string} type - 缓存类型 ('simple', 'complex', 'upcoming', 'userProfile', 'userTags')
+   * @param {Object} params - 缓存参数
+   * @returns {*} 缓存的数据或null
    */
   static getCache(type, params = {}) {
     const cacheKey = this.generateCacheKey(type, params);
-    
-    // 1. 先检查内存缓存
-    const memCache = memoryCache[`${type}Reminders`];
-    if (memCache && memCache.has(cacheKey)) {
+    console.log(`%c[缓存服务] 尝试获取缓存`, 'color: #3F51B5; font-weight: bold;');
+    console.log(`%c[缓存服务] 缓存类型: ${type}`, 'color: #3F51B5;');
+    console.log(`%c[缓存服务] 缓存键: ${cacheKey}`, 'color: #3F51B5;');
+    console.log(`%c[缓存服务] 缓存参数:`, 'color: #3F51B5;', params);
+
+    // 根据类型选择对应的内存缓存
+    let memCache;
+    switch (type) {
+      case 'simple':
+        memCache = memoryCache.simpleReminders;
+        break;
+      case 'complex':
+        memCache = memoryCache.complexReminders;
+        break;
+      case 'upcoming':
+        memCache = memoryCache.upcomingReminders;
+        break;
+      case 'userProfile':
+        memCache = memoryCache.userProfile;
+        break;
+      case 'userTags':
+        memCache = memoryCache.userTags;
+        break;
+      default:
+        console.warn(`%c[缓存服务] 未知的缓存类型: ${type}`, 'color: #FF9800;');
+        return null;
+    }
+
+    // 先检查内存缓存
+    if (memCache.has(cacheKey)) {
       const cached = memCache.get(cacheKey);
       if (this.isValidCache(cached)) {
-        console.log(`✅ 内存缓存命中: ${cacheKey}`);
+        console.log(`%c[缓存服务] ✅ 内存缓存命中！`, 'color: #4CAF50; font-weight: bold;');
+        console.log(`%c[缓存服务] 缓存时间: ${new Date(cached.timestamp).toLocaleString()}`, 'color: #4CAF50;');
+        console.log(`%c[缓存服务] 数据类型: ${Array.isArray(cached.data) ? `数组(${cached.data.length}项)` : typeof cached.data}`, 'color: #4CAF50;');
         return cached.data;
       } else {
-        // 内存缓存过期，删除
+        console.log(`%c[缓存服务] 内存缓存已过期，清除`, 'color: #FF9800;');
         memCache.delete(cacheKey);
       }
+    } else {
+      console.log(`%c[缓存服务] 内存缓存未命中`, 'color: #FF9800;');
     }
-    
-    // 2. 检查存储缓存
-    try {
-      const storageKey = CACHE_CONFIG.STORAGE_KEYS[`${type.toUpperCase()}_REMINDERS`];
-      const storedData = uni.getStorageSync(storageKey);
-      
-      if (storedData) {
-        const parsed = JSON.parse(storedData);
-        if (parsed[cacheKey] && this.isValidCache(parsed[cacheKey])) {
-          console.log(`✅ 存储缓存命中: ${cacheKey}`);
-          
-          // 恢复到内存缓存
-          memCache.set(cacheKey, parsed[cacheKey]);
-          return parsed[cacheKey].data;
-        }
-      }
-    } catch (error) {
-      console.warn('读取存储缓存失败:', error);
-    }
-    
-    console.log(`❌ 缓存未命中: ${cacheKey}`);
+
+    console.log(`%c[缓存服务] ❌ 缓存完全未命中`, 'color: #f44336;');
     return null;
   }
   
@@ -514,51 +535,74 @@ class ReminderCacheService {
   }
   
   /**
-   * 清除特定类型的缓存
+   * 清除缓存
    * @param {string} type - 缓存类型
    * @param {Object} params - 参数（可选，如果不提供则清除该类型的所有缓存）
    */
   static clearCache(type, params = null) {
+    console.log(`%c[缓存清理] 开始清除缓存`, 'color: #F44336; font-weight: bold;');
+    console.log(`%c[缓存清理] 缓存类型: ${type}`, 'color: #F44336;');
+    console.log(`%c[缓存清理] 清理参数:`, 'color: #F44336;', params);
+
+    // 根据类型选择对应的内存缓存
+    let memCache;
+    let storageKey;
+    
+    switch (type) {
+      case 'simple':
+        memCache = memoryCache.simpleReminders;
+        storageKey = CACHE_CONFIG.STORAGE_KEYS.SIMPLE_REMINDERS;
+        break;
+      case 'complex':
+        memCache = memoryCache.complexReminders;
+        storageKey = CACHE_CONFIG.STORAGE_KEYS.COMPLEX_REMINDERS;
+        break;
+      case 'upcoming':
+        memCache = memoryCache.upcomingReminders;
+        storageKey = CACHE_CONFIG.STORAGE_KEYS.UPCOMING_REMINDERS;
+        break;
+      case 'userProfile':
+        memCache = memoryCache.userProfile;
+        storageKey = CACHE_CONFIG.STORAGE_KEYS.USER_PROFILE;
+        break;
+      case 'userTags':
+        memCache = memoryCache.userTags;
+        storageKey = CACHE_CONFIG.STORAGE_KEYS.USER_TAGS;
+        break;
+      default:
+        console.warn(`%c[缓存清理] 未知的缓存类型: ${type}`, 'color: #FF9800;');
+        return;
+    }
+
     if (params) {
-      // 清除特定缓存
+      // 清除特定参数的缓存
       const cacheKey = this.generateCacheKey(type, params);
+      console.log(`%c[缓存清理] 清除特定缓存，键: ${cacheKey}`, 'color: #F44336;');
       
-      // 清除内存缓存
-      const memCache = memoryCache[`${type}Reminders`];
-      if (memCache) {
-        memCache.delete(cacheKey);
-      }
+      const beforeSize = memCache.size;
+      memCache.delete(cacheKey);
+      const afterSize = memCache.size;
+      
+      console.log(`%c[缓存清理] 内存缓存清理完成，数量变化: ${beforeSize} -> ${afterSize}`, 'color: #F44336;');
+    } else {
+      // 清除该类型的所有缓存
+      console.log(`%c[缓存清理] 清除所有${type}类型缓存`, 'color: #F44336;');
+      
+      const beforeSize = memCache.size;
+      memCache.clear();
+      
+      console.log(`%c[缓存清理] 内存缓存全部清理，清理数量: ${beforeSize}`, 'color: #F44336;');
       
       // 清除存储缓存
       try {
-        const storageKey = CACHE_CONFIG.STORAGE_KEYS[`${type.toUpperCase()}_REMINDERS`];
-        const storedData = uni.getStorageSync(storageKey);
-        if (storedData) {
-          const parsed = JSON.parse(storedData);
-          delete parsed[cacheKey];
-          uni.setStorageSync(storageKey, JSON.stringify(parsed));
-        }
-      } catch (error) {
-        console.warn('清除存储缓存失败:', error);
-      }
-      
-      console.log(`🧹 已清除缓存: ${cacheKey}`);
-    } else {
-      // 清除该类型的所有缓存
-      const memCache = memoryCache[`${type}Reminders`];
-      if (memCache) {
-        memCache.clear();
-      }
-      
-      try {
-        const storageKey = CACHE_CONFIG.STORAGE_KEYS[`${type.toUpperCase()}_REMINDERS`];
         uni.removeStorageSync(storageKey);
+        console.log(`%c[缓存清理] 存储缓存已清理: ${storageKey}`, 'color: #F44336;');
       } catch (error) {
-        console.warn('清除存储缓存失败:', error);
+        console.warn(`%c[缓存清理] 清除存储缓存失败:`, 'color: #FF9800;', error);
       }
-      
-      console.log(`🧹 已清除所有${type}缓存`);
     }
+    
+    console.log(`%c[缓存清理] ✅ 缓存清理完成`, 'color: #F44336; font-weight: bold;');
   }
   
   /**

@@ -46,6 +46,10 @@ spring:
     # 禁用自动 DDL (因为我们使用 schema.sql), 推荐 validate 或 none
     hibernate:
       ddl-auto: validate # 或 none
+      jdbc:
+          batch_size: 100 # 这个大小可以和你的 BATCH_SIZE 保持一致
+      order-inserts: true
+      order-updates: true
       naming:
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy # 显式指定命名策略
     # 关闭SQL语句显示

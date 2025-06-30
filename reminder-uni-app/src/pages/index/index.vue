@@ -86,7 +86,6 @@
               v-for="item in complexReminders" 
               :key="item.id" 
               :reminder="item"
-              @click="goToComplexDetail"
               @edit="editComplexReminder"
               @delete="deleteComplexReminder"
             />
@@ -152,20 +151,9 @@ export default {
   },
   
   onShow() {
-    console.log('Index页面显示，检查数据版本');
-    if (this.localDataVersion !== globalDataVersion.value) {
-      console.log(`%c[Data Sync] Version mismatch (local: ${this.localDataVersion}, global: ${globalDataVersion.value}). Refreshing data.`, 'color: #f44336;');
-      this.loadCurrentTabData();
-    } else {
-      console.log('[Data Sync] Version match. No need to refresh.');
+    if (this.handlePageShow) {
+      this.handlePageShow();
     }
-    
-    // 原有的逻辑也保留，用于处理登录状态变化等
-    checkDataSyncOnShow(
-      'IndexPage',
-      () => this.loadCurrentTabData(),
-      () => this.clearPageData()
-    );
   },
   
   onShareAppMessage(res) {
@@ -258,23 +246,37 @@ export default {
 
     // 标签页切换
     const switchTab = (tab) => {
+      console.log(`%c[Index页面] 标签切换触发`, 'color: #9C27B0; font-weight: bold;');
+      console.log(`%c[Index页面] 当前标签: ${activeTab.value} -> 目标标签: ${tab}`, 'color: #9C27B0;');
+      
       if (tab !== activeTab.value) {
         activeTab.value = tab;
+        console.log(`%c[Index页面] 标签已切换到: ${tab}，开始加载对应数据`, 'color: #9C27B0;');
         loadCurrentTabData();
+      } else {
+        console.log(`%c[Index页面] 标签未变化，无需重新加载`, 'color: #9C27B0;');
       }
     };
 
     // 创建智能数据加载器
     const smartLoadCurrentTabData = createSmartDataLoader(
       async () => {
+        console.log(`%c[Index页面] 智能数据加载器启动`, 'color: #607D8B; font-weight: bold;');
+        console.log(`%c[Index页面] 当前标签: ${activeTab.value}`, 'color: #607D8B;');
+        
         if (activeTab.value === 'simple') {
+          console.log(`%c[Index页面] 开始加载简单提醒数据`, 'color: #607D8B;');
           await loadSimpleReminders();
         } else {
+          console.log(`%c[Index页面] 开始加载复杂提醒数据`, 'color: #607D8B;');
           await loadComplexReminders();
         }
+        
         // 数据加载成功后，同步版本号
+        const oldLocalVersion = localDataVersion.value;
         localDataVersion.value = globalDataVersion.value;
-        console.log(`[IndexPage] Data loaded, version synced to: ${localDataVersion.value}`);
+        console.log(`%c[Index页面] 数据加载完成，版本同步`, 'color: #4CAF50; font-weight: bold;');
+        console.log(`%c[Index页面] 本地版本更新: ${oldLocalVersion} -> ${localDataVersion.value}`, 'color: #4CAF50;');
       },
       isLoading
     );
@@ -290,32 +292,39 @@ export default {
 
     // 加载简单提醒
     const loadSimpleReminders = async () => {
-      if (isLoading.value) return;
+      if (isLoading.value) {
+        console.log(`%c[Index页面] 简单提醒正在加载中，跳过重复请求`, 'color: #FF9800;');
+        return;
+      }
       
       try {
         isLoading.value = true;
-        console.log('开始加载简单提醒...');
+        console.log('%c[Index页面] 开始加载简单提醒...', 'color: #2196F3; font-weight: bold;');
         
         const response = await getUpcomingReminders();
-        console.log('简单提醒加载响应:', response);
+        console.log('%c[Index页面] 简单提醒API响应:', 'color: #2196F3;', response);
         
         if (response && Array.isArray(response)) {
+          const oldCount = simpleReminders.value.length;
           simpleReminders.value = response;
-          console.log(`成功加载 ${response.length} 个简单提醒`);
+          console.log(`%c[Index页面] 简单提醒加载成功`, 'color: #4CAF50; font-weight: bold;');
+          console.log(`%c[Index页面] 提醒数量变化: ${oldCount} -> ${response.length}`, 'color: #4CAF50;');
         } else {
-          console.warn('简单提醒响应格式异常:', response);
+          console.warn('%c[Index页面] 简单提醒响应格式异常:', 'color: #FF9800;', response);
           simpleReminders.value = [];
         }
       } catch (error) {
-        console.error('加载简单提醒失败:', error);
+        console.error('%c[Index页面] 加载简单提醒失败:', 'color: #f44336; font-weight: bold;', error);
         simpleReminders.value = [];
         
         // 如果是认证错误，清空数据
         if (error.message && error.message.includes('认证')) {
+          console.log('%c[Index页面] 检测到认证错误，清空所有用户数据', 'color: #f44336;');
           clearAllUserData();
         }
       } finally {
         isLoading.value = false;
+        console.log('%c[Index页面] 简单提醒加载流程结束', 'color: #2196F3;');
       }
     };
 
@@ -481,6 +490,29 @@ export default {
       }
     };
     
+    // 页面显示时的逻辑
+    const handlePageShow = () => {
+      console.log('%c[Index页面] onShow触发，开始检查数据版本', 'color: #9C27B0; font-weight: bold;');
+      console.log(`%c[Index页面] 本地版本: ${localDataVersion.value}`, 'color: #666;');
+      console.log(`%c[Index页面] 全局版本: ${globalDataVersion.value}`, 'color: #666;');
+      console.log(`%c[Index页面] 版本差异: ${globalDataVersion.value - localDataVersion.value}ms`, 'color: #FF9800;');
+      
+      if (localDataVersion.value !== globalDataVersion.value) {
+        console.log(`%c[Index页面] 版本不匹配，需要刷新数据`, 'color: #f44336; font-weight: bold;');
+        console.log(`%c[Index页面] 开始重新加载数据...`, 'color: #2196F3;');
+        loadCurrentTabData();
+      } else {
+        console.log(`%c[Index页面] 版本匹配，无需刷新`, 'color: #4CAF50;');
+      }
+      
+      // 原有的逻辑也保留，用于处理登录状态变化等
+      checkDataSyncOnShow(
+        'IndexPage',
+        () => loadCurrentTabData(),
+        () => clearPageData()
+      );
+    };
+
     // 初始化逻辑
     nextTick(() => {
       console.log('Index页面初始化，开始加载数据');
@@ -554,12 +586,6 @@ export default {
       });
     };
 
-    const goToComplexDetail = (reminder) => {
-      uni.navigateTo({
-        url: `/pages/create-complex/create-complex?id=${reminder.id}`
-      });
-    };
-
     return {
       // 响应式数据
       activeTab,
@@ -594,9 +620,9 @@ export default {
       closeLoginModal,
       handleWechatLogin,
       goToDetail,
-      goToComplexDetail,
       clearPageData,
-      testAllContainer
+      testAllContainer,
+      handlePageShow
     };
   }
 };
