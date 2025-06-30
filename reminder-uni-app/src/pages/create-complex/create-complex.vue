@@ -50,7 +50,7 @@
                     class="tag-item"
                     @click="addQuickTag(tag)"
                 >
-                  <text class="tag-text">{{ tag }}</text>
+                  <text class="tag-text">{{ getTagTitle(tag) }}</text>
                 </view>
 
                 <view v-if="userTags.length === 0" class="tag-settings-hint" @click="goToTagSettings">
@@ -1083,13 +1083,28 @@ export default {
 
     // 添加快捷标签到内容
     addQuickTag(tag) {
+      // 解析标签：检查是否包含|分隔符
+      let titlePart = tag;
+      let contentPart = tag;
+      
+      if (tag.includes('|')) {
+        const parts = tag.split('|', 2);
+        titlePart = parts[0].trim();
+        contentPart = parts[1].trim();
+      }
+
+      // 检测title是否为空，为空则将标签的标题部分给title
+      if (!this.reminderData.title || this.reminderData.title.trim() === '') {
+        this.reminderData.title = titlePart;
+      }
+
       if (!this.reminderData.description) {
-        this.reminderData.description = tag;
+        this.reminderData.description = contentPart;
       } else {
-        // 如果内容不为空，在末尾添加标签
+        // 如果内容不为空，在末尾添加标签的内容部分
         const currentText = this.reminderData.description.trim();
         // 添加空格分隔符，允许多次添加相同标签
-        this.reminderData.description = currentText + (currentText ? ' ' : '') + tag;
+        this.reminderData.description = currentText + (currentText ? ' ' : '') + contentPart;
       }
 
       // 限制长度不超过200字符
@@ -1175,7 +1190,7 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
-            this.userTags = tagListString ? tagListString.split(',').filter(tag => tag.trim()) : [];
+            this.userTags = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
             console.log('加载用户标签成功:', this.userTags);
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
@@ -1189,6 +1204,11 @@ export default {
         console.error('加载用户标签失败:', error);
         this.userTags = [];
       }
+    },
+
+    // 获取标签的标题部分用于显示
+    getTagTitle(tag) {
+      return tag.includes('|') ? tag.split('|')[0].trim() : tag;
     },
 
     // 跳转到标签设置页面
@@ -1887,7 +1907,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 9999;
 }
 
 .custom-modal {

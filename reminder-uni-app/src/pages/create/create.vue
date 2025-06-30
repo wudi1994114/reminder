@@ -29,7 +29,8 @@
             placeholder="内容"
             placeholder-class="input-placeholder"
             maxlength="200"
-            auto-height
+            :style="{ height: textareaHeight + 'px' }"
+            @linechange="handleLineChange"
           />
           <view class="quick-tags-section">
             <view class="quick-tags">
@@ -39,7 +40,7 @@
                 class="tag-item"
                 @click="addQuickTag(tag)"
               >
-                <text class="tag-text">{{ tag }}</text>
+                <text class="tag-text">{{ getTagTitle(tag) }}</text>
               </view>
 
               <view v-if="userTags.length === 0" class="tag-settings-hint" @click="goToTagSettings">
@@ -156,6 +157,10 @@ export default {
     const userTags = ref([]);
     const tagManagementEnabled = ref(false);
     
+    // 5. 新增用于手动控制 textarea 高度的响应式数据
+    const initialTextareaHeight = ref(0);
+    const textareaHeight = ref(0);
+    
     // 4. 统一的参数处理函数
     const processPageOptions = () => {
       let options = {};
@@ -211,6 +216,12 @@ export default {
         });
         return;
       }
+
+      // 在页面加载时，将 rpx 转换为 px，并设置为初始高度
+      // 288 是原本设置的 min-height 值
+      const initialHeightInPx = uni.upx2px(288);
+      initialTextareaHeight.value = initialHeightInPx;
+      textareaHeight.value = initialHeightInPx;
 
       initReminderTypes(); // 初始化提醒选项
       await loadUserTags(); // 加载用户标签
@@ -548,7 +559,7 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
-            userTags.value = tagListString ? tagListString.split(',').filter(tag => tag.trim()) : [];
+            userTags.value = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
             console.log('加载用户标签成功:', userTags.value);
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
@@ -564,15 +575,39 @@ export default {
       }
     };
 
+    // 新增 linechange 事件处理函数
+    const handleLineChange = (event) => {
+      // event.detail = { height, heightRpx, lineCount }
+      const contentHeight = event.detail.height;
+
+      // 核心逻辑：取 "初始高度" 和 "内容实际高度" 中的最大值
+      textareaHeight.value = Math.max(initialTextareaHeight.value, contentHeight);
+    };
+
     // 添加快捷标签到内容
     const addQuickTag = (tag) => {
+      // 解析标签：检查是否包含|分隔符
+      let titlePart = tag;
+      let contentPart = tag;
+      
+      if (tag.includes('|')) {
+        const parts = tag.split('|', 2);
+        titlePart = parts[0].trim();
+        contentPart = parts[1].trim();
+      }
+
+      // 检测title是否为空，为空则将标签的标题部分给title
+      if (!reminderForm.title || reminderForm.title.trim() === '') {
+        reminderForm.title = titlePart;
+      }
+
       if (!reminderForm.description) {
-        reminderForm.description = tag;
+        reminderForm.description = contentPart;
       } else {
-        // 如果内容不为空，在末尾添加标签
+        // 如果内容不为空，在末尾添加标签的内容部分
         const currentText = reminderForm.description.trim();
         // 添加空格分隔符，允许多次添加相同标签
-        reminderForm.description = currentText + (currentText ? ' ' : '') + tag;
+        reminderForm.description = currentText + (currentText ? ' ' : '') + contentPart;
       }
 
       // 限制长度不超过200字符
@@ -594,6 +629,11 @@ export default {
 
 
 
+    // 获取标签的标题部分用于显示
+    const getTagTitle = (tag) => {
+      return tag.includes('|') ? tag.split('|')[0].trim() : tag;
+    };
+
     // 跳转到标签设置页面
     const goToTagSettings = () => {
       uni.navigateTo({
@@ -613,6 +653,8 @@ export default {
       dateTimePickerRef,
       userTags,
       tagManagementEnabled,
+      initialTextareaHeight,
+      textareaHeight,
       onDateTimeChange,
       onReminderTypeChange,
       getReminderTypeIcon,
@@ -623,8 +665,9 @@ export default {
       cancel,
       showReminderTypeSelector,
       loadUserTags,
+      handleLineChange,
       addQuickTag,
-
+      getTagTitle,
       goToTagSettings
     };
   }
@@ -709,7 +752,7 @@ export default {
 
 .content-textarea {
   width: 100%;
-  min-height: 288rpx;
+  /* min-height 已移除，由 JS 控制 */
   padding: 32rpx 32rpx 120rpx 32rpx; /* 底部留出空间给标签 */
   background-color: transparent;
   border: none;
@@ -717,6 +760,7 @@ export default {
   color: #1c170d;
   line-height: 1.4;
   resize: none;
+  transition: height 0.1s ease-in-out;
 }
 
 .input-placeholder {

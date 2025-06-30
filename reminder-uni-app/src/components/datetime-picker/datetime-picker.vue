@@ -643,7 +643,7 @@ export default {
   background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: flex-end;
-  z-index: 1000;
+  z-index: 9999;
 }
 
 .picker-modal {
