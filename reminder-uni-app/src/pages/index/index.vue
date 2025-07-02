@@ -145,12 +145,21 @@ export default {
     GlobalLoginModal,
     ConfirmDialog
   },
+  onLoad() {
+    console.log('🚀 Index页面: onLoad 触发，页面首次加载');
+    // 页面首次加载时的初始化逻辑
+    if (this.handlePageLoad) {
+      this.handlePageLoad();
+    }
+  },
+  
   onTabItemTap() {
     // 标签页切换时的逻辑，暂时移除直接调用
     console.log('标签页被点击');
   },
   
   onShow() {
+    console.log('📱 Index页面: onShow 触发');
     if (this.handlePageShow) {
       this.handlePageShow();
     }
@@ -490,6 +499,39 @@ export default {
       }
     };
     
+    // 页面首次加载时的逻辑
+    const handlePageLoad = async () => {
+      console.log('%c[Index页面] onLoad处理开始', 'color: #4CAF50; font-weight: bold;');
+      
+      // 等待用户服务初始化完成
+      let retryCount = 0;
+      const maxRetries = 10; // 最多重试10次，总共约5秒
+      
+      while (retryCount < maxRetries) {
+        if (ReminderCacheService.getUserState().isAuthenticated) {
+          console.log('%c[Index页面] 用户已认证，开始加载数据', 'color: #4CAF50;');
+          await loadCurrentTabData();
+          break;
+        } else {
+          console.log(`%c[Index页面] 用户未认证，等待认证完成... (${retryCount + 1}/${maxRetries})`, 'color: #FF9800;');
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            // 等待500ms后重试
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } else {
+            console.log('%c[Index页面] 等待认证超时，用户可能未登录', 'color: #f44336;');
+            // 用户未登录，显示空状态
+            clearPageData();
+          }
+        }
+      }
+      
+      // 同步本地数据版本
+      localDataVersion.value = globalDataVersion.value;
+      console.log('%c[Index页面] onLoad处理完成', 'color: #4CAF50; font-weight: bold;');
+    };
+
     // 页面显示时的逻辑
     const handlePageShow = () => {
       console.log('%c[Index页面] onShow触发，开始检查数据版本', 'color: #9C27B0; font-weight: bold;');
@@ -513,11 +555,11 @@ export default {
       );
     };
 
-    // 初始化逻辑
-    nextTick(() => {
-      console.log('Index页面初始化，开始加载数据');
-      loadCurrentTabData();
-    });
+    // 移除 nextTick 初始化逻辑，改为在 onLoad 中处理
+    // nextTick(() => {
+    //   console.log('Index页面初始化，开始加载数据');
+    //   loadCurrentTabData();
+    // });
 
     // 页面显示时检查认证状态
     const checkAuthOnShow = () => {
@@ -622,6 +664,7 @@ export default {
       goToDetail,
       clearPageData,
       testAllContainer,
+      handlePageLoad,
       handlePageShow
     };
   }

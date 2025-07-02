@@ -200,7 +200,7 @@
       </view>
     </view>
 
-    <view class="bottom-actions">
+    <view class="bottom-actions" v-show="!showCronPicker && !showSimpleTimeModal && !showCustomPickers">
       <button
           class="action-btn submit-btn"
           @click="saveReminder"
@@ -396,34 +396,26 @@ export default {
         // 正式环境: 只有邮件和手机
         options = ['邮件', '手机'];
         values = ['EMAIL', 'SMS'];
-        // 创建新提醒时，默认邮件
-        if (!this.isEdit) {
-          this.reminderData.reminderType = 'EMAIL';
-        }
       } else {
         // 开发和测试环境: 只有微信
         options = ['微信'];
         values = ['WECHAT_MINI'];
-        // 创建新提醒时，默认微信
-        if (!this.isEdit) {
-          this.reminderData.reminderType = 'WECHAT_MINI';
-        }
       }
 
       this.reminderTypeOptions = options;
       this.reminderTypeValues = values;
 
       // 设置当前选中的索引
-      if (this.isEdit && this.reminderData.reminderType) {
-        // 编辑模式：使用已加载的提醒类型
+      if (this.reminderData.reminderType) {
+        // 如果已经有提醒类型，使用现有的
         const existingIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
         this.reminderTypeIndex = existingIndex !== -1 ? existingIndex : 0;
-        console.log('编辑模式：保持现有提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
+        console.log('保持现有提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
       } else {
-        // 创建模式：使用默认提醒类型
-        const defaultIndex = this.reminderTypeValues.indexOf(this.reminderData.reminderType);
-        this.reminderTypeIndex = defaultIndex !== -1 ? defaultIndex : 0;
-        console.log('创建模式：设置默认提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
+        // 如果没有提醒类型，设置为第一个选项
+        this.reminderTypeIndex = 0;
+        this.reminderData.reminderType = this.reminderTypeValues[0];
+        console.log('设置默认提醒类型索引:', this.reminderTypeIndex, '类型:', this.reminderData.reminderType);
       }
     },
 
@@ -447,11 +439,21 @@ export default {
 
       const defaultTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+      // 根据环境确定默认的提醒方式
+      let defaultReminderType = '';
+      if (isProductionVersion()) {
+        // 正式环境默认邮件
+        defaultReminderType = 'EMAIL';
+      } else {
+        // 开发和测试环境默认微信
+        defaultReminderType = 'WECHAT_MINI';
+      }
+
       reminderState.form = {
         title: '',
         description: '',
         cronExpression: '', // 高级模式默认为空
-        reminderType: '', // 让 initReminderTypes 来设置
+        reminderType: defaultReminderType, // 设置默认提醒方式，不再使用空字符串
         status: 'PENDING',
       };
 
@@ -463,6 +465,7 @@ export default {
       console.log('设置新提醒默认值:', {
         time: defaultTime,
         repeatType: this.repeatValues[this.repeatIndex],
+        reminderType: defaultReminderType,
         simpleTime: this.simpleTime
       });
 
@@ -963,6 +966,12 @@ export default {
         uni.showToast({ title: '请设置提醒时间', icon: 'none' });
         return;
       }
+      if (!this.reminderData.reminderType || this.reminderData.reminderType === '') {
+        // 如果提醒方式为空，设置默认值
+        const defaultType = isProductionVersion() ? 'EMAIL' : 'WECHAT_MINI';
+        this.reminderData.reminderType = defaultType;
+        console.warn('提醒方式为空，已设置为默认值:', defaultType);
+      }
 
       // 检查微信订阅权限
       if (this.needWechatSubscribe()) {
@@ -982,6 +991,19 @@ export default {
       this.isSubmitting = true;
       try {
         const dataToSave = { ...this.reminderData };
+        
+        // 添加调试日志，记录发送到后端的完整数据
+        console.log('📤 准备保存复杂提醒，发送到后端的数据:', {
+          title: dataToSave.title,
+          description: dataToSave.description,
+          cronExpression: dataToSave.cronExpression,
+          reminderType: dataToSave.reminderType,
+          reminderTypeType: typeof dataToSave.reminderType,
+          reminderTypeLength: dataToSave.reminderType ? dataToSave.reminderType.length : 0,
+          isReminderTypeEmpty: dataToSave.reminderType === '',
+          fullData: JSON.stringify(dataToSave, null, 2)
+        });
+        
         let result;
 
         if (this.isEdit) {
@@ -1190,8 +1212,10 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
+            console.log('🏷️ 复杂提醒页面 - 获取到的标签字符串:', tagListString);
+            
             this.userTags = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
-            console.log('加载用户标签成功:', this.userTags);
+            console.log('🏷️ 复杂提醒页面 - 最终标签数组:', this.userTags);
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
             this.userTags = [];
@@ -1410,7 +1434,7 @@ export default {
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); /* 适配安全区域 */
   background-color: #fcfbf8;
   border-top: 1rpx solid #e9e0ce;
-  z-index: 100;
+  z-index: 1;
 }
 
 .action-btn {

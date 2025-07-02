@@ -135,6 +135,12 @@ public class UserPreferenceService {
         return convertToDto(savedPreference);
     }
 
+
+
+    public static void main(String[] args) {
+        System.out.println(UserTagValidator.validateTagList("123|312|-|1234|321"));
+    }
+
     /**
      * 设置用户偏好设置（重载方法）
      * @param userId 用户ID
@@ -342,6 +348,53 @@ public class UserPreferenceService {
     @Transactional
     public UserPreferenceDto setUserTagList(Long userId, String tagList) {
         return setUserPreference(userId, UserPreferenceKey.USER_TAG_LIST.getKey(), tagList);
+    }
+
+    /**
+     * 获取用户微信授权剩余次数
+     * @param userId 用户ID
+     * @return 剩余次数
+     */
+    public Integer getWechatAuthCount(Long userId) {
+        String value = getUserPreferenceValue(userId,
+                UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(),
+                UserPreferenceKey.WECHAT_AUTH_COUNT.getDefaultValue());
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            log.warn("无效的微信授权次数: {}, 使用0作为默认值", value);
+            return 0;
+        }
+    }
+
+    /**
+     * 增加用户微信授权次数
+     * @param userId 用户ID
+     * @param count 增加的次数
+     * @return 保存后的偏好设置DTO
+     */
+    @Transactional
+    public UserPreferenceDto increaseWechatAuthCount(Long userId, Integer count) {
+        Integer currentCount = getWechatAuthCount(userId);
+        Integer newCount = currentCount + count;
+        return setUserPreference(userId, UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(), newCount.toString());
+    }
+
+    /**
+     * 减少用户微信授权次数
+     * @param userId 用户ID
+     * @param count 减少的次数
+     * @return 保存后的偏好设置DTO，如果次数不足则返回null
+     */
+    @Transactional
+    public UserPreferenceDto decreaseWechatAuthCount(Long userId, Integer count) {
+        Integer currentCount = getWechatAuthCount(userId);
+        if (currentCount < count) {
+            log.warn("用户ID[{}]微信授权次数不足，当前:{}, 尝试减少:{}", userId, currentCount, count);
+            return null;
+        }
+        Integer newCount = currentCount - count;
+        return setUserPreference(userId, UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(), newCount.toString());
     }
 
     /**

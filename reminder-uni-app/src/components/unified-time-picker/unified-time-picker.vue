@@ -191,7 +191,7 @@ export default {
       default: () => new UnifiedTimeData()
     }
   },
-  emits: ['update:modelValue', 'change', 'confirm', 'cancel'],
+  emits: ['update:modelValue', 'change', 'confirm', 'cancel', 'picker-show', 'picker-hide'],
   
   setup(props, { emit }) {
     // 显示状态
@@ -252,6 +252,7 @@ export default {
       }
       
       show.value = true;
+      emit('picker-show');
     };
     
     // 切换模式
@@ -386,6 +387,7 @@ export default {
       emit('update:modelValue', newData);
       emit('confirm', newData);
       show.value = false;
+      emit('picker-hide');
     };
     
     // 取消选择
@@ -397,6 +399,7 @@ export default {
       
       emit('cancel');
       show.value = false;
+      emit('picker-hide');
     };
     
     // 监听modelValue变化

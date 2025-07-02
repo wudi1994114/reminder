@@ -217,7 +217,10 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
+            console.log('🏷️ 设置页面 - 获取到的标签字符串:', tagListString);
+            
             userTags.value = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
+            console.log('🏷️ 设置页面 - 最终标签数组:', userTags.value);
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
             userTags.value = [];
@@ -724,8 +727,6 @@ export default {
   white-space: nowrap;
   display: block;
 }
-
-
 
 .tag-remove {
   display: flex;

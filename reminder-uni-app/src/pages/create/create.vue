@@ -57,7 +57,22 @@
         <text class="setting-label">提醒方式</text>
         <text class="setting-value">{{ getReminderTypeText(reminderForm.reminderType) }}</text>
       </view>
-      
+
+
+          <!-- 底部保存按钮 -->
+      <view class="bottom-container">
+        <button 
+          class="save-button" 
+          @click="saveReminder" 
+          :disabled="isSubmitting"
+          :class="{ 'button-loading': isSubmitting }"
+        >
+          <text class="button-text" v-if="!isSubmitting">{{ isEdit ? '更新提醒' : '保存提醒' }}</text>
+          <text class="button-text" v-else>保存中...</text>
+        </button>
+        <view class="bottom-spacer"></view>
+      </view>
+        
       <!-- 时间设置 -->
       <datetime-picker 
         v-if="isDataReady"
@@ -74,19 +89,7 @@
       </view>
     </scroll-view>
     
-    <!-- 底部保存按钮 -->
-    <view class="bottom-container">
-      <button 
-        class="save-button" 
-        @click="saveReminder" 
-        :disabled="isSubmitting"
-        :class="{ 'button-loading': isSubmitting }"
-      >
-        <text class="button-text" v-if="!isSubmitting">{{ isEdit ? '更新提醒' : '保存提醒' }}</text>
-        <text class="button-text" v-else>保存中...</text>
-      </button>
-      <view class="bottom-spacer"></view>
-    </view>
+
     
 
   </view>
@@ -132,7 +135,7 @@ export default {
       title: '',
       description: '',
       eventTime: '',
-      reminderType: '', // 将在 onMounted 中初始化
+      reminderType: isProductionVersion() ? 'WECHAT_MINI' : 'WECHAT_MINI', // 设置默认提醒方式，不再使用空字符串
       status: 'PENDING'
     });
     
@@ -160,6 +163,9 @@ export default {
     // 5. 新增用于手动控制 textarea 高度的响应式数据
     const initialTextareaHeight = ref(0);
     const textareaHeight = ref(0);
+    
+    // 6. 时间选择器显示状态
+    const isTimePickerVisible = ref(false);
     
     // 4. 统一的参数处理函数
     const processPageOptions = () => {
@@ -403,6 +409,13 @@ export default {
           ...reminderForm
         };
         
+        // 确保提醒方式不为空
+        if (!dataToSave.reminderType || dataToSave.reminderType === '') {
+          const defaultType = reminderTypeValues.value[0] || 'WECHAT_MINI';
+          dataToSave.reminderType = defaultType;
+          console.warn('简单提醒：提醒方式为空，已设置为默认值:', defaultType);
+        }
+        
         // 将eventTime转换为ISO 8601格式
         if (dataToSave.eventTime) {
           // 将 "YYYY-MM-DD HH:mm:ss" 格式转换为 iOS 兼容的格式，然后转为 ISO 8601
@@ -522,20 +535,22 @@ export default {
         // 正式环境
         options = ['微信', '邮件', '手机'];
         values = ['WECHAT_MINI', 'EMAIL', 'SMS'];
-        // 默认微信
-        reminderForm.reminderType = 'WECHAT_MINI';
       } else {
         // 开发和测试环境
         options = ['微信'];
         values = ['WECHAT_MINI'];
-        reminderForm.reminderType = 'WECHAT_MINI';
       }
 
       reminderTypeOptions.value = options;
       reminderTypeValues.value = values;
       
-      // 只有在 reminderForm.reminderType 之前有值的情况下（比如编辑模式），才进行查找
-      // 否则，在创建模式下，它应该就是默认值，索引就是0
+      // 如果提醒类型为空或无效，设置为第一个可用选项
+      if (!reminderForm.reminderType || !values.includes(reminderForm.reminderType)) {
+        reminderForm.reminderType = values[0];
+        console.log('设置默认提醒方式为:', values[0]);
+      }
+      
+      // 设置对应的索引
       const defaultIndex = values.indexOf(reminderForm.reminderType);
       reminderTypeIndex.value = defaultIndex !== -1 ? defaultIndex : 0;
     };
@@ -559,8 +574,10 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
+            console.log('🏷️ 简单提醒页面 - 获取到的标签字符串:', tagListString);
+            
             userTags.value = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
-            console.log('加载用户标签成功:', userTags.value);
+            console.log('🏷️ 简单提醒页面 - 最终标签数组:', userTags.value);
           } catch (error) {
             console.log('获取标签列表失败，使用空列表');
             userTags.value = [];
@@ -869,6 +886,10 @@ export default {
 /* 底部容器 */
 .bottom-container {
   background-color: #fcfbf8;
+  position: fixed;
+  width: 100%;
+  z-index: 1;
+  bottom: 0;
 }
 
 .save-button {

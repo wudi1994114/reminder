@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -190,6 +191,54 @@ public class UserPreferenceController {
             
         } catch (Exception e) {
             log.error("初始化用户默认偏好设置失败", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 获取用户微信授权剩余次数
+     * @param currentUser 当前用户信息
+     * @return 剩余次数
+     */
+    @GetMapping("/wechat-auth-count")
+    public ResponseEntity<Integer> getWechatAuthCount(
+            @RequestAttribute("currentUser") UserProfileDto currentUser) {
+        try {
+            Long userId = currentUser.getId();
+            log.info("获取用户微信授权次数请求, userId: {}", userId);
+            
+            Integer count = userPreferenceService.getWechatAuthCount(userId);
+            return ResponseEntity.ok(count);
+            
+        } catch (Exception e) {
+            log.error("获取用户微信授权次数失败", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 增加用户微信授权次数
+     * @param currentUser 当前用户信息
+     * @param request 请求体，包含增加的次数
+     * @return 更新后的偏好设置
+     */
+    @PostMapping("/wechat-auth-count/increase")
+    public ResponseEntity<UserPreferenceDto> increaseWechatAuthCount(
+            @RequestAttribute("currentUser") UserProfileDto currentUser,
+            @RequestBody(required = false) Map<String, Object> request) {
+        try {
+            Long userId = currentUser.getId();
+            Integer count = 1; // 默认值
+            if (request != null && request.containsKey("count")) {
+                count = Integer.valueOf(request.get("count").toString());
+            }
+            log.info("增加用户微信授权次数请求, userId: {}, count: {}", userId, count);
+            
+            UserPreferenceDto updatedPreference = userPreferenceService.increaseWechatAuthCount(userId, count);
+            return ResponseEntity.ok(updatedPreference);
+            
+        } catch (Exception e) {
+            log.error("增加用户微信授权次数失败", e);
             return ResponseEntity.internalServerError().build();
         }
     }
