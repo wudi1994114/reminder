@@ -10,6 +10,7 @@ import com.task.reminder.sender.EmailSender;
 import com.task.reminder.sender.NotificationSender;
 import com.task.reminder.sender.NotificationSenderFactory;
 import com.task.reminder.service.UserCacheService;
+import com.task.reminder.service.UserPreferenceJobService;
 import com.common.reminder.utils.JacksonUtils;
 import com.task.reminder.utils.RedisUtils;
 import org.quartz.Job;
@@ -84,6 +85,9 @@ public class SendReminderJob implements Job {
     
     @Autowired
     private ReminderExecutionHistoryRepository historyRepository;
+    
+    @Autowired
+    private UserPreferenceJobService userPreferenceJobService;
     
     /**
      * 任务执行方法，由Quartz调度器在指定时间调用
@@ -257,6 +261,16 @@ public class SendReminderJob implements Job {
                                         sender.getSenderType(), maskRecipient(recipient));
                                     log.info("{}通知已成功发送至 {} (用户ID: {}) - 提醒ID: {}", 
                                         sender.getSenderType(), maskRecipient(recipient), reminder.getToUserId(), reminder.getId());
+                                    
+                                    // 如果是微信通知发送成功，减少用户的授权次数
+                                    if ("WECHAT".equals(sender.getSenderType()) && userPreferenceJobService != null) {
+                                        try {
+                                            // 减少用户的授权次数
+                                            userPreferenceJobService.decreaseWechatAuthCount(reminder.getToUserId(), 1);
+                                        } catch (Exception e) {
+                                            log.error("减少用户ID[{}]微信授权次数时发生异常: {}", reminder.getToUserId(), e.getMessage());
+                                        }
+                                    }
                                 } else {
                                     actualMethod = sender.getSenderType();
                                     details = String.format("发送%s通知失败 - 提醒ID: %d, 用户ID: %d, 接收者: %s", 

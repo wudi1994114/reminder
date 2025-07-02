@@ -351,6 +351,53 @@ public class UserPreferenceService {
     }
 
     /**
+     * 获取用户微信授权剩余次数
+     * @param userId 用户ID
+     * @return 剩余次数
+     */
+    public Integer getWechatAuthCount(Long userId) {
+        String value = getUserPreferenceValue(userId,
+                UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(),
+                UserPreferenceKey.WECHAT_AUTH_COUNT.getDefaultValue());
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            log.warn("无效的微信授权次数: {}, 使用0作为默认值", value);
+            return 0;
+        }
+    }
+
+    /**
+     * 增加用户微信授权次数
+     * @param userId 用户ID
+     * @param count 增加的次数
+     * @return 保存后的偏好设置DTO
+     */
+    @Transactional
+    public UserPreferenceDto increaseWechatAuthCount(Long userId, Integer count) {
+        Integer currentCount = getWechatAuthCount(userId);
+        Integer newCount = currentCount + count;
+        return setUserPreference(userId, UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(), newCount.toString());
+    }
+
+    /**
+     * 减少用户微信授权次数
+     * @param userId 用户ID
+     * @param count 减少的次数
+     * @return 保存后的偏好设置DTO，如果次数不足则返回null
+     */
+    @Transactional
+    public UserPreferenceDto decreaseWechatAuthCount(Long userId, Integer count) {
+        Integer currentCount = getWechatAuthCount(userId);
+        if (currentCount < count) {
+            log.warn("用户ID[{}]微信授权次数不足，当前:{}, 尝试减少:{}", userId, currentCount, count);
+            return null;
+        }
+        Integer newCount = currentCount - count;
+        return setUserPreference(userId, UserPreferenceKey.WECHAT_AUTH_COUNT.getKey(), newCount.toString());
+    }
+
+    /**
      * 转换为DTO
      * @param userPreference 用户偏好设置实体
      * @return DTO
