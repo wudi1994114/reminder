@@ -1,4 +1,4 @@
-import { request } from './request.js';
+import { request } from './http.js';
 import { handleApiError } from '@/utils/helpers.js';
 
 // 提醒事项相关API

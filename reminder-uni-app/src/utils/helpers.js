@@ -1,8 +1,8 @@
 // 导入统一的时间格式化工具
-import { formatDate, formatShortDate, formatTime } from './dateFormat.js';
+import { formatDate, formatTime } from './date/format.js';
 
 // 重新导出时间格式化函数以保持向后兼容
-export { formatDate, formatShortDate, formatTime };
+export { formatDate, formatTime };
 
 // 验证邮箱格式
 export const isValidEmail = (email) => {

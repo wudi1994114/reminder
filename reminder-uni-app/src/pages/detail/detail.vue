@@ -95,8 +95,8 @@
 <script>
 import { ref, onMounted, getCurrentInstance } from 'vue';
 import { getSimpleReminderById, deleteEvent } from '@/services/api';
-import { globalDataVersion } from '@/services/reminderCache';
-import { DateFormatter } from '@/utils/dateFormat';
+import { globalDataVersion, updateDataVersion } from '@/services/reminderCache';
+import { formatDateTime, formatDate, formatTime } from '@/utils/date/format';
 import cronstrue from 'cronstrue/i18n';
 import { requireAuth } from '@/utils/auth';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -230,7 +230,14 @@ export default {
       uni.navigateBack();
     };
     
-    const editReminder = () => {
+    const editReminder = async () => {
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转编辑页面');
+        return;
+      }
+      
       if (reminder.value.id) {
         uni.navigateTo({
           url: `/pages/create/create?id=${reminder.value.id}&mode=edit`
@@ -240,7 +247,7 @@ export default {
     
     const formatDisplayTime = (timeString) => {
       if (!timeString) return '-';
-      return DateFormatter.formatDetail(timeString);
+      return formatDateTime(timeString);
     };
 
     const cronExpressionToText = (cronExpression) => {
@@ -287,12 +294,16 @@ export default {
       if (reminder.value.id) {
         try {
           await deleteEvent(reminder.value.id);
+          
           uni.showToast({ title: '删除成功', icon: 'success' });
           showConfirmDialog.value = false;
-          // 删除成功后返回上一页
-          setTimeout(() => {
-            uni.navigateBack();
-          }, 1500);
+          
+          // 在返回之前立即更新全局数据版本，确保时序正确
+          updateDataVersion();
+          console.log('✅ 删除成功，全局数据版本已更新');
+          
+          // 删除成功后立即返回上一页
+          uni.navigateBack();
         } catch (error) {
           console.error('删除提醒失败:', error);
           uni.showToast({ title: '删除失败', icon: 'none' });
@@ -618,9 +629,22 @@ export default {
   font-weight: 600;
 }
 
+.edit-btn {
+  background-color: #f7bd4a;
+  color: #1c170d;
+}
+
+.edit-btn:active {
+  background-color: #e6a63a;
+}
+
 .delete-btn {
   background-color: #e74c3c;
   color: white;
+}
+
+.delete-btn:active {
+  background-color: #d43f30;
 }
 
 .button-text {

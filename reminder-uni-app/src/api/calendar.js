@@ -1,4 +1,4 @@
-import { request } from './request.js';
+import { request } from './http.js';
 import { handleApiError } from '@/utils/helpers.js';
 
 // 日历相关API

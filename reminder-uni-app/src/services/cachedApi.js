@@ -3,7 +3,8 @@
  * 在现有API基础上添加智能缓存层，不破坏现有逻辑
  */
 
-import ReminderCacheService, { updateDataVersion } from './reminderCache.js';
+import ReminderService, { updateDataVersion } from './reminderService.js';
+import ReminderCacheService from './reminderCache.js';
 import * as originalApi from './api.js';
 
 /**

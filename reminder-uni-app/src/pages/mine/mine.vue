@@ -121,9 +121,9 @@
 
 <script>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue';
-import ReminderCacheService, { userState } from '@/services/reminderCache';
+import { UserService, userState } from '@/services/userService';
 import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '@/utils/auth';
-import { wechatLogin } from '@/services/api';
+import { loginWithBackend } from '@/api/wechat';
 import { FeatureControl } from '@/config/version';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -192,7 +192,7 @@ export default {
 
     const checkUserSession = async () => {
       try {
-        const userInfo = await ReminderCacheService.getCurrentUser();
+        const userInfo = await UserService.getCurrentUser();
         if (userInfo) {
           fetchUserStats();
         } else {
@@ -264,14 +264,14 @@ export default {
         
         console.log('🔐 个人中心：发送登录数据到后端:', loginData);
         
-        // 调用真正的微信登录API
-        const response = await wechatLogin(loginData);
+        // 调用后端登录接口
+        const response = await loginWithBackend(loginData);
         
-        console.log('✅ 个人中心：微信登录API响应:', response);
+        console.log('✅ 个人中心：后端登录API响应:', response);
         
         if (response && response.accessToken) {
-          // 使用ReminderCacheService处理登录成功
-          await ReminderCacheService.onLoginSuccess(response, 'wechat');
+          // 使用UserService处理登录成功
+          await UserService.onLoginSuccess(response, 'wechat');
           
           console.log('✅ 个人中心：登录处理完成，用户状态已更新');
           
@@ -649,23 +649,23 @@ export default {
 
 .logout-button {
   width: 100%;
-  background-color: #1c170d;
+  background-color: #f7bd4a;
   border-radius: 24rpx;
   padding: 20rpx 40rpx;
   border: none;
-  box-shadow: 0 3rpx 12rpx rgba(28, 23, 13, 0.2);
+  box-shadow: 0 3rpx 12rpx rgba(247, 189, 74, 0.3);
   transition: all 0.2s ease;
 }
 
 .logout-button:active {
-  background-color: #2d2419;
+  background-color: #e6a63a;
   transform: translateY(2rpx);
 }
 
 .logout-text {
   font-size: 28rpx;
   font-weight: 600;
-  color: #ffffff;
+  color: #1c170d;
   text-align: center;
 }
 

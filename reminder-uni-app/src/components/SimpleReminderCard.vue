@@ -18,7 +18,7 @@
 </template>
 
 <script>
-import { formatReminder } from '../utils/dateFormat';
+import { formatReminder } from '../utils/date/format';
 
 export default {
   name: 'SimpleReminderCard',

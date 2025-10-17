@@ -4,7 +4,7 @@
  * 简化版：直接管理状态，避免循环依赖
  */
 import { reactive } from 'vue';
-import { request } from './api';
+import { request } from '../api/http.js';
 
 // 直接定义用户状态，不依赖store
 export const userState = reactive({
@@ -221,6 +221,20 @@ class UserService {
     uni.removeStorageSync('loginType');
 
     console.log('🗑️ UserService: 所有用户信息、Token和登录类型已清除');
+  }
+
+  /**
+   * 清除用户状态但保留Token（用于网络错误等临时问题）
+   */
+  static clearUserState() {
+    userState.user = null;
+    userState.isAuthenticated = false;
+    userState.error = null;
+
+    // 只清除用户缓存数据，保留Token
+    uni.removeStorageSync(CACHE_CONFIG.STORAGE_KEY);
+
+    console.log('🔄 UserService: 用户状态已清除，Token已保留');
   }
 
   /**

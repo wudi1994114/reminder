@@ -87,7 +87,7 @@
 <script>
 import { ref, computed, onMounted, watch, shallowRef, onUnmounted } from 'vue';
 import { getAllSimpleReminders, getHolidaysByYearRange } from '@/services/api';
-import { formatTime } from '@/utils/dateFormat';
+import { formatTime } from '@/utils/date/format';
 import { getLunarInfo } from '@/utils/lunarManager';
 import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
 import { globalDataVersion } from '@/services/reminderCache';
@@ -143,49 +143,59 @@ export default {
     const calendarDates = computed(() => {
       const { year, month } = currentCalendarDisplayTime.value;
       const cacheKey = `${year}-${month}-${allRemindersInCurrentMonth.value.length}`;
-      if (calendarCache.has(cacheKey)) {
-          return calendarCache.get(cacheKey);
-      }
       
-      const firstDay = new Date(year, month - 1, 1);
-      const startDate = new Date(firstDay);
-      startDate.setDate(startDate.getDate() - firstDay.getDay());
-      
-      const dates = [];
+      // 生成选中日期的字符串（用于比较）
       const selectedDateStr = selectedDate.value ? 
         `${selectedDate.value.getFullYear()}-${selectedDate.value.getMonth() + 1}-${selectedDate.value.getDate()}` : '';
       
-      const reminderDateMap = new Map();
-      allRemindersInCurrentMonth.value.forEach(reminder => {
-        if (!reminder.eventTime) return;
-        let reminderDateTime = reminder.eventTime.replace(' ', 'T');
-        const reminderDate = new Date(reminderDateTime);
-        if (!isNaN(reminderDate.getTime())) {
-          const dateKey = `${reminderDate.getFullYear()}-${reminderDate.getMonth()}-${reminderDate.getDate()}`;
-          reminderDateMap.set(dateKey, true);
-        }
-      });
-      
-      for (let i = 0; i < 42; i++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(startDate.getDate() + i);
-        const isCurrentMonth = currentDate.getMonth() === month - 1;
-        const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
+      // 从缓存获取或生成日期数组
+      let dates;
+      if (calendarCache.has(cacheKey)) {
+        // 从缓存获取，但需要重新计算 isSelected 状态
+        dates = calendarCache.get(cacheKey).map(date => ({
+          ...date,
+          isSelected: `${date.date.getFullYear()}-${date.date.getMonth() + 1}-${date.date.getDate()}` === selectedDateStr
+        }));
+      } else {
+        // 生成新的日期数组
+        const firstDay = new Date(year, month - 1, 1);
+        const startDate = new Date(firstDay);
+        startDate.setDate(startDate.getDate() - firstDay.getDay());
         
-        dates.push({
-          key: dateKey,
-          day: currentDate.getDate(),
-          date: new Date(currentDate),
-          isSelected: `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}` === selectedDateStr,
-          hasReminder: reminderDateMap.has(dateKey),
-          isOtherMonth: !isCurrentMonth
+        dates = [];
+        
+        const reminderDateMap = new Map();
+        allRemindersInCurrentMonth.value.forEach(reminder => {
+          if (!reminder.eventTime) return;
+          let reminderDateTime = reminder.eventTime.replace(' ', 'T');
+          const reminderDate = new Date(reminderDateTime);
+          if (!isNaN(reminderDate.getTime())) {
+            const dateKey = `${reminderDate.getFullYear()}-${reminderDate.getMonth()}-${reminderDate.getDate()}`;
+            reminderDateMap.set(dateKey, true);
+          }
         });
+        
+        for (let i = 0; i < 42; i++) {
+          const currentDate = new Date(startDate);
+          currentDate.setDate(startDate.getDate() + i);
+          const isCurrentMonth = currentDate.getMonth() === month - 1;
+          const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}-${currentDate.getDate()}`;
+          
+          dates.push({
+            key: dateKey,
+            day: currentDate.getDate(),
+            date: new Date(currentDate),
+            isSelected: `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}` === selectedDateStr,
+            hasReminder: reminderDateMap.has(dateKey),
+            isOtherMonth: !isCurrentMonth
+          });
+        }
+        
+        if (calendarCache.size > 10) {
+          calendarCache.delete(calendarCache.keys().next().value);
+        }
+        calendarCache.set(cacheKey, dates);
       }
-      
-      if (calendarCache.size > 10) {
-        calendarCache.delete(calendarCache.keys().next().value);
-      }
-      calendarCache.set(cacheKey, dates);
       
       return dates;
     });

@@ -6,11 +6,6 @@
         <text class="page-title">我的提醒</text>
       </view>
       <view class="action-buttons">
-        <!-- 
-        <button class="action-btn" @click="testAllContainer">
-          <text class="btn-text">测试allcontainer</text>
-        </button>
-         -->
         <button class="action-btn primary-btn" @click="handleCreateNew">
           <text class="btn-text">{{ createButtonText }}</text>
         </button>
@@ -125,12 +120,11 @@
 </template>
 
 <script>
-import { ref, computed, nextTick, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '@/services/cachedApi';
-import { wechatLogin, testAllContainer as testAllContainerApi } from '@/services/api';
-import { reminderState, reminderActions } from '@/store/modules/reminder';
-import ReminderCacheService, { userState, globalDataVersion } from '@/services/reminderCache';
-import { requireAuth, isAuthenticated, checkAuthAndClearData, clearAllUserData } from '@/utils/auth';
+import { loginWithBackend } from '@/api/wechat';
+import ReminderCacheService, { globalDataVersion, updateDataVersion } from '@/services/reminderCache';
+import { isAuthenticated, clearAllUserData, requireAuth } from '@/utils/auth';
 import { usePageDataSync, checkDataSyncOnShow, createSmartDataLoader } from '@/utils/dataSync';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 import SimpleReminderCard from '@/components/SimpleReminderCard.vue';
@@ -225,25 +219,6 @@ export default {
         return '点击右上角"+"创建你的第一个复杂提醒吧！';
       }
     });
-
-    // 测试 allcontainer
-    const testAllContainer = async () => {
-      console.log('触发 allcontainer 测试');
-      try {
-        const result = await testAllContainerApi();
-        console.log('✅ allcontainer测试成功:', result);
-        uni.showToast({
-          title: '测试成功',
-          icon: 'success'
-        });
-      } catch (error) {
-        console.error('❌ allcontainer测试失败:', error);
-        uni.showToast({
-          title: '测试失败，请看日志',
-          icon: 'none'
-        });
-      }
-    };
 
     // 创建按钮文字
     const createButtonText = computed(() => {
@@ -368,20 +343,6 @@ export default {
       }
     };
 
-    // 刷新数据
-    const refreshData = async () => {
-      if (refreshing.value) return;
-      
-      try {
-        refreshing.value = true;
-        console.log('开始刷新数据...');
-        await loadCurrentTabData();
-        console.log('数据刷新完成');
-      } finally {
-        refreshing.value = false;
-      }
-    };
-
     // 删除复杂提醒
     const deleteComplexReminder = async (reminderId) => {
       try {
@@ -391,12 +352,14 @@ export default {
         // 从本地列表中移除
         complexReminders.value = complexReminders.value.filter(r => r.id !== reminderId);
         
+        // 更新全局数据版本，通知其他页面数据已变更
+        updateDataVersion();
+        console.log('✅ 复杂提醒删除成功，全局数据版本已更新');
+        
         uni.showToast({
           title: '删除成功',
           icon: 'success'
         });
-        
-        console.log('复杂提醒删除成功');
       } catch (error) {
         console.error('删除复杂提醒失败:', error);
         uni.showToast({
@@ -406,33 +369,29 @@ export default {
       }
     };
 
-    // 跳转到创建页面
-    const navigateToCreate = () => {
-      uni.navigateTo({
-        url: '/pages/create/create'
-      });
-    };
-
-    const goTocreateComplex = () => {
-      uni.navigateTo({
-        url: '/pages/create-complex/create-complex'
-      });
-    };
-
-    const navigateToEdit = (reminderId) => {
-      uni.navigateTo({
-        url: `/pages/create/create?id=${reminderId}`
-      });
-    };
-
-    const editComplexReminder = (reminderId) => {
+    const editComplexReminder = async (reminderId) => {
       console.log('首页: 编辑复杂提醒, ID:', reminderId);
+      
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转编辑页面');
+        return;
+      }
+      
       uni.navigateTo({
         url: `/pages/create-complex/create-complex?id=${reminderId}`
       });
     };
     
-    const handleCreateNew = () => {
+    const handleCreateNew = async () => {
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转创建页面');
+        return;
+      }
+      
       const url = activeTab.value === 'simple'
         ? '/pages/create/create'
         : '/pages/create-complex/create-complex';
@@ -450,9 +409,31 @@ export default {
       try {
         uni.showLoading({ title: '登录中...' });
         
-        // 调用微信登录API
-        const response = await wechatLogin(e.detail);
-        console.log('微信登录响应:', response);
+        // 获取用户信息
+        const userInfo = e.detail.userInfo;
+        if (!userInfo) {
+          uni.hideLoading();
+          uni.showToast({
+            title: '登录已取消',
+            icon: 'none'
+          });
+          return;
+        }
+        
+        // 获取微信登录code
+        const loginRes = await new Promise((resolve, reject) => {
+          uni.login({
+            provider: 'weixin',
+            success: resolve,
+            fail: reject
+          });
+        });
+        
+        console.log('获取微信code成功:', loginRes.code);
+        
+        // 调用后端登录接口
+        const response = await loginWithBackend({ code: loginRes.code });
+        console.log('后端登录响应:', response);
         
         if (response && response.accessToken) {
           // 使用ReminderCacheService处理登录成功
@@ -533,47 +514,20 @@ export default {
     };
 
     // 页面显示时的逻辑
-    const handlePageShow = () => {
-      console.log('%c[Index页面] onShow触发，开始检查数据版本', 'color: #9C27B0; font-weight: bold;');
-      console.log(`%c[Index页面] 本地版本: ${localDataVersion.value}`, 'color: #666;');
-      console.log(`%c[Index页面] 全局版本: ${globalDataVersion.value}`, 'color: #666;');
-      console.log(`%c[Index页面] 版本差异: ${globalDataVersion.value - localDataVersion.value}ms`, 'color: #FF9800;');
+    const handlePageShow = async () => {
+      console.log('%c[Index页面] onShow触发，强制刷新数据', 'color: #9C27B0; font-weight: bold;');
       
-      if (localDataVersion.value !== globalDataVersion.value) {
-        console.log(`%c[Index页面] 版本不匹配，需要刷新数据`, 'color: #f44336; font-weight: bold;');
-        console.log(`%c[Index页面] 开始重新加载数据...`, 'color: #2196F3;');
-        loadCurrentTabData();
-      } else {
-        console.log(`%c[Index页面] 版本匹配，无需刷新`, 'color: #4CAF50;');
+      // 强制刷新当前标签页的数据
+      if (isAuthenticated()) {
+        await loadCurrentTabData();
       }
       
-      // 原有的逻辑也保留，用于处理登录状态变化等
+      // 保留原有的登录状态检查，但不再重复加载数据
       checkDataSyncOnShow(
         'IndexPage',
-        () => loadCurrentTabData(),
+        () => {}, 
         () => clearPageData()
       );
-    };
-
-    // 移除 nextTick 初始化逻辑，改为在 onLoad 中处理
-    // nextTick(() => {
-    //   console.log('Index页面初始化，开始加载数据');
-    //   loadCurrentTabData();
-    // });
-
-    // 页面显示时检查认证状态
-    const checkAuthOnShow = () => {
-      console.log('Index页面显示，检查认证状态');
-      if (!isAuthenticated()) {
-        console.log('用户未认证，清空页面数据');
-        simpleReminders.value = [];
-        complexReminders.value = [];
-        isLoading.value = false;
-        refreshing.value = false;
-      } else {
-        console.log('用户已认证，刷新数据');
-        loadCurrentTabData();
-      }
     };
     
     // 监听页面显示事件，刷新数据
@@ -622,7 +576,14 @@ export default {
       }
     });
 
-    const goToDetail = (reminder) => {
+    const goToDetail = async (reminder) => {
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转详情页面');
+        return;
+      }
+      
       uni.navigateTo({
         url: `/pages/detail/detail?id=${reminder.id}`
       });
@@ -652,18 +613,13 @@ export default {
       loadCurrentTabData,
       loadSimpleReminders,
       loadComplexReminders,
-      refreshData,
       deleteComplexReminder,
-      navigateToCreate,
-      goTocreateComplex,
-      navigateToEdit,
       editComplexReminder,
       handleCreateNew,
       closeLoginModal,
       handleWechatLogin,
       goToDetail,
       clearPageData,
-      testAllContainer,
       handlePageLoad,
       handlePageShow
     };

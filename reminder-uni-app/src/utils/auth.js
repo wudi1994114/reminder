@@ -3,7 +3,7 @@
  * 提供统一的登录检查和一键登录弹窗功能
  */
 import { reactive } from 'vue';
-import ReminderCacheService, { userState } from '../services/reminderCache';
+import { UserService, userState } from '../services/userService';
 import { reminderState } from '../store/index';
 
 // 响应式的全局认证状态
@@ -158,11 +158,11 @@ export function clearAllUserData() {
 
     // 安全地清理用户状态
     try {
-      if (ReminderCacheService && typeof ReminderCacheService.clearUserInfo === 'function') {
-        ReminderCacheService.clearUserInfo();
+      if (UserService && typeof UserService.clearUserInfo === 'function') {
+        UserService.clearUserInfo();
         console.log('✅ 用户状态已清理');
       } else {
-        console.warn('⚠️ ReminderCacheService.clearUserInfo 不可用，跳过用户状态清理');
+        console.warn('⚠️ UserService.clearUserInfo 不可用，跳过用户状态清理');
       }
     } catch (userError) {
       console.error('❌ 清理用户状态时出错:', userError);
@@ -220,11 +220,11 @@ export function resetUserState() {
 
     // 安全地清理用户状态
     try {
-      if (ReminderCacheService && typeof ReminderCacheService.clearUserState === 'function') {
-        ReminderCacheService.clearUserState();
+      if (UserService && typeof UserService.clearUserState === 'function') {
+        UserService.clearUserState();
         console.log('✅ 用户状态已重置，Token保留');
       } else {
-        console.warn('⚠️ ReminderCacheService.clearUserState 不可用，跳过用户状态重置');
+        console.warn('⚠️ UserService.clearUserState 不可用，跳过用户状态重置');
       }
     } catch (userError) {
       console.error('❌ 重置用户状态时出错:', userError);

@@ -47,6 +47,26 @@
 			}
 		},
 		{
+			"path": "pages/running-duck/running-duck",
+			"style": {
+				"navigationBarTitleText": "奔跑鸭"
+			}
+		},
+		{
+			"path": "pages/running-duck/pace-calculator",
+			"style": {
+				"navigationBarTitleText": "配速计算器",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/running-duck/realtime-pace",
+			"style": {
+				"navigationBarTitleText": "实时配速",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/mine/mine",
 			"style": {
 				"navigationBarTitleText": "我的"
@@ -105,6 +125,12 @@
 				"iconPath": "static/images/calendar.png",
 				"selectedIconPath": "static/images/calendar-active.png",
 				"text": "日历"
+			},
+			{
+				"pagePath": "pages/running-duck/running-duck",
+				"iconPath": "static/images/calendar.png",
+				"selectedIconPath": "static/images/calendar-active.png",
+				"text": "奔跑鸭"
 			},
 			{
 				"pagePath": "pages/mine/mine",

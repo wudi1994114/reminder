@@ -1,6 +1,6 @@
 <script>
 import { onMounted } from 'vue';
-import ReminderCacheService from './services/reminderCache';
+import { UserService } from './services/userService';
 
 export default {
   setup() {
@@ -24,9 +24,9 @@ export default {
     async initUserService() {
       try {
         console.log('🚀 App: 初始化用户服务');
-        await ReminderCacheService.init();
+        await UserService.init();
 
-        if (ReminderCacheService.getUserState().isAuthenticated) {
+        if (UserService.getUserState().isAuthenticated) {
           console.log('✅ App: 用户服务初始化成功，用户已登录');
         } else {
           console.log('📝 App: 用户未登录，等待用户操作时弹出登录框');

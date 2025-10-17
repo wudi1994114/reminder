@@ -4,7 +4,7 @@
       <view class="picker-header">
         <text class="picker-title">{{ title }}</text>
         <view class="picker-close" @click="cancel">
-          <text class="close-icon">✕</text>
+          <text class="close-icon">×</text>
         </view>
       </view>
       <scroll-view class="picker-content" scroll-y>

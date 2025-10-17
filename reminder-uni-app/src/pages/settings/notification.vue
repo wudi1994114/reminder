@@ -60,12 +60,29 @@
                 </view>
 
                 <!-- 标签列表 -->
-                <view class="tag-list">
+                <view class="tag-list" :class="{ 'dragging': isDragging }">
                   <view
                     v-for="(tag, index) in userTags"
-                    :key="index"
+                    :key="`tag-${index}-${tag}`"
                     class="tag-item"
+                    :class="{ 
+                      'dragging': dragIndex === index,
+                      'drag-over': dragOverIndex === index && dragIndex !== index
+                    }"
+                    :style="{
+                      transform: dragIndex === index ? `translate(${dragOffset.x}px, ${dragOffset.y}px)` : '',
+                      zIndex: dragIndex === index ? 1000 : 1,
+                      opacity: dragIndex === index ? 0.8 : 1
+                    }"
+                    @touchstart="onDragStart($event, index)"
+                    @touchmove="onDragMove($event, index)"
+                    @touchend="onDragEnd($event, index)"
+                    @touchcancel="onDragCancel"
                   >
+                    <!-- 拖拽手柄 -->
+                    <view class="drag-handle">
+                      <text class="drag-icon">⋮⋮</text>
+                    </view>
                     <view class="tag-content">
                       <text class="tag-text">{{ getTagTitle(tag) }}</text>
                     </view>
@@ -86,6 +103,7 @@
 
                 <!-- 标签说明 -->
                 <view class="tag-tips">
+                  <text class="tip-text">• 长按并拖拽可调整标签顺序</text>
                   <text class="tip-text">• 标签总长度不超过100个字符</text>
                   <text class="tip-text">• 标签用于快速输入常用提醒内容</text>
                 </view>
@@ -94,29 +112,53 @@
           </view>
         </view>
         
-        <!-- 提醒设置分类 -->
+
+
+        <!-- 授权设置分类 -->
         <view class="category-section">
           <view class="category-header">
             <view class="category-icon">
-              <text class="icon-text">🔔</text>
+              <text class="icon-text">🔐</text>
             </view>
-            <text class="category-title">提醒</text>
+            <text class="category-title">授权设置</text>
           </view>
           
           <view class="category-card">
-            <view class="setting-item" @click="navigateToReminderMethod">
+            <view class="setting-item" @click="requestWechatSubscribe">
               <view class="item-content">
                 <view class="item-icon">
-                  <text class="icon-text">📱</text>
+                  <text class="icon-text">💬</text>
                 </view>
                 <view class="item-info">
-                  <text class="item-label">提醒方式</text>
-                  <text class="item-description">设置提醒通知方式</text>
+                  <text class="item-label">微信推送授权</text>
+                  <text class="item-description">增加获取推送通知次数</text>
                 </view>
               </view>
-              <view class="item-arrow">
-                <text class="arrow-icon">›</text>
+              <view class="item-action">
+                <view class="action-button" :class="{ 'loading': authLoading }">
+                  <text class="action-text">{{ authLoading ? '授权中...' : '增加授权' }}</text>
+                </view>
               </view>
+            </view>
+            
+            <!-- 授权次数显示 -->
+            <view class="divider"></view>
+            <view class="auth-count-section">
+              <view class="count-display">
+                <view class="count-label">
+                  <text class="label-text">剩余授权次数</text>
+                </view>
+                <view class="count-value">
+                  <text class="value-text">{{ wechatAuthCount }}</text>
+                </view>
+              </view>
+            </view>
+            
+            <!-- 授权状态说明 -->
+            <view class="auth-tips">
+              <text class="tip-text">• 由于微信限制，微信通知授权一次才可通知一次</text>
+              <text class="tip-text">• 授权后可接收提醒推送消息</text>
+              <text class="tip-text">• 每次授权成功会增加1次，每次微信推送会消耗1次</text>
             </view>
           </view>
         </view>
@@ -174,13 +216,33 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   getUserTagManagementEnabled,
   setUserTagManagementEnabled,
   getUserTagList,
-  setUserTagList
+  setUserTagList,
+  smartRequestSubscribe,
+  getWechatAuthCount,
+  increaseWechatAuthCount
 } from '@/services/api.js';
+
+/**
+ * 节流函数
+ * @param {Function} func 要执行的函数
+ * @param {number} limit 延迟时间（毫秒）
+ * @returns {Function} 节流后的函数
+ */
+const throttle = (func, limit) => {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
 
 export default {
   name: 'NotificationSettings',
@@ -192,10 +254,50 @@ export default {
     const newTagTitle = ref('');
     const newTagContent = ref('');
     const loading = ref(false);
+    const isDragging = ref(false);
+    const dragIndex = ref(null);
+    const dragOverIndex = ref(null);
+    const dragOffset = ref({ x: 0, y: 0 });
+    const activeTouchId = ref(null);
+    const tagRects = ref([]); // 用于缓存标签元素的位置信息
+    
+    // 授权相关数据
+    const authLoading = ref(false);
+    const authCount = ref(0);
+    const authStatus = ref('unknown'); // 'unknown', 'authorized', 'denied', 'expired'
+    const wechatAuthCount = ref(0); // 微信授权剩余次数
+
+    // 计算属性
+    const authStatusText = computed(() => {
+      switch (authStatus.value) {
+        case 'authorized':
+          return '已授权';
+        case 'denied':
+          return '已拒绝';
+        case 'expired':
+          return '已过期';
+        default:
+          return '未知';
+      }
+    });
+    
+    const authStatusClass = computed(() => {
+      switch (authStatus.value) {
+        case 'authorized':
+          return 'status-success';
+        case 'denied':
+          return 'status-error';
+        case 'expired':
+          return 'status-warning';
+        default:
+          return 'status-unknown';
+      }
+    });
 
     // 页面加载时获取用户设置
     onMounted(async () => {
       await loadUserSettings();
+      await loadAuthStatus();
     });
 
     // 加载用户设置
@@ -217,12 +319,10 @@ export default {
           try {
             const tagsResponse = await getUserTagList();
             const tagListString = tagsResponse.value || '';
-            console.log('🏷️ 设置页面 - 获取到的标签字符串:', tagListString);
             
             userTags.value = tagListString ? tagListString.split('|-|').filter(tag => tag.trim()) : [];
-            console.log('🏷️ 设置页面 - 最终标签数组:', userTags.value);
           } catch (error) {
-            console.log('获取标签列表失败，使用空列表');
+            console.warn('获取标签列表失败，使用空列表');
             userTags.value = [];
           }
         }
@@ -442,12 +542,283 @@ export default {
       });
     };
 
-    const navigateToReminderMethod = () => {
+    // 拖拽相关变量
+    const dragStartPos = ref({ x: 0, y: 0 });
+    const dragStartTime = ref(0);
+    const dragTimer = ref(null);
+    
+    // 重置拖拽状态
+    const resetDragState = () => {
+      isDragging.value = false;
+      dragIndex.value = null;
+      dragOverIndex.value = null;
+      dragOffset.value = { x: 0, y: 0 };
+      activeTouchId.value = null;
+      tagRects.value = [];
+    };
+
+    const onDragStart = (event, index) => {
+      // 仅当只有一根手指触摸时开始
+      if (event.touches.length !== 1) {
+        return;
+      }
+      const touch = event.touches[0];
+      activeTouchId.value = touch.identifier;
+      dragStartPos.value = { x: touch.clientX, y: touch.clientY };
+      dragStartTime.value = Date.now();
+      
+      // 延迟启动拖拽，避免误触
+      dragTimer.value = setTimeout(() => {
+        if (activeTouchId.value === touch.identifier) {
+          isDragging.value = true;
+          dragIndex.value = index;
+          dragOffset.value = { x: 0, y: 0 };
+          
+          // 缓存所有标签项的位置信息
+          const query = uni.createSelectorQuery();
+          query.selectAll('.tag-item').boundingClientRect(rects => {
+            tagRects.value = rects || [];
+          }).exec();
+
+          // 添加触觉反馈
+          uni.vibrateShort({
+            type: 'light'
+          });
+        }
+        dragTimer.value = null;
+      }, 200);
+    };
+
+    const onDragMove = (event, index) => {
+      if (activeTouchId.value === null) {
+        return;
+      }
+      
+      const touch = Array.from(event.touches).find(t => t.identifier === activeTouchId.value);
+      if (!touch) {
+        return;
+      }
+
+      if (!isDragging.value && dragTimer.value) {
+        const dx = Math.abs(touch.clientX - dragStartPos.value.x);
+        const dy = Math.abs(touch.clientY - dragStartPos.value.y);
+        
+        // 如果移动距离超过阈值，判定为滚动，取消拖拽
+        if (dx > 7 || dy > 7) {
+          clearTimeout(dragTimer.value);
+          dragTimer.value = null;
+          activeTouchId.value = null;
+        }
+        return;
+      }
+
+      if (isDragging.value && dragIndex.value === index) {
+        event.preventDefault();
+        const dx = touch.clientX - dragStartPos.value.x;
+        const dy = touch.clientY - dragStartPos.value.y;
+        dragOffset.value = { x: dx, y: dy };
+        
+        // 根据拖拽位置计算应该插入的位置
+        throttledCalculateDragOverIndex(touch.clientX, touch.clientY);
+      }
+    };
+
+    const onDragEnd = async (event, index) => {
+      if (activeTouchId.value === null) return;
+      
+      const touch = Array.from(event.changedTouches).find(t => t.identifier === activeTouchId.value);
+      if (!touch) return;
+
+      // 清除延迟计时器
+      if (dragTimer.value) {
+        clearTimeout(dragTimer.value);
+        dragTimer.value = null;
+      }
+
+      if (!isDragging.value) {
+        resetDragState();
+        return;
+      }
+
+      if (dragIndex.value === index && dragOverIndex.value !== null && dragOverIndex.value !== dragIndex.value) {
+        try {
+          // 重新排序数组
+          const newTags = [...userTags.value];
+          const draggedTag = newTags.splice(dragIndex.value, 1)[0];
+          newTags.splice(dragOverIndex.value, 0, draggedTag);
+          
+          // 保存到服务器
+          await setUserTagList(newTags.join('|-|'));
+          
+          // 更新本地状态
+          userTags.value = newTags;
+          
+        } catch (error) {
+          console.error('保存标签顺序失败:', error);
+          uni.showToast({
+            title: '保存失败',
+            icon: 'none'
+          });
+        }
+      }
+
+      // 重置拖拽状态
+      resetDragState();
+    };
+    
+    const onDragCancel = () => {
+      if (dragTimer.value) {
+        clearTimeout(dragTimer.value);
+        dragTimer.value = null;
+      }
+      resetDragState();
+    };
+
+    // 计算拖拽覆盖的目标位置 (使用缓存)
+    const calculateDragOverIndex = (clientX, clientY) => {
+      const rects = tagRects.value;
+      if (!rects || rects.length === 0) return;
+
+      let closestIndex = null;
+      let minDistance = Infinity;
+
+      rects.forEach((rect, i) => {
+        // 跳过正在拖拽的元素
+        if (i === dragIndex.value) return;
+
+        // 判断手指是否在某个元素的区域内
+        if (
+          clientX >= rect.left &&
+          clientX <= rect.right &&
+          clientY >= rect.top &&
+          clientY <= rect.bottom
+        ) {
+          closestIndex = i;
+          minDistance = 0; // 优先选择直接覆盖的
+        }
+        
+        // 如果没有直接覆盖的，再计算最近的
+        if (minDistance > 0) {
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const distance = Math.sqrt(
+            Math.pow(clientX - centerX, 2) + Math.pow(clientY - centerY, 2)
+          );
+
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = i;
+          }
+        }
+      });
+
+      dragOverIndex.value = closestIndex;
+    };
+
+    // 创建节流版的计算函数
+    const throttledCalculateDragOverIndex = throttle(calculateDragOverIndex, 100);
+
+    // 加载授权状态
+    const loadAuthStatus = async () => {
+      try {
+        // 从服务器获取微信授权剩余次数
+        try {
+          const countResponse = await getWechatAuthCount();
+          // 确保获取到的是数字类型
+          const count = parseInt(countResponse) || 0;
+          wechatAuthCount.value = count;
+        } catch (error) {
+          console.warn('获取微信授权次数失败，使用默认值0');
+          wechatAuthCount.value = 0;
+        }
+
+        // 获取本地存储的授权状态
+        const storedAuthCount = uni.getStorageSync('wechat_auth_count') || 0;
+        const storedAuthStatus = uni.getStorageSync('wechat_auth_status') || 'unknown';
+        
+        authCount.value = storedAuthCount;
+        authStatus.value = storedAuthStatus;
+      } catch (error) {
+        console.error('加载授权状态失败:', error);
+      }
+    };
+
+    // 请求微信订阅授权
+    const requestWechatSubscribe = async () => {
+      if (authLoading.value) {
+        return;
+      }
+
+      // 检查是否在微信小程序环境
+      // #ifndef MP-WEIXIN
       uni.showToast({
-        title: '提醒方式功能开发中',
+        title: '仅在微信小程序中可用',
         icon: 'none',
         duration: 2000
       });
+      return;
+      // #endif
+
+
+
+      try {
+        authLoading.value = true;
+
+        // 调用智能订阅请求
+        const result = await smartRequestSubscribe();
+        
+        if (result.success) {
+          // 授权成功
+          authStatus.value = 'authorized';
+          authCount.value = authCount.value + 1;
+          
+          // 保存到本地存储
+          uni.setStorageSync('wechat_auth_status', authStatus.value);
+          uni.setStorageSync('wechat_auth_count', authCount.value);
+
+          // 增加服务器端的微信授权次数
+          try {
+            await increaseWechatAuthCount(1);
+            // 重新获取最新的授权次数，确保数据同步
+            const countResponse = await getWechatAuthCount();
+            const count = parseInt(countResponse) || 0;
+            wechatAuthCount.value = count;
+          } catch (error) {
+            console.error('增加服务器端微信授权次数失败:', error);
+          }
+          
+          uni.showToast({
+            title: '授权成功',
+            icon: 'success',
+            duration: 2000
+          });
+        } else {
+          // 授权失败
+          authStatus.value = 'denied';
+          
+          // 保存状态到本地存储
+          uni.setStorageSync('wechat_auth_status', authStatus.value);
+          
+          uni.showToast({
+            title: result.message || '授权失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      } catch (error) {
+        console.error('请求微信订阅授权失败:', error);
+        
+        authStatus.value = 'denied';
+        uni.setStorageSync('wechat_auth_status', authStatus.value);
+        
+        uni.showToast({
+          title: '授权请求失败',
+          icon: 'none',
+          duration: 2000
+        });
+      } finally {
+        authLoading.value = false;
+      }
     };
 
     return {
@@ -458,17 +829,35 @@ export default {
       newTagTitle,
       newTagContent,
       loading,
+      isDragging,
+      dragIndex,
+      dragOverIndex,
+      dragOffset,
+      authLoading,
+      authCount,
+      authStatus,
+      wechatAuthCount,
+
+      // 计算属性
+      authStatusText,
+      authStatusClass,
 
       // 方法
       goBack,
-      navigateToReminderMethod,
       onTagManagementToggle,
       getTotalLength,
       getTagTitle,
       showAddTagDialog,
       hideAddTagDialog,
       addTag,
-      removeTag
+      removeTag,
+      onDragStart,
+      onDragMove,
+      onDragEnd,
+      onDragCancel,
+      calculateDragOverIndex,
+      loadAuthStatus,
+      requestWechatSubscribe
     };
   }
 };
@@ -660,6 +1049,37 @@ export default {
   flex-shrink: 0;
 }
 
+.item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-button {
+  background-color: #f7bd4a;
+  border-radius: 16rpx;
+  padding: 16rpx 24rpx;
+  transition: all 0.2s ease;
+}
+
+.action-button.loading {
+  background-color: #cccccc;
+  pointer-events: none;
+}
+
+.action-button:active {
+  background-color: #e6a63a;
+  transform: scale(0.95);
+}
+
+.action-text {
+  font-size: 24rpx;
+  color: #1c170d;
+  font-weight: 600;
+  line-height: 1;
+}
+
 /* 标签管理区域 */
 .tag-management-section {
   padding: 0;
@@ -701,6 +1121,11 @@ export default {
   min-height: 80rpx;
   align-items: flex-start;
   align-content: flex-start;
+  transition: all 0.3s ease;
+}
+
+.tag-list.dragging {
+  /* 拖拽时的整体效果 */
 }
 
 .tag-item {
@@ -711,6 +1136,43 @@ export default {
   padding: 12rpx 16rpx;
   gap: 8rpx;
   max-width: 300rpx;
+  position: relative;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.tag-item.dragging {
+  box-shadow: 0 8rpx 32rpx rgba(28, 23, 13, 0.3);
+  transform: scale(1.05);
+  transition: none; /* 拖拽时禁用过渡，实现瞬时跟随 */
+}
+
+.tag-item.drag-over {
+  background-color: #f4efe7;
+  border: 2rpx dashed #f7bd4a;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32rpx;
+  height: 32rpx;
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-icon {
+  font-size: 20rpx;
+  color: rgba(28, 23, 13, 0.6);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -2rpx;
 }
 
 .tag-content {
@@ -779,6 +1241,106 @@ export default {
   font-size: 22rpx;
   color: #9d8148;
   line-height: 1.4;
+}
+
+/* 授权状态区域 */
+.auth-status-section {
+  padding: 32rpx;
+}
+
+.auth-status {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-label {
+  font-size: 28rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.status-value {
+  font-size: 28rpx;
+  font-weight: 600;
+  padding: 8rpx 16rpx;
+  border-radius: 12rpx;
+  background-color: #f4efe7;
+}
+
+.status-value.status-success {
+  color: #2e7d32;
+  background-color: #e8f5e8;
+}
+
+.status-value.status-error {
+  color: #d32f2f;
+  background-color: #ffebee;
+}
+
+.status-value.status-warning {
+  color: #f57c00;
+  background-color: #fff3e0;
+}
+
+.status-value.status-unknown {
+  color: #757575;
+  background-color: #f5f5f5;
+}
+
+.auth-count-section {
+  padding: 24rpx 32rpx;
+}
+
+.count-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #f4efe7;
+  border-radius: 16rpx;
+  padding: 24rpx;
+}
+
+.count-label {
+  flex: 1;
+}
+
+.label-text {
+  font-size: 28rpx;
+  color: #1c170d;
+  font-weight: 500;
+}
+
+.count-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80rpx;
+  height: 56rpx;
+  background-color: #f7bd4a;
+  border-radius: 12rpx;
+  padding: 0 16rpx;
+}
+
+.value-text {
+  font-size: 32rpx;
+  color: #1c170d;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.auth-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 0 32rpx 24rpx 32rpx;
 }
 
 /* 对话框样式 */

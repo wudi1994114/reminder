@@ -168,7 +168,7 @@
         <view class="custom-header">
           <text class="custom-title">选择自定义日期和时间</text>
           <view class="custom-close" @click="hideCustomPickers">
-            <text class="close-icon">✕</text>
+            <text class="close-icon">×</text>
           </view>
         </view>
 
@@ -244,18 +244,18 @@ import {
   getComplexReminderById,
   smartRequestSubscribe,
   getUserTagManagementEnabled,
-  getUserTagList
+  getUserTagList,
+  increaseWechatAuthCount
 } from '@/services/api';
 import {
   generateComplexReminderIdempotencyKey,
   cacheIdempotencyKey,
   isIdempotencyKeyCached
 } from '@/utils/idempotency';
-import { reminderState } from '@/services/store';
-import { DateFormatter } from '@/utils/dateFormat';
+import { formatDateTime, formatDate, formatTime } from '@/utils/date/format';
 import { isProductionVersion, isDevelopmentVersion } from '@/config/version';
 import { requireAuth } from '@/utils/auth';
-import ReminderCacheService from '@/services/reminderCache';
+import ReminderCacheService, { updateDataVersion } from '@/services/reminderCache';
 import {
   generateDescription,
   detectTimeType,
@@ -290,6 +290,15 @@ export default {
       isInitialized: false, // 标记是否已初始化
       reminderId: null, // 保存提醒ID
 
+      // 提醒表单数据
+      reminderData: {
+        title: '',
+        description: '',
+        cronExpression: '',
+        reminderType: '',
+        status: 'PENDING',
+      },
+
       reminderTypeOptions: [],
       reminderTypeValues: [],
       reminderTypeIndex: 0,
@@ -321,9 +330,6 @@ export default {
   },
 
   computed: {
-    reminderData() {
-      return reminderState.form || {};
-    },
     showCronInput() {
       return this.repeatOptions[this.repeatIndex] === '自定义';
     },
@@ -394,8 +400,8 @@ export default {
 
       if (isProductionVersion()) {
         // 正式环境: 只有邮件和手机
-        options = ['邮件', '手机'];
-        values = ['EMAIL', 'SMS'];
+        options = ['微信', '邮件', '手机'];
+        values = ['WECHAT_MINI', 'EMAIL', 'SMS'];
       } else {
         // 开发和测试环境: 只有微信
         options = ['微信'];
@@ -449,7 +455,7 @@ export default {
         defaultReminderType = 'WECHAT_MINI';
       }
 
-      reminderState.form = {
+      this.reminderData = {
         title: '',
         description: '',
         cronExpression: '', // 高级模式默认为空
@@ -482,7 +488,7 @@ export default {
           console.log('加载复杂提醒数据:', data);
           
           // 设置表单数据
-          reminderState.form = data;
+          this.reminderData = data;
           this.originalReminderType = data.reminderType;
           
           // 设置提醒类型索引
@@ -931,10 +937,10 @@ export default {
     formatPreviewTime(date) {
       try {
         // 使用项目内部的统一时间格式化工具，显示完整日期、星期和时间
-        return DateFormatter.formatDetail(date);
+        return formatDateTime(date);
       } catch (e) {
         console.error('格式化预览时间失败:', e);
-        return DateFormatter.formatDateTime(date) || date.toLocaleString('zh-CN');
+        return formatDateTime(date) || date.toLocaleString('zh-CN');
       }
     },
 
@@ -973,19 +979,10 @@ export default {
         console.warn('提醒方式为空，已设置为默认值:', defaultType);
       }
 
-      // 检查微信订阅权限
-      if (this.needWechatSubscribe()) {
-        const subResult = await smartRequestSubscribe({ showToast: true });
-        if (!subResult.success || !subResult.granted) {
-          uni.showModal({
-            title: '授权失败',
-            content: '微信提醒需要订阅消息授权，是否前往设置？',
-            success: (res) => {
-              if (res.confirm) uni.openSetting();
-            }
-          });
-          return;
-        }
+      // 统一的微信授权处理
+      const authResult = await this.handleWechatAuthorization();
+      if (!authResult) {
+        return; // 授权失败或用户取消，停止保存
       }
 
       this.isSubmitting = true;
@@ -1056,6 +1053,10 @@ export default {
         }
 
         if (result) {
+          // 更新全局数据版本，通知其他页面数据已变更
+          updateDataVersion();
+          console.log('✅ 复杂提醒保存成功，全局数据版本已更新');
+          
           uni.showToast({
             title: this.isEdit ? '更新成功' : '创建成功',
             icon: 'success',
@@ -1085,6 +1086,81 @@ export default {
       return false;
       // #endif
       return false;
+    },
+
+    // 统一的微信授权处理方法
+    async handleWechatAuthorization() {
+      if (!this.needWechatSubscribe()) {
+        return true; // 不需要授权，直接通过
+      }
+
+      try {
+        console.log('📱 复杂提醒 - 需要请求微信订阅权限');
+        const subscribeResult = await smartRequestSubscribe({
+          showToast: false  // 不显示自动提示，由我们控制
+        });
+        
+        if (!subscribeResult.success || !subscribeResult.granted) {
+          console.log('⚠️ 复杂提醒 - 微信订阅权限获取失败，引导用户去设置');
+          return new Promise((resolve) => {
+            uni.showModal({
+              title: '微信提醒需要授权',
+              content: '检测到您未开启微信订阅消息权限，是否前往设置页面进行授权？',
+              confirmText: '去设置',
+              cancelText: '取消',
+              success: (res) => {
+                if (res.confirm) {
+                  // 用户选择去设置
+                  uni.openSetting({
+                    success: (settingRes) => {
+                      if (settingRes.authSetting['scope.subscribeMessage']) {
+                        uni.showToast({
+                          title: '授权成功，请重新保存',
+                          icon: 'success'
+                        });
+                      } else {
+                        uni.showToast({
+                          title: '您未授权微信提醒',
+                          icon: 'none'
+                        });
+                      }
+                    }
+                  });
+                } else {
+                  // 用户选择取消，停留在当前页面
+                  uni.showToast({
+                    title: '已取消保存，可选择其他提醒方式',
+                    icon: 'none'
+                  });
+                }
+                resolve(false); // 授权失败或用户取消
+              }
+            });
+          });
+        }
+        
+        console.log('✅ 复杂提醒 - 微信订阅权限获取成功');
+        
+        // 授权成功后，增加服务器端的微信授权次数
+        try {
+          await increaseWechatAuthCount(1);
+          console.log('✅ 复杂提醒 - 微信授权次数已增加1次');
+        } catch (error) {
+          console.error('❌ 复杂提醒 - 增加微信授权次数失败:', error);
+          // 即使增加次数失败，也继续创建提醒
+        }
+        
+        return true; // 授权成功
+        
+      } catch (error) {
+        console.error('❌ 复杂提醒 - 请求微信订阅权限失败:', error);
+        uni.showToast({
+          title: '无法获取微信权限，请重试',
+          icon: 'none',
+          duration: 3000
+        });
+        return false; // 授权失败
+      }
     },
 
     onDateChange(e) {
@@ -1236,7 +1312,14 @@ export default {
     },
 
     // 跳转到标签设置页面
-    goToTagSettings() {
+    async goToTagSettings() {
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转标签设置页面');
+        return;
+      }
+      
       uni.navigateTo({
         url: '/pages/settings/notification'
       });

@@ -80,7 +80,7 @@
 <script>
 import { ref, watch, onMounted, computed } from 'vue';
 import { updateUserInfoFromComponent, uploadAvatarWithFile } from '../services/api';
-import { userState } from '../services/reminderCache';
+import { userState } from '../services/userService';
 import { FeatureControl } from '../config/version';
 
 export default {

@@ -1,4 +1,4 @@
-import { request } from './request.js';
+import { request } from './http.js';
 import { handleApiError } from '@/utils/helpers.js';
 
 // 认证相关API
@@ -41,4 +41,7 @@ export const authApi = {
         url: '/auth/logout',
         method: 'POST'
     }).catch(handleApiError)
-}; 
+};
+
+// 单独导出常用方法（用于其他模块）
+export const updateProfile = authApi.updateProfile; 

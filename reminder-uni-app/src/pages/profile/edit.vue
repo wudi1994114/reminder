@@ -32,7 +32,7 @@
 
 <script>
 import { ref, onMounted, watch } from 'vue';
-import ReminderCacheService, { userState } from '@/services/reminderCache';
+import { UserService, userState } from '@/services/userService';
 import { FeatureControl } from '@/config/version';
 import UserInfoEditor from '@/components/UserInfoEditor.vue';
 
@@ -89,7 +89,7 @@ export default {
     const loadUserInfo = async () => {
       try {
         isLoading.value = true;
-        const userInfo = await ReminderCacheService.getCurrentUser();
+        const userInfo = await UserService.getCurrentUser();
         if (userInfo) {
           console.log('编辑资料页面: 获取用户信息成功');
           prepareInitialUserInfo(userInfo);
@@ -144,7 +144,7 @@ export default {
       try {
         // 重新获取用户资料，确保本地状态与服务器同步
         console.log('🔄 重新获取用户资料...');
-        const success = await ReminderCacheService.refreshUserProfile();
+        const success = await UserService.refreshUserProfile();
         
         if (success) {
           console.log('✅ 用户资料已更新');

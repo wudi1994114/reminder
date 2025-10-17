@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <view class="nav-header">
       <view class="nav-close" @click="cancel">
-        <text class="close-icon">✕</text>
+        <text class="close-icon">×</text>
       </view>
     </view>
     
@@ -105,8 +105,10 @@ import {
   getSimpleReminderById,
   smartRequestSubscribe,
   getUserTagManagementEnabled,
-  getUserTagList
+  getUserTagList,
+  increaseWechatAuthCount
 } from '@/services/api';
+import { updateDataVersion } from '@/services/reminderCache';
 import { requireAuth } from '@/utils/auth';
 import { FeatureControl, isProductionVersion, isDevelopmentVersion } from '@/config/version';
 import UnifiedTimePicker from '@/components/unified-time-picker/unified-time-picker.vue';
@@ -330,26 +332,21 @@ export default {
       return typeMap[type] || '邮件';
     };
 
-    const saveReminder = async () => {
-      if (!reminderForm.title) {
-        uni.showToast({ title: '请输入提醒标题', icon: 'none' });
-        return;
+    // 统一的微信授权处理方法
+    const handleWechatAuthorization = async () => {
+      if (!needWechatSubscribe()) {
+        return true; // 不需要授权，直接通过
       }
-      if (!reminderForm.eventTime) {
-        uni.showToast({ title: '请选择提醒时间', icon: 'none' });
-        return;
-      }
-      
-      // 检查是否需要请求微信订阅权限
-      if (needWechatSubscribe()) {
-        try {
-          console.log('📱 需要请求微信订阅权限');
-          const subscribeResult = await smartRequestSubscribe({
-            showToast: false  // 不显示自动提示，由我们控制
-          });
-          
-          if (!subscribeResult.success || !subscribeResult.granted) {
-            console.log('⚠️ 微信订阅权限获取失败，引导用户去设置');
+
+      try {
+        console.log('📱 需要请求微信订阅权限');
+        const subscribeResult = await smartRequestSubscribe({
+          showToast: false  // 不显示自动提示，由我们控制
+        });
+        
+        if (!subscribeResult.success || !subscribeResult.granted) {
+          console.log('⚠️ 微信订阅权限获取失败，引导用户去设置');
+          return new Promise((resolve) => {
             uni.showModal({
               title: '微信提醒需要授权',
               content: '检测到您未开启微信订阅消息权限，是否前往设置页面进行授权？',
@@ -380,20 +377,50 @@ export default {
                     icon: 'none'
                   });
                 }
+                resolve(false); // 授权失败或用户取消
               }
             });
-            return;
-          }
-          console.log('✅ 微信订阅权限获取成功');
-        } catch (error) {
-          console.error('❌ 请求微信订阅权限失败:', error);
-          uni.showToast({
-            title: '无法获取微信权限，请重试',
-            icon: 'none',
-            duration: 3000
           });
-          return;
         }
+        
+        console.log('✅ 微信订阅权限获取成功');
+        
+        // 授权成功后，增加服务器端的微信授权次数
+        try {
+          await increaseWechatAuthCount(1);
+          console.log('✅ 微信授权次数已增加1次');
+        } catch (error) {
+          console.error('❌ 增加微信授权次数失败:', error);
+          // 即使增加次数失败，也继续创建提醒
+        }
+        
+        return true; // 授权成功
+        
+      } catch (error) {
+        console.error('❌ 请求微信订阅权限失败:', error);
+        uni.showToast({
+          title: '无法获取微信权限，请重试',
+          icon: 'none',
+          duration: 3000
+        });
+        return false; // 授权失败
+      }
+    };
+
+    const saveReminder = async () => {
+      if (!reminderForm.title) {
+        uni.showToast({ title: '请输入提醒标题', icon: 'none' });
+        return;
+      }
+      if (!reminderForm.eventTime) {
+        uni.showToast({ title: '请选择提醒时间', icon: 'none' });
+        return;
+      }
+      
+      // 统一的微信授权处理
+      const authResult = await handleWechatAuthorization();
+      if (!authResult) {
+        return; // 授权失败或用户取消，停止保存
       }
       
       // 执行保存
@@ -435,6 +462,10 @@ export default {
         }
         
         if (result) {
+          // 更新全局数据版本，通知其他页面数据已变更
+          updateDataVersion();
+          console.log('✅ 简单提醒保存成功，全局数据版本已更新');
+          
           uni.showToast({
             title: isEdit.value ? '修改成功' : '创建成功',
             icon: 'success',
@@ -652,7 +683,14 @@ export default {
     };
 
     // 跳转到标签设置页面
-    const goToTagSettings = () => {
+    const goToTagSettings = async () => {
+      // 检查登录状态，未登录会弹出登录框并等待
+      const isLoggedIn = await requireAuth();
+      if (!isLoggedIn) {
+        console.log('用户取消登录，不跳转标签设置页面');
+        return;
+      }
+      
       uni.navigateTo({
         url: '/pages/settings/notification'
       });
@@ -678,9 +716,8 @@ export default {
       getReminderTypeText,
       saveReminder,
       performSave,
+      handleWechatAuthorization,
       needWechatSubscribe,
-      cancel,
-      showReminderTypeSelector,
       loadUserTags,
       handleLineChange,
       addQuickTag,
