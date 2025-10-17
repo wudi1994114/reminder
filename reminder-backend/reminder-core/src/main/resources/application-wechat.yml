@@ -34,3 +34,13 @@ tencent:
       duration-seconds: 1800
       # 服务地域
       region: "ap-beijing"
+      # TTS文本转语音配置
+    tts:
+      # 服务地域
+      region: ap-beijing
+      # 默认音色ID (0: 亲和女声，1: 亲和男声，2: 成熟男声等)
+      default-voice-type: 0
+      # 默认语速 (范围[-2, 2])
+      default-speed: 0
+      # 默认音量 (范围[0, 10])
+      default-volume: 5

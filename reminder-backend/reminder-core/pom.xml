@@ -164,6 +164,13 @@
             <artifactId>tencentcloud-sdk-java-sts</artifactId>
             <version>3.1.828</version>
         </dependency>
+        
+        <!-- 腾讯云TTS文本转语音服务 -->
+        <dependency>
+            <groupId>com.tencentcloudapi</groupId>
+            <artifactId>tencentcloud-sdk-java-tts</artifactId>
+            <version>3.1.828</version>
+        </dependency>
 
         <dependency>
             <groupId>com.alibaba.boot</groupId>

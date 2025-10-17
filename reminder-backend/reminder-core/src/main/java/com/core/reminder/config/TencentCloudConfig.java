@@ -31,6 +31,11 @@ public class TencentCloudConfig {
     private StsConfig sts = new StsConfig();
     
     /**
+     * TTS文本转语音配置
+     */
+    private TtsConfig tts = new TtsConfig();
+    
+    /**
      * STS临时密钥配置
      */
     @Data
@@ -46,5 +51,33 @@ public class TencentCloudConfig {
         private String region = "ap-beijing";
     }
     
+    /**
+     * TTS文本转语音配置
+     */
+    @Data
+    public static class TtsConfig {
+        /**
+         * 服务地域
+         */
+        private String region = "ap-beijing";
+        
+        /**
+         * 默认音色ID
+         * 0: 亲和女声，1: 亲和男声，2: 成熟男声等
+         */
+        private Integer defaultVoiceType = 0;
+        
+        /**
+         * 默认语速
+         * 范围[-2, 2]
+         */
+        private Integer defaultSpeed = 0;
+        
+        /**
+         * 默认音量
+         * 范围[0, 10]
+         */
+        private Integer defaultVolume = 5;
+    }
 
 }

@@ -106,6 +106,7 @@ public class SecurityConfig {
             // Configure authorization rules
             .authorizeHttpRequests(authz -> authz
                 .antMatchers("/api/auth/**").permitAll() // Allow access to authentication endpoints
+                .antMatchers("/api/tts/**").permitAll() // Allow TTS testing endpoints (no authentication required)
                 .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Allow Swagger UI if used
                 .antMatchers("/actuator/**").permitAll() // Allow Actuator endpoints if used (consider securing them in production)
                 .anyRequest().authenticated() // All other requests require authentication
