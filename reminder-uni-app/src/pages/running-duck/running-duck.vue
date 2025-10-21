@@ -73,7 +73,8 @@ export default {
       // 已开发完成的功能可以直接跳转
       const completedPages = [
         '/pages/running-duck/pace-calculator',
-        '/pages/running-duck/realtime-pace'
+        '/pages/running-duck/realtime-pace',
+        '/pages/running-duck/strength-training'
       ];
       
       if (completedPages.includes(url)) {

@@ -67,6 +67,13 @@
 			}
 		},
 		{
+			"path": "pages/running-duck/strength-training",
+			"style": {
+				"navigationBarTitleText": "力量训练小助手",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/mine/mine",
 			"style": {
 				"navigationBarTitleText": "我的"
