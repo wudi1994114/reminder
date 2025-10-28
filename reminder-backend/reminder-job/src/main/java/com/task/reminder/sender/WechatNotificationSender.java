@@ -179,8 +179,32 @@ public class WechatNotificationSender implements NotificationSender {
         } else {
             // 默认数据格式
             data.put("thing2", createDataItem(title));
-            data.put("thing11", createDataItem(content));
+            // thing11 不能为空，若内容为空则回退为标题
+            String fallback = (content == null || content.trim().isEmpty()) ? title : content;
+            data.put("thing11", createDataItem(fallback));
             data.put("date4", createDataItem(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+        }
+
+        // 统一兜底：无论是否传入自定义数据，都确保 thing11 不为空
+        try {
+            String fallbackDesc = (content == null || content.trim().isEmpty()) ? title : content;
+            Object thing11 = data.get("thing11");
+            boolean needFix = false;
+            if (thing11 == null) {
+                needFix = true;
+            } else if (thing11 instanceof Map) {
+                Object v = ((Map<?, ?>) thing11).get("value");
+                if (v == null || v.toString().trim().isEmpty()) {
+                    needFix = true;
+                }
+            }
+            if (needFix) {
+                data.put("thing11", createDataItem(fallbackDesc));
+            }
+        } catch (Exception ignore) {
+            // 保守兜底，异常时也设置一份有效的 thing11
+            String fallbackDesc = (content == null || content.trim().isEmpty()) ? title : content;
+            data.put("thing11", createDataItem(fallbackDesc));
         }
 
         messageData.put("data", data);

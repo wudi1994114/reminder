@@ -371,7 +371,12 @@ public class SendReminderJob implements Job {
                 // 为微信创建模板消息数据
                 Map<String, Object> wechatData = new HashMap<>();
                 wechatData.put("thing2", createWechatDataItem(reminder.getTitle()));
-                wechatData.put("thing11", createWechatDataItem(reminder.getDescription()));
+                // thing11 不能为空，若描述为空则回退为标题
+                String desc = reminder.getDescription();
+                if (desc == null || desc.trim().isEmpty()) {
+                    desc = reminder.getTitle();
+                }
+                wechatData.put("thing11", createWechatDataItem(desc));
                 wechatData.put("date4", createWechatDataItem(time));
                 return wechatData;
             default:
