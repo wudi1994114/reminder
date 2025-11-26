@@ -4,6 +4,15 @@ import {
 import App from "./App.vue";
 import cloudConfig from "./config/cloud.js";
 
+// #ifdef MP-WEIXIN
+// 兼容旧基础库：部分版本缺少 getStaticSystemInfoSync
+if (typeof wx !== 'undefined' && !wx.getStaticSystemInfoSync && wx.getSystemInfoSync) {
+  wx.getStaticSystemInfoSync = function () {
+    return wx.getSystemInfoSync();
+  };
+}
+// #endif
+
 // 初始化微信云服务
 function initCloudService() {
 	// #ifdef MP-WEIXIN

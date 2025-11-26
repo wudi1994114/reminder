@@ -46,6 +46,9 @@ export {
     deleteOldAvatarAsync
 } from './upload.js';
 
+// 力量训练相关API（新增）
+export { strengthApi } from './strength.js';
+
 // =================================
 // 兼容旧的导入方式（保持向后兼容）
 // =================================
@@ -131,6 +134,7 @@ export default {
     auth: authApi,
     reminder: reminderApi,
     calendar: calendarApi,
+    strength: () => import('./strength.js').then(m => m.strengthApi),
     user: {
         preferences: import('./user.js').then(m => m.userPreferencesApi),
         tags: import('./user.js').then(m => m.userTagsApi),

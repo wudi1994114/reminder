@@ -74,6 +74,27 @@
 			}
 		},
 		{
+			"path": "pages/strength/exercise-market",
+			"style": {
+				"navigationBarTitleText": "动作市场",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/strength/plan-editor",
+			"style": {
+				"navigationBarTitleText": "组合训练编辑",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/strength/start-session",
+			"style": {
+				"navigationBarTitleText": "开始训练",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/mine/mine",
 			"style": {
 				"navigationBarTitleText": "我的"
