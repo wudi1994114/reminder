@@ -5,7 +5,6 @@
 
 import { request } from './http.js';
 import { updateProfile } from './auth.js';
-import cloudConfig from '../config/cloud.js';
 import wechatConfig from '../config/wechat.js';
 
 /**
@@ -82,7 +81,7 @@ export async function smartWechatLogin(options = {}) {
         
         // 1. 获取code
         const loginResult = await wechatLogin(options);
-        console.log('✅ 获取微信code成功:', loginResult.code);
+        console.log('✅ 获取微信登录凭证成功');
         
         // 2. 调用后端登录接口
         const loginData = { code: loginResult.code };
@@ -103,37 +102,6 @@ export async function smartWechatLogin(options = {}) {
  */
 export async function loginWithBackend(data) {
     console.log('🔐 调用后台微信登录接口');
-
-    // #ifdef MP-WEIXIN
-    // 当云托管启用时，使用云托管专用登录接口
-    if (cloudConfig.enabled && typeof wx !== 'undefined' && wx.cloud && wx.cloud.callContainer) {
-        console.log('🚀 使用云托管进行微信登录...');
-        return new Promise((resolve, reject) => {
-            wx.cloud.callContainer({
-                config: { env: cloudConfig.env },
-                path: '/api/auth/wechat/cloud-login',
-                method: 'POST',
-                header: {
-                    'X-WX-SERVICE': cloudConfig.serviceName,
-                    'Content-Type': 'application/json'
-                },
-                data: data,
-                success: (res) => {
-                    console.log('✅ 云托管登录成功:', res);
-                    const result = res.data || res;
-                    resolve(result);
-                },
-                fail: (err) => {
-                    console.error('❌ 云托管登录失败:', err);
-                    reject(err);
-                }
-            });
-        });
-    }
-    // #endif
-
-    // 降级使用标准HTTP登录
-    console.log('使用标准HTTP登录');
     return request({
         url: '/auth/wechat/login',
         method: 'POST',
@@ -439,4 +407,3 @@ export default {
     shareToWeChat,
     scanCode
 };
-

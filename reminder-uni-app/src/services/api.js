@@ -13,7 +13,7 @@
  */
 
 // 导入新的模块化API
-import { request, callContainer, HTTP_CONFIG } from '../api/http.js';
+import { request, HTTP_CONFIG } from '../api/http.js';
 import { authApi } from '../api/auth.js';
 import { reminderApi } from '../api/reminder.js';
 import { calendarApi } from '../api/calendar.js';
@@ -38,13 +38,11 @@ import {
 } from '../api/wechat.js';
 import {
     uploadAvatarWithFile,
-    uploadFile,
-    deleteCloudFile,
-    deleteOldAvatarAsync
+    uploadFile
 } from '../api/upload.js';
 
 // ==================== HTTP 请求相关 ====================
-export { request, callContainer, HTTP_CONFIG };
+export { request, HTTP_CONFIG };
 
 // ==================== 认证相关 API ====================
 export const login = authApi.login;
@@ -120,16 +118,13 @@ export {
 // ==================== 文件上传相关 API ====================
 export {
     uploadAvatarWithFile,
-    uploadFile,
-    deleteCloudFile,
-    deleteOldAvatarAsync
+    uploadFile
 };
 
 // ==================== 导出API模块（供组织化使用） ====================
 export const API = {
     // HTTP
     request,
-    callContainer,
     HTTP_CONFIG,
     
     // 模块化API
@@ -157,12 +152,9 @@ export const API = {
     },
     upload: {
         uploadAvatarWithFile,
-        uploadFile,
-        deleteCloudFile,
-        deleteOldAvatarAsync
+        uploadFile
     }
 };
 
 // 默认导出
 export default API;
-

@@ -155,28 +155,9 @@ export default {
     const showLogoutConfirmDialog = ref(false);
     const displayAvatarUrl = ref('https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132');
 
-    // 解析头像URL（处理云文件ID）
+    // 头像由后端返回可直接展示的 HTTPS URL
     const resolveAvatarUrl = async (sourceUrl) => {
-      if (!sourceUrl) {
-        return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
-      }
-    
-      if (sourceUrl.startsWith('cloud://')) {
-        try {
-          // #ifdef MP-WEIXIN
-          const res = await wx.cloud.getTempFileURL({ fileList: [sourceUrl] });
-          if (res.fileList && res.fileList.length > 0 && res.fileList[0].tempFileURL) {
-            console.log('我的页面: 云文件ID转换为临时URL成功');
-            return res.fileList[0].tempFileURL;
-          }
-          // #endif
-        } catch (error) {
-          console.error('我的页面: 获取临时头像链接失败:', error);
-          return 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
-        }
-      }
-      
-      return sourceUrl;
+      return sourceUrl || 'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
     };
 
     // 监听用户头像变化并解析URL
@@ -696,4 +677,4 @@ export default {
     font-size: 22rpx;
   }
 }
-</style> 
+</style>

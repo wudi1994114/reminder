@@ -11,18 +11,20 @@ export const API_CONFIG = {
     },
     // 生产环境  
     production: {
-        BASE_URL: 'https://bewangji-166224-6-1362668225.sh.run.tcloudbase.com/api',
+        BASE_URL: 'https://reminder-api.wwmty.com/api',
     },
     // 测试环境
     test: {
-        BASE_URL: 'http://192.168.100.174:8080/api',
+        BASE_URL: 'http://127.0.0.1:8080/api',
     }
 };
 
 // 获取当前环境的API URL
 export function getApiBaseUrl() {
-    const env = process.env.NODE_ENV || 'development';
-    return API_CONFIG[env]?.BASE_URL || API_CONFIG.development.BASE_URL;
+    const env = import.meta.env.MODE || 'development';
+    const configuredUrl = import.meta.env.VITE_API_BASE_URL;
+    const baseUrl = configuredUrl || API_CONFIG[env]?.BASE_URL || API_CONFIG.development.BASE_URL;
+    return baseUrl.replace(/\/+$/, '');
 }
 
 // 请求超时配置
@@ -40,4 +42,3 @@ export default {
     TIMEOUT,
     RETRY_CONFIG
 };
-

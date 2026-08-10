@@ -45,7 +45,7 @@ public class Exercise {
     @Column(nullable = false)
     private Integer defaultRestSec = 30;
 
-    /** 训练音频地址（可为 cloud:// 或 https://） */
+    /** 训练音频 HTTPS 地址 */
     @Column(columnDefinition = "TEXT")
     private String audioUrl;
 
@@ -64,5 +64,4 @@ public class Exercise {
     @Column(nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime updatedAt;
 }
-
 

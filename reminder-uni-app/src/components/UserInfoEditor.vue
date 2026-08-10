@@ -126,21 +126,7 @@ export default {
     });
     
     const resolveAvatarUrl = async (sourceUrl) => {
-      if (!sourceUrl) {
-        return defaultAvatar;
-      }
-      if (sourceUrl.startsWith('cloud://')) {
-        try {
-          const res = await wx.cloud.getTempFileURL({ fileList: [sourceUrl] });
-          if (res.fileList && res.fileList.length > 0 && res.fileList[0].tempFileURL) {
-            return res.fileList[0].tempFileURL;
-          }
-        } catch (error) {
-          console.error('获取临时头像链接失败:', error);
-          return defaultAvatar;
-        }
-      }
-      return sourceUrl;
+      return sourceUrl || defaultAvatar;
     };
 
     const initializeUserData = async () => {
@@ -180,7 +166,7 @@ export default {
           // 显示上传进度
           uni.showLoading({ title: '上传头像中...' });
 
-          // 下载微信头像并上传到我们的云存储
+          // 下载微信头像并上传到后端文件服务
           console.log('开始下载并上传微信头像...');
           console.log('调用 downloadFile 参数:', { url: wechatAvatarUrl });
           
@@ -219,7 +205,7 @@ export default {
           
           console.log('准备上传的文件路径:', tempFilePath);
 
-          // 2. 上传到我们的云存储（传递当前头像URL用于删除）
+          // 2. 上传到后端文件服务
           const currentAvatarUrl = avatarUrl.value; // 保存当前头像URL
           console.log('🔄 准备上传新头像，当前头像URL:', currentAvatarUrl);
           console.log('调用 uploadAvatarWithFile 参数:', {
@@ -237,12 +223,7 @@ export default {
             // 使用上传后的URL
             avatarUrl.value = uploadResult.avatarUrl;
             
-            // 解析并显示头像
-            if (uploadResult.avatarUrl.startsWith('cloud://')) {
-              displayAvatarUrl.value = await resolveAvatarUrl(uploadResult.avatarUrl);
-            } else {
-              displayAvatarUrl.value = uploadResult.avatarUrl;
-            }
+            displayAvatarUrl.value = uploadResult.avatarUrl;
             
             console.log('✅ 微信头像上传完成，新URL:', uploadResult.avatarUrl);
             uni.showToast({ title: '头像更新成功', icon: 'success' });

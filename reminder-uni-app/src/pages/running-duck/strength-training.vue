@@ -101,12 +101,14 @@
 </template>
 
 <script>
+const TRAINING_AUDIO_URL = import.meta.env.VITE_STRENGTH_TRAINING_AUDIO_URL || '';
+
 export default {
   name: 'StrengthTraining',
   data() {
     return {
-      // 云存储音频路径
-      cloudAudioPath: 'cloud://prod-3gel427g5936cfa7.7072-prod-3gel427g5936cfa7-1362668225/train_voice/乔某某人 - 无限恐怖.078（利用资源）.mp3',
+      // 可选的 HTTPS 训练音频地址
+      trainingAudioUrl: TRAINING_AUDIO_URL,
       // 音频实例
       audioContext: null,
       // 播放状态
@@ -126,9 +128,6 @@ export default {
       // 播放重试次数
       retryCount: 0,
       maxRetries: 3
-      ,
-      // 通过云存储获取的临时 https 音频地址（缓存复用）
-      tempAudioUrl: ''
     };
   },
   
@@ -348,28 +347,15 @@ export default {
           return;
         }
         
-        this.isLoading = true;
-        this.loadingText = '';
-        console.log('📡 开始播放音频(获取临时URL):', this.cloudAudioPath);
-
-        // 优先复用已获取的临时URL，避免重复请求
-        let tempUrl = this.tempAudioUrl;
-        if (!tempUrl) {
-          const res = await wx.cloud.getTempFileURL({ fileList: [this.cloudAudioPath] });
-          const fileItem = res && res.fileList && res.fileList[0];
-          if (fileItem && fileItem.tempFileURL) {
-            tempUrl = fileItem.tempFileURL;
-            this.tempAudioUrl = tempUrl;
-            console.log('✅ 获取到临时URL');
-          } else {
-            console.error('❌ 获取临时URL失败:', res);
-            throw new Error('获取音频临时链接失败');
-          }
+        if (!this.trainingAudioUrl) {
+          console.warn('训练音频地址未配置，跳过播放');
+          return;
         }
 
-        // 设置可播放的 https 源并开始播放
-        this.audioContext.src = tempUrl;
-        console.log('▶️ 立即开始播放(https):', tempUrl);
+        this.isLoading = true;
+        this.loadingText = '';
+        this.audioContext.src = this.trainingAudioUrl;
+        console.log('▶️ 开始播放训练音频');
         this.audioContext.play();
         
       } catch (error) {

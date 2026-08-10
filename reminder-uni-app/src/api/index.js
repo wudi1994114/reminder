@@ -4,7 +4,7 @@
  */
 
 // 导出HTTP配置和request函数
-export { request, callContainer, HTTP_CONFIG } from './http.js';
+export { request, HTTP_CONFIG } from './http.js';
 
 // 导出认证相关API
 export { authApi } from './auth.js';
@@ -41,9 +41,7 @@ export {
 // 导出上传相关API（新增）
 export {
     uploadAvatarWithFile,
-    uploadFile,
-    deleteCloudFile,
-    deleteOldAvatarAsync
+    uploadFile
 } from './upload.js';
 
 // 力量训练相关API（新增）
