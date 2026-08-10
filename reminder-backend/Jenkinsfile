@@ -12,6 +12,7 @@ pipeline {
         DOCKER_IMAGE_TAG     = "${params.version}"
         NEXUS_CREDENTIALS_ID = 'nexus-repo-credentials'
         MAVEN_MIRROR_URL     = 'http://dev-platform-reposilite:8080/releases'
+        REMINDER_STATE_DIR   = '/opt/reminder/deploy-state'
     }
 
     options {
@@ -64,6 +65,8 @@ pipeline {
 </settings>
 """
                 sh 'mvn -s ci-maven-settings.xml -f reminder-backend/pom.xml clean test package -B'
+                sh 'bash reminder-backend/scripts/assert-monolith.sh'
+                sh 'bash reminder-backend/deploy/test-deploy-reminder.sh'
                 stash name: 'reminder-jar', includes: 'reminder-backend/target/reminder-backend-*.jar'
             }
         }

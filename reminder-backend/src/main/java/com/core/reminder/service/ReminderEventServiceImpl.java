@@ -798,7 +798,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         // 检查cron表达式是否有效
         if (cronExpression == null || cronExpression.trim().isEmpty()) {
             log.error("复杂提醒ID: {} 的CRON表达式为空", complexReminder.getId());
-            return generatedReminders;
+            throw new IllegalArgumentException("复杂提醒的CRON表达式不能为空");
         }
 
         // 标准化cron表达式（添加秒字段如果没有）
@@ -941,8 +941,8 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
             return generatedReminders;
 
         } catch (Exception e) {
-            log.error("为复杂提醒ID: {} 生成简单任务时出错: {}", complexReminder.getId(), e.getMessage());
-            return generatedReminders;
+            log.error("为复杂提醒ID: {} 生成简单任务失败，事务将回滚", complexReminder.getId(), e);
+            throw new IllegalStateException("生成简单提醒失败", e);
         }
     }
 

@@ -7,20 +7,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.net.ssl.SSLContext;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.cert.X509Certificate;
 
 /**
  * 微信API服务类
@@ -44,14 +38,14 @@ public class WechatApiService {
     public WechatApiResponse jscode2session(String code) throws Exception {
         String url = buildJscode2sessionUrl(code);
         
-        log.info("调用微信jscode2session接口，URL: {}", url);
+        log.info("调用微信jscode2session接口");
         
         try (CloseableHttpClient httpClient = createHttpClient()) {
             HttpGet httpGet = new HttpGet(url);
             
             try (CloseableHttpResponse response = httpClient.execute(httpGet)) {
+                log.info("微信jscode2session接口响应状态: {}", response.getStatusLine().getStatusCode());
                 String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-                log.info("微信API响应: {}", responseBody);
                 
                 WechatApiResponse apiResponse = objectMapper.readValue(responseBody, WechatApiResponse.class);
                 
@@ -84,39 +78,17 @@ public class WechatApiService {
     }
 
     /**
-     * 创建HTTP客户端
-     * 
-     * [安全警告] 当前实现为了解决 "PKIX path building failed" 错误，配置为信任所有SSL证书。
-     * 这会绕过证书验证，使HTTPS连接容易受到中间人攻击。
-     * 此配置仅建议用于开发、调试或在确认网络环境绝对安全的情况下使用。
-     * 生产环境的最佳实践是：
-     * 1. 确保部署环境的Java拥有最新的根证书。
-     * 2. 如果必须使用自定义证书，请创建一个包含特定受信任证书的TrustStore，而不是完全禁用验证。
+     * 创建使用 JVM 默认信任链和主机名校验的 HTTP 客户端。
+     * 如部署环境需要额外 CA，应通过 JVM trustStore 参数配置受限信任库。
      */
     private CloseableHttpClient createHttpClient() {
-        try {
-            RequestConfig requestConfig = RequestConfig.custom()
-                    .setConnectTimeout(wechatConfig.getConnectTimeout())
-                    .setSocketTimeout(wechatConfig.getReadTimeout())
-                    .build();
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(wechatConfig.getConnectTimeout())
+                .setSocketTimeout(wechatConfig.getReadTimeout())
+                .build();
 
-            // 创建一个信任所有证书的SSL上下文
-            TrustStrategy acceptingTrustStrategy = (X509Certificate[] chain, String authType) -> true;
-            SSLContext sslContext = SSLContexts.custom()
-                    .loadTrustMaterial(null, acceptingTrustStrategy)
-                    .build();
-            
-            // 使用NoopHostnameVerifier来禁用主机名验证
-            SSLConnectionSocketFactory csf = new SSLConnectionSocketFactory(sslContext, NoopHostnameVerifier.INSTANCE);
-
-            return HttpClients.custom()
-                    .setSSLSocketFactory(csf)
-                    .setDefaultRequestConfig(requestConfig)
-                    .build();
-        } catch (Exception e) {
-            log.error("创建信任所有证书的HttpClient时出错", e);
-            // 如果自定义SSL上下文失败，回退到默认的HttpClient
-            return HttpClients.createDefault();
-        }
+        return HttpClients.custom()
+                .setDefaultRequestConfig(requestConfig)
+                .build();
     }
-} 
+}
