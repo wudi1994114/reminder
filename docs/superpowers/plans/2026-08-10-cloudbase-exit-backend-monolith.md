@@ -172,7 +172,7 @@
 - [ ] Add a deploy script that validates the explicit Reminder service/image, backs up only the Reminder compose file, updates only that service, waits for `/actuator/health`, and rolls back that service on failure.
 - [ ] Add an Nginx HTTPS server block for `reminder-api.wwmty.com` with request/upload limits and proxy headers; do not alter SaaS routes.
 - [ ] Inject the existing Jenkins credential `reminder-saas-storage-app` as `SAAS_STORAGE_APP_ID` and `SAAS_STORAGE_SECRET_CODE`; attach Reminder to the `saas-app` network so it can reach `saas-admin-backend:8080` without exposing that API publicly.
-- [ ] Document prerequisite DNS/TLS, independent PostgreSQL database/user, Redis DB/prefix, Nacos data ID, saas-admin APP_CLIENT, WeChat legal domains, and the final cutover/rollback order.
+- [ ] Document prerequisite DNS/TLS, independent PostgreSQL database/user, Redis database, Nacos data ID, saas-admin APP_CLIENT and stable storage public URL, WeChat legal domains, and the final cutover/rollback order.
 - [ ] Validate shell syntax with `bash -n`, render Compose with placeholder values using `docker compose config`, and build the Docker image locally.
 - [ ] Commit: `build: add reminder server deployment pipeline`.
 

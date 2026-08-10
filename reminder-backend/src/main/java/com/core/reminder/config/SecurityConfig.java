@@ -5,6 +5,7 @@ import com.core.reminder.security.JwtAuthenticationFilter;
 import com.core.reminder.security.UserDetailsServiceImpl;
 import com.core.reminder.security.UserInfoFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity // Enables Spring Security's web security support
+@EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
     @Autowired
@@ -34,6 +36,9 @@ public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+    @Autowired
+    private CorsProperties corsProperties;
 
     // Define the JWT Authentication Filter as a Bean
     // This allows Spring to manage its lifecycle and dependency injection
@@ -63,14 +68,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Allow requests from typical frontend development server origin
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000", 
-            "http://localhost:8081", 
-            "http://localhost:5173", 
-            "http://123.57.175.66", 
-            "http://123.57.175.66:5173"
-        ));
+        configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
         configuration.setAllowedMethods(Arrays.asList(
             "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"
         ));
@@ -118,4 +116,4 @@ public class SecurityConfig {
 
         return http.build();
     }
-} 
+}

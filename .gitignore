@@ -25,6 +25,7 @@ npm-debug.log*
 .env.*
 !reminder-uni-app/.env.development
 !reminder-uni-app/.env.production.example
+!reminder-backend/deploy/.env.example
 
 # Mac specific
 .DS_Store

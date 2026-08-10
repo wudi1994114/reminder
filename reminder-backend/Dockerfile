@@ -1,44 +1,25 @@
-# 第一阶段：Maven构建阶段
-FROM maven:3.8.5-openjdk-17 AS builder
-
-# 设置工作目录
-WORKDIR /app
-
-# 复制整个项目结构
-COPY . .
-
-# 清理并构建整个项目
-# 使用Maven reactor模式，自动处理模块间依赖关系
-RUN mvn clean package -DskipTests -B
-
-# 第二阶段：运行时镜像
 FROM eclipse-temurin:17-jre-jammy
 
-# 设置工作目录
+ARG JAR_FILE=target/reminder-backend-*.jar
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system reminder \
+    && useradd --system --gid reminder --home-dir /app --shell /usr/sbin/nologin reminder
+
 WORKDIR /app
 
-# 创建日志目录
-RUN mkdir -p /var/log/reminder
+COPY --chown=reminder:reminder ${JAR_FILE} /app/app.jar
 
-# 创建非root用户运行应用（安全最佳实践）
-RUN groupadd -r spring && useradd -r -g spring spring
+USER reminder
 
-# 从构建阶段复制编译好的jar文件
-COPY --from=builder /app/reminder-core/target/*.jar app.jar
+ENV TZ=Asia/Shanghai \
+    JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai"
 
-# 更改文件所有者
-RUN chown -R spring:spring /app /var/log/reminder
-
-# 切换到非root用户
-USER spring
-
-# 暴露应用端口
 EXPOSE 8080
 
-# 设置JVM参数优化
-ENV JAVA_OPTS="-Xms512m -Xmx1024m -Djava.security.egd=file:/dev/./urandom"
+HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=4 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health >/dev/null || exit 1
 
-# 启动应用
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
-
-
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

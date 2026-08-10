@@ -1,0 +1,128 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'version', defaultValue: '1.0.0', description: '镜像版本号')
+        string(name: 'branch', defaultValue: 'main', description: '构建分支')
+    }
+
+    environment {
+        NEXUS_REGISTRY_URL   = '172.17.0.3:5001'
+        DOCKER_IMAGE_NAME    = 'reminder-backend'
+        DOCKER_IMAGE_TAG     = "${params.version}"
+        NEXUS_CREDENTIALS_ID = 'nexus-repo-credentials'
+        MAVEN_MIRROR_URL     = 'http://dev-platform-reposilite:8080/releases'
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        timeout(time: 60, unit: 'MINUTES')
+    }
+
+    stages {
+        stage('Validate Parameters') {
+            steps {
+                script {
+                    if (!(params.version ==~ /[0-9A-Za-z][0-9A-Za-z._-]*/)) {
+                        error('version contains unsupported characters')
+                    }
+                }
+            }
+        }
+
+        stage('Checkout Code') {
+            steps {
+                cleanWs()
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${params.branch}"]],
+                    userRemoteConfigs: [[url: 'https://github.com/wudi1994114/reminder.git']],
+                    extensions: [[$class: 'CloneOption', shallow: true, noTags: true, timeout: 20]]
+                ])
+            }
+        }
+
+        stage('Maven Test & Package') {
+            agent {
+                docker {
+                    image 'maven:3.8.5-openjdk-17'
+                    args '--entrypoint="" --network dev-platform'
+                    reuseNode true
+                }
+            }
+            steps {
+                writeFile file: 'ci-maven-settings.xml', text: """<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+  <mirrors>
+    <mirror>
+      <id>wwmty-reposilite</id>
+      <url>${MAVEN_MIRROR_URL}</url>
+      <mirrorOf>*</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
+"""
+                sh 'mvn -s ci-maven-settings.xml -f reminder-backend/pom.xml clean test package -B'
+                stash name: 'reminder-jar', includes: 'reminder-backend/target/reminder-backend-*.jar'
+            }
+        }
+
+        stage('Build & Push Image') {
+            steps {
+                unstash 'reminder-jar'
+                withCredentials([usernamePassword(
+                    credentialsId: NEXUS_CREDENTIALS_ID,
+                    usernameVariable: 'NEXUS_USERNAME',
+                    passwordVariable: 'NEXUS_PASSWORD'
+                )]) {
+                    sh '''#!/usr/bin/env bash
+set -Eeuo pipefail
+image="${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+echo "$NEXUS_PASSWORD" | docker login -u "$NEXUS_USERNAME" --password-stdin "$NEXUS_REGISTRY_URL"
+docker build --build-arg 'JAR_FILE=target/reminder-backend-*.jar' -t "$image" reminder-backend
+docker push "$image"
+docker tag "$image" "${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:latest"
+docker push "${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:latest"
+'''
+                }
+            }
+        }
+
+        stage('Deploy Reminder Only') {
+            steps {
+                withCredentials([
+                    file(credentialsId: 'reminder-runtime-env', variable: 'REMINDER_RUNTIME_ENV_SOURCE'),
+                    usernamePassword(
+                        credentialsId: 'reminder-saas-storage-app',
+                        usernameVariable: 'REMINDER_STORAGE_APP_ID',
+                        passwordVariable: 'REMINDER_STORAGE_SECRET_CODE'
+                    )
+                ]) {
+                    sh '''#!/usr/bin/env bash
+set -Eeuo pipefail
+set +x
+deploy_env="$WORKSPACE/.reminder-deploy.env"
+cleanup() { rm -f "$deploy_env"; }
+trap cleanup EXIT
+install -m 600 "$REMINDER_RUNTIME_ENV_SOURCE" "$deploy_env"
+printf '\nSAAS_STORAGE_APP_ID=%s\nSAAS_STORAGE_SECRET_CODE=%s\n' \
+  "$REMINDER_STORAGE_APP_ID" "$REMINDER_STORAGE_SECRET_CODE" >> "$deploy_env"
+
+export REMINDER_ENV_FILE="$deploy_env"
+export REMINDER_IMAGE="${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+export REMINDER_COMPOSE_FILE="$WORKSPACE/reminder-backend/deploy/docker-compose.reminder.yml"
+bash "$WORKSPACE/reminder-backend/deploy/deploy-reminder.sh"
+'''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'rm -f "$WORKSPACE/.reminder-deploy.env" "$WORKSPACE/ci-maven-settings.xml"'
+            sh 'docker logout "$NEXUS_REGISTRY_URL" || true'
+        }
+    }
+}

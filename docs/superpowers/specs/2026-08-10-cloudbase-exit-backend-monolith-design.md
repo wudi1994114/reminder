@@ -83,7 +83,7 @@ reminder-backend/
 - saas-admin 强制把对象归档到 `app/reminder/`；Reminder 会校验返回 key 的作用域，拒绝跨项目结果。
 - MinIO 地址、访问凭据、Bucket 和 URL 解析继续只由 saas-admin 管理；Reminder 仓库及容器中不保存 MinIO 凭据。
 - APP_CLIENT 的 AppID/Secret 存放在 Jenkins 凭据 `reminder-saas-storage-app` 中，部署时注入环境变量，不写入源码、Compose 或日志。
-- 对外返回 saas-admin 解析出的稳定 HTTPS URL，不返回 `cloud://` FileID 或临时签名地址。
+- 对外返回 saas-admin 解析出的稳定 HTTPS URL，不返回 `cloud://` FileID 或临时签名地址；部署前必须为 saas-admin 配置 `storage.minio.public-base-url`，禁止把预签名兜底 URL 持久化成头像。
 - 已有微信云文件在停用前导出，再通过受审计的存储接口上传并更新数据库 URL。新代码不保留微信云运行时回退。
 
 ## 5. 配置与部署
@@ -92,7 +92,7 @@ reminder-backend/
 
 统一配置包含 PostgreSQL、Redis、Quartz、JWT、微信小程序、邮件、saas-admin 存储客户端和 Nacos。敏感值只允许通过环境变量、Jenkins 凭据或 Nacos 注入。
 
-数据库使用独立数据库和用户；Redis 使用独立 database 与 `reminder:` Key 前缀；存储对象使用 `app/reminder/` 独立前缀。这样复用同一台服务器的中间件，但不与 SaaS 业务数据混用。
+数据库使用独立数据库和用户；Redis 使用独立 database 并保留现有业务键命名；存储对象使用 `app/reminder/` 独立前缀。这样复用同一台服务器的中间件，但不与 SaaS 业务数据混用。
 
 ### 5.2 发布形态
 
@@ -132,7 +132,7 @@ reminder-backend/
 ### 7.3 部署前验收
 
 - 在微信公众平台配置生产 HTTPS request/upload/download 合法域名。
-- DNS、TLS、Nginx、独立数据库、Redis 前缀、saas-admin APP_CLIENT/Jenkins 凭据和 Nacos 配置准备完成。
+- DNS、TLS、Nginx、独立数据库、Redis database、saas-admin APP_CLIENT/Jenkins 凭据、稳定存储公开域名和 Nacos 配置准备完成。
 - 旧云文件导出并完成 URL 迁移抽样验证。
 - 新容器、日志、健康接口和一个真实微信登录完成验证后，才停止旧云托管服务。
 

@@ -1,9 +1,5 @@
--- 数据库管理命令 (通常在连接到数据库服务器后，在 psql 命令行或其他工具中单独执行):
--- 1. 创建数据库 (如果不存在):
-CREATE DATABASE remind WITH OWNER your_username;
--- 替换 your_username 为实际的数据库用户
--- 2. 连接到新创建的数据库:
---    \c remind
+-- 数据库和用户必须由运维预先创建。本文件只允许在全新的 reminder 数据库中执行；
+-- 下方包含 DROP TABLE，不可直接用于已有生产数据库升级。
 
 -- 删除可能存在的旧表 (将移动到各自创建语句前)
 -- DROP TABLE IF EXISTS reminder_execution_history;
