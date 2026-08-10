@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: reminder-test
+  datasource:
+    url: jdbc:h2:mem:reminder-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  sql:
+    init:
+      mode: never
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password: ""
+  data:
+    redis:
+      repositories:
+        enabled: false
+  quartz:
+    job-store-type: memory
+    auto-startup: false
+    properties:
+      org.quartz.threadPool.threadCount: 2
+
+nacos:
+  config:
+    enabled: false
+    server-addr: 127.0.0.1:8848
+    namespace: reminder-test
+
+reminder:
+  startup:
+    initialize: false
+  quartz:
+    initialize: false
+  holiday:
+    cache:
+      enabled: false
+
+app:
+  jwtSecret: test-only
+  jwtExpirationInMs: 3600000
+
+email:
+  provider: none
+
+wechat:
+  miniprogram:
+    appid: test-appid
+    secret: test-secret
+    api-base-url: https://api.weixin.qq.com
+    jscode2session-url: /sns/jscode2session
+  notification:
+    template-id: test-template
+    page: pages/index/index
+
+tencent:
+  cloud:
+    secret-id: ""
+    secret-key: ""
+
+logging:
+  level:
+    root: WARN
