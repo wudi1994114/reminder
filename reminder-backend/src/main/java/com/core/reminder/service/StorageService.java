@@ -1,98 +1,205 @@
 package com.core.reminder.service;
 
-import com.core.reminder.config.WechatConfig;
+import com.core.reminder.config.SaasStorageProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 @Slf4j
 public class StorageService {
 
-    @Autowired
-    private WechatAccessTokenService wechatAccessTokenService;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+    private final SaasStorageProperties properties;
+    private volatile String cachedAccessToken;
 
-    @Autowired
-    private WechatConfig wechatConfig;
+    public StorageService(
+            @Qualifier("saasStorageRestTemplate") RestTemplate restTemplate,
+            ObjectMapper objectMapper,
+            SaasStorageProperties properties) {
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+        this.properties = properties;
+    }
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    public StoredFile store(MultipartFile file) {
+        validateFile(file);
+        validateClientConfiguration();
+        return upload(file, true);
+    }
 
-    private static final String UPLOAD_FILE_META_URL = "https://api.weixin.qq.com/tcb/uploadfile?access_token=%s";
+    private StoredFile upload(MultipartFile file, boolean retryOnUnauthorized) {
+        try {
+            String token = getAccessToken();
+            HttpHeaders requestHeaders = new HttpHeaders();
+            requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+            requestHeaders.setBearerAuth(token);
+            requestHeaders.set("X-Project-Code", properties.getAppCode());
 
-    public String store(MultipartFile file) throws IOException {
-        String accessToken = wechatAccessTokenService.getAccessToken();
-        
-        // 1. 获取上传元数据
-        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
-        String extension = StringUtils.getFilenameExtension(originalFilename);
-        String cloudPath = "mp_avatar/" + UUID.randomUUID().toString() + "." + extension;
+            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", createFilePart(file));
+            body.add("bizDir", properties.getBizDir());
+            body.add("storageType", properties.getStorageType());
 
-        RestTemplate restTemplate = new RestTemplate();
-        String getMetaUrl = String.format(UPLOAD_FILE_META_URL, accessToken);
-        
-        HttpHeaders metaHeaders = new HttpHeaders();
-        metaHeaders.setContentType(MediaType.APPLICATION_JSON);
-        
-        String requestBody = String.format("{\"env\": \"%s\", \"path\": \"%s\"}", wechatConfig.getCloudEnv(), cloudPath);
-        HttpEntity<String> metaEntity = new HttpEntity<>(requestBody, metaHeaders);
-        
-        ResponseEntity<String> metaResponse = restTemplate.postForEntity(getMetaUrl, metaEntity, String.class);
-        JsonNode metaRoot = objectMapper.readTree(metaResponse.getBody());
+            ResponseEntity<String> response = restTemplate.exchange(
+                    endpoint("/sys/storage/upload"),
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, requestHeaders),
+                    String.class);
 
-        if (metaRoot.has("errcode") && metaRoot.get("errcode").asInt() != 0) {
-            throw new RuntimeException("Failed to get upload metadata: " + metaRoot.get("errmsg").asText());
+            JsonNode payload = responsePayload(response.getBody());
+            String objectName = text(payload, "key");
+            String url = text(payload, "url");
+            String expectedPrefix = "app/" + properties.getAppCode() + "/";
+            if (!StringUtils.hasText(objectName) || !objectName.startsWith(expectedPrefix)) {
+                throw new StorageException("Storage gateway returned an invalid object scope", null);
+            }
+            if (!StringUtils.hasText(url)) {
+                throw new StorageException("Storage gateway returned no public URL", null);
+            }
+            return new StoredFile(url, objectName);
+        } catch (HttpClientErrorException.Unauthorized e) {
+            if (retryOnUnauthorized) {
+                clearCachedAccessToken();
+                return upload(file, false);
+            }
+            throw storageFailure(e);
+        } catch (StorageException e) {
+            throw e;
+        } catch (Exception e) {
+            throw storageFailure(e);
         }
+    }
 
-        String uploadUrl = metaRoot.get("url").asText();
-        String token = metaRoot.get("token").asText();
-        String authorization = metaRoot.get("authorization").asText();
-        String fileId = metaRoot.get("file_id").asText();
-        String cosFileId = metaRoot.get("cos_file_id").asText();
-
-        // 2. 上传文件
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("key", cloudPath);
-        body.add("Signature", authorization);
-        body.add("x-cos-security-token", token);
-        body.add("x-cos-meta-fileid", cosFileId);
-        
-        ByteArrayResource fileAsResource = new ByteArrayResource(file.getBytes()){
+    private HttpEntity<ByteArrayResource> createFilePart(MultipartFile file) throws Exception {
+        String originalFilename = StringUtils.cleanPath(
+                file.getOriginalFilename() == null ? "upload.bin" : file.getOriginalFilename());
+        ByteArrayResource resource = new ByteArrayResource(file.getBytes()) {
             @Override
-            public String getFilename(){
+            public String getFilename() {
                 return originalFilename;
             }
         };
-        body.add("file", fileAsResource);
 
-        HttpHeaders uploadHeaders = new HttpHeaders();
-        uploadHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        
-        HttpEntity<MultiValueMap<String, Object>> uploadEntity = new HttpEntity<>(body, uploadHeaders);
-        
-        ResponseEntity<String> uploadResponse = restTemplate.postForEntity(uploadUrl, uploadEntity, String.class);
+        HttpHeaders partHeaders = new HttpHeaders();
+        partHeaders.setContentType(MediaType.parseMediaType(file.getContentType()));
+        return new HttpEntity<>(resource, partHeaders);
+    }
 
-        if (uploadResponse.getStatusCode().is2xxSuccessful()) {
-            log.info("File uploaded successfully to WeChat Cloud Storage. FileID: {}", fileId);
-            return fileId;
-        } else {
-            throw new RuntimeException("Failed to upload file to WeChat Cloud Storage. Status: " + uploadResponse.getStatusCode());
+    private String getAccessToken() {
+        String token = cachedAccessToken;
+        if (StringUtils.hasText(token)) {
+            return token;
+        }
+        synchronized (this) {
+            if (!StringUtils.hasText(cachedAccessToken)) {
+                cachedAccessToken = login();
+            }
+            return cachedAccessToken;
         }
     }
-} 
+
+    private String login() {
+        Map<String, String> request = new LinkedHashMap<>();
+        request.put("appCode", properties.getAppCode());
+        request.put("appId", properties.getAppId());
+        request.put("secretCode", properties.getSecretCode());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Project-Code", properties.getAppCode());
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    endpoint("/auth/app-login"),
+                    HttpMethod.POST,
+                    new HttpEntity<>(request, headers),
+                    String.class);
+            JsonNode payload = responsePayload(response.getBody());
+            String token = text(payload, "accessToken");
+            if (!StringUtils.hasText(token)) {
+                token = text(payload, "token");
+            }
+            if (!StringUtils.hasText(token)) {
+                throw new StorageException("Storage gateway login returned no access token", null);
+            }
+            return token;
+        } catch (StorageException e) {
+            throw e;
+        } catch (Exception e) {
+            throw storageFailure(e);
+        }
+    }
+
+    private JsonNode responsePayload(String body) throws Exception {
+        if (!StringUtils.hasText(body)) {
+            throw new StorageException("Storage gateway returned an empty response", null);
+        }
+        JsonNode root = objectMapper.readTree(body);
+        JsonNode data = root.get("data");
+        return data != null && data.isObject() ? data : root;
+    }
+
+    private String text(JsonNode node, String fieldName) {
+        JsonNode value = node.get(fieldName);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File must not be empty");
+        }
+        if (file.getSize() > properties.getMaxSizeBytes()) {
+            throw new FileTooLargeException("File exceeds the configured size limit");
+        }
+
+        String contentType = file.getContentType();
+        boolean allowed = contentType != null && properties.getAllowedContentTypes().stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .anyMatch(value -> value.equals(contentType.toLowerCase(Locale.ROOT)));
+        if (!allowed) {
+            throw new IllegalArgumentException("Unsupported file content type");
+        }
+    }
+
+    private void validateClientConfiguration() {
+        if (!StringUtils.hasText(properties.getBaseUrl())
+                || !StringUtils.hasText(properties.getAppCode())
+                || !StringUtils.hasText(properties.getAppId())
+                || !StringUtils.hasText(properties.getSecretCode())) {
+            throw new StorageException("SaaS storage client is not configured", null);
+        }
+    }
+
+    private String endpoint(String path) {
+        return properties.getBaseUrl().replaceAll("/+$", "") + path;
+    }
+
+    private void clearCachedAccessToken() {
+        cachedAccessToken = null;
+    }
+
+    private StorageException storageFailure(Exception cause) {
+        log.error("SaaS storage gateway request failed: appCode={}", properties.getAppCode(), cause);
+        return new StorageException("File storage service is unavailable", cause);
+    }
+}

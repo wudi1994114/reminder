@@ -9,7 +9,6 @@ import com.common.reminder.model.SimpleReminder;
 import com.core.reminder.service.ReminderEventServiceImpl; // 暂时使用具体类，后续最好使用接口
 import com.core.reminder.utils.IdempotencyUtils;
 import com.core.reminder.utils.ReminderMapper;
-import com.core.reminder.utils.StreamEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,13 +34,11 @@ public class ReminderEventController {
     // 注入重构后的服务实现（后续替换为接口）
     private final ReminderEventServiceImpl reminderService;
     private final ReminderMapper reminderMapper;
-    private final StreamEventPublisher streamEventPublisher;
 
     @Autowired
-    public ReminderEventController(ReminderEventServiceImpl reminderService, ReminderMapper reminderMapper, StreamEventPublisher streamEventPublisher) {
+    public ReminderEventController(ReminderEventServiceImpl reminderService, ReminderMapper reminderMapper) {
         this.reminderService = reminderService;
         this.reminderMapper = reminderMapper;
-        this.streamEventPublisher = streamEventPublisher;
     }
 
     // --- 简单提醒事项的接口 ---
@@ -249,13 +246,9 @@ public class ReminderEventController {
             // 设置幂等键到实体
             complexReminder.setIdempotencyKey(idempotencyKey);
 
-            // 先创建复杂提醒（不生成简单任务）
-            ComplexReminder created = reminderService.createComplexReminder(complexReminder);
-
-            // 通过Stream异步生成未来三个月的简单任务
-            streamEventPublisher.publishComplexReminderGenerationEvent(created.getId(), 3, userId);
-            
-            log.info("已发送复杂提醒生成事件到Stream - 复杂提醒ID: {}", created.getId());
+            // 在同一个应用事务中创建复杂提醒及未来三个月的执行任务。
+            ComplexReminder created = reminderService
+                    .createComplexReminderWithSimpleReminders(complexReminder, 3);
 
             // 转换实体为DTO并返回
             ComplexReminderDTO responseDTO = reminderMapper.toDTO(created);
@@ -398,13 +391,9 @@ public class ReminderEventController {
             // 用DTO中的值更新实体
             reminderMapper.updateEntityFromDTO(reminderDTO, existingReminder);
 
-            // 先更新复杂提醒（不处理简单任务）
-            ComplexReminder updated = reminderService.updateComplexReminder(existingReminder);
-
-            // 通过Stream异步更新简单任务（会先删除旧的，再生成新的）
-            streamEventPublisher.publishComplexReminderUpdateEvent(updated.getId(), 3, userId);
-            
-            log.info("已发送复杂提醒更新事件到Stream - 复杂提醒ID: {}", updated.getId());
+            // 在同一个应用事务中更新复杂提醒并重新生成未来三个月的执行任务。
+            ComplexReminder updated = reminderService
+                    .updateComplexReminderWithSimpleReminders(existingReminder, 3);
 
             // 转换为DTO并返回
             return ResponseEntity.ok(reminderMapper.toDTO(updated));

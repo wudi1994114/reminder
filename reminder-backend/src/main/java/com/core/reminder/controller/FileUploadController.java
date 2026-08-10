@@ -1,13 +1,16 @@
 package com.core.reminder.controller;
 
 import com.core.reminder.service.StorageService;
+import com.core.reminder.service.StoredFile;
+import com.core.reminder.service.FileTooLargeException;
+import com.core.reminder.service.StorageException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -24,13 +27,20 @@ public class FileUploadController {
     @PostMapping("/upload")
     public ResponseEntity<Map<String, String>> handleFileUpload(@RequestParam("file") MultipartFile file) {
         try {
-            String fileId = storageService.store(file);
-            // 注意：我们现在返回的是fileID，前端的逻辑需要能够处理它
-            // 前端已经有处理 cloud:// 链接的逻辑，所以这里直接返回fileID是可行的
-            return ResponseEntity.ok(Collections.singletonMap("url", fileId));
-        } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(Collections.singletonMap("error", "File upload failed: " + e.getMessage()));
+            StoredFile storedFile = storageService.store(file);
+            Map<String, String> response = new LinkedHashMap<>();
+            response.put("url", storedFile.getUrl());
+            response.put("objectName", storedFile.getObjectName());
+            return ResponseEntity.ok(response);
+        } catch (FileTooLargeException e) {
+            return ResponseEntity.status(413)
+                    .body(Collections.singletonMap("error", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Collections.singletonMap("error", e.getMessage()));
+        } catch (StorageException e) {
+            return ResponseEntity.status(502)
+                    .body(Collections.singletonMap("error", "File storage service is unavailable"));
         }
     }
-} 
+}

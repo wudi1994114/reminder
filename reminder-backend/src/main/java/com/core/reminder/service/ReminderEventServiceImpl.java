@@ -761,7 +761,7 @@ public class ReminderEventServiceImpl /* implements ReminderService */ {
         log.info("已删除与复杂提醒ID: {} 相关的 {} 个简单任务", complexReminder.getId(), deletedCount);
 
         // 保存更新后的复杂提醒
-        ComplexReminder updatedReminder = createComplexReminder(complexReminder);
+        ComplexReminder updatedReminder = updateComplexReminder(complexReminder);
 
         // 生成简单任务
         List<SimpleReminder> generatedReminders = generateSimpleRemindersForMonths(updatedReminder, monthsAhead);

@@ -96,11 +96,11 @@ logging:
 # IMPORTANT: Replace with a strong, base64-encoded secret key for production! (at least 512 bits / 86 chars for HS512)
 # Generate one using: `openssl rand -base64 64` or similar secure method.
 app:
-  jwtSecret:
+  jwtSecret: ${JWT_SECRET:}
   # JWT expiration time in milliseconds (e.g., 1 hour = 3600000, 1 day = 86400000, 7 days = 604800000, 30 days = 2592000000)
-  jwtExpirationInMs: 2592000000
+  jwtExpirationInMs: ${JWT_EXPIRATION_MS:2592000000}
   # 前端应用URL，用于邮件中的链接
-  frontend-url: http://123.57.175.66
+  frontend-url: ${FRONTEND_URL:http://127.0.0.1:5173}
 
 # Gmail Sender Configuration (Placeholders - actual values in application-local.yaml)
 gmail:
@@ -124,9 +124,6 @@ nacos:
 
 # 提醒应用配置
 reminder:
-  # Redis Stream配置
-  stream:
-    key: complex-reminder-stream
   # 节假日缓存配置
   holiday:
     cache:
@@ -143,11 +140,9 @@ reminder:
 wechat:
   miniprogram:
     # 小程序AppID
-    appid: ''
+    appid: ${WECHAT_APP_ID:}
     # 小程序AppSecret
-    secret: ''
-    # 微信云开发环境ID
-    cloud-env: ''
+    secret: ${WECHAT_APP_SECRET:}
     # 微信API基础URL
     api-base-url: https://api.weixin.qq.com
     # 获取session_key的URL路径
@@ -163,12 +158,22 @@ wechat:
     # 默认跳转页面
     page: index
 
-# 文件存储配置
 storage:
-  # 上传文件存储的根目录（可以是绝对路径，如 /var/uploads/reminder）
-  location: "uploads"
-  # 公共访问URL路径
-  public-path: "/files"
+  saas:
+    base-url: ${SAAS_STORAGE_BASE_URL:http://saas-admin-backend:8080}
+    app-code: ${SAAS_STORAGE_APP_CODE:reminder}
+    app-id: ${SAAS_STORAGE_APP_ID:}
+    secret-code: ${SAAS_STORAGE_SECRET_CODE:}
+    biz-dir: ${SAAS_STORAGE_BIZ_DIR:avatars}
+    storage-type: MINIO
+    max-size-bytes: ${SAAS_STORAGE_MAX_SIZE_BYTES:5242880}
+    connect-timeout-ms: ${SAAS_STORAGE_CONNECT_TIMEOUT_MS:5000}
+    read-timeout-ms: ${SAAS_STORAGE_READ_TIMEOUT_MS:30000}
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - image/gif
 
 ---
 # JDBC JobStore settings are production defaults, but must not leak into the

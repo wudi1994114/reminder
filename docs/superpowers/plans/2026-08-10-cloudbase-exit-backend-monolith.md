@@ -4,9 +4,9 @@
 
 **Goal:** Remove every runtime dependency on WeChat Cloud Hosting/Cloud Storage, consolidate the backend into one Spring Boot JAR/container, and provide deployment assets compatible with the existing SaaS server pipeline.
 
-**Architecture:** `reminder-backend` becomes the only Maven module and owns all common models, HTTP APIs, Quartz jobs, senders, and infrastructure configuration. The uni-app talks to the backend only through standard HTTP and multipart upload; standard `wx.login` code exchange remains the only WeChat authentication flow. MinIO replaces WeChat Cloud Storage, while PostgreSQL, Redis, Nacos, Nginx, Jenkins, and the internal registry are reused with Reminder-specific isolation.
+**Architecture:** `reminder-backend` becomes the only Maven module and owns all common models, HTTP APIs, Quartz jobs, senders, and infrastructure configuration. The uni-app talks to the backend only through standard HTTP and multipart upload; standard `wx.login` code exchange remains the only WeChat authentication flow. Reminder authenticates as the independent `reminder` APP_CLIENT and uploads through the audited saas-admin storage API; saas-admin remains the sole owner of MinIO credentials and bucket access. PostgreSQL, Redis, Nacos, Nginx, Jenkins, and the internal registry are reused with Reminder-specific isolation.
 
-**Tech Stack:** Java 17, Spring Boot 2.7.18, Spring MVC/Security/JPA/Redis/Quartz, PostgreSQL, MinIO Java SDK, Maven, Vue 3/uni-app, pnpm, Docker, Jenkins, Nginx.
+**Tech Stack:** Java 17, Spring Boot 2.7.18, Spring MVC/Security/JPA/Redis/Quartz, PostgreSQL, saas-admin audited storage API backed by MinIO, Maven, Vue 3/uni-app, pnpm, Docker, Jenkins, Nginx.
 
 ---
 
@@ -34,7 +34,7 @@
 - Move: core resources/tests and job Quartz resources/template/tests into `reminder-backend/src/main/resources` and `reminder-backend/src/test/java`
 - Delete: child module POMs and obsolete module directories after their retained content is moved
 
-- [ ] Replace root packaging `pom` and `<modules>` with a normal JAR project and the union of runtime/test dependencies from common, core, and job, plus `spring-boot-starter-actuator` and MinIO.
+- [ ] Replace root packaging `pom` and `<modules>` with a normal JAR project and the union of runtime/test dependencies from common, core, and job, plus `spring-boot-starter-actuator`.
 - [ ] Preserve dependency versions already proven by the child modules; keep one Spring Boot Maven plugin with `com.core.reminder.ReminderApplication` as main class.
 - [ ] Move common and core sources/resources/tests with `git mv` so history remains traceable.
 - [ ] Move only Quartz configuration, jobs, senders, `UserPreferenceJobService`, `quartz.sql`, and the email template from the job module.
@@ -80,24 +80,25 @@
 - [ ] Run the focused tests and `mvn test`.
 - [ ] Commit: `refactor: generate reminder instances in process`.
 
-### Task 5: Replace WeChat Cloud Storage with MinIO
+### Task 5: Route storage through the audited saas-admin gateway
 
 **Files:**
-- Create: `reminder-backend/src/main/java/com/core/reminder/config/MinioProperties.java`
-- Create: `reminder-backend/src/main/java/com/core/reminder/config/MinioConfig.java`
+- Create: `reminder-backend/src/main/java/com/core/reminder/config/SaasStorageProperties.java`
+- Create: `reminder-backend/src/main/java/com/core/reminder/config/SaasStorageConfig.java`
 - Modify: `reminder-backend/src/main/java/com/core/reminder/service/StorageService.java`
 - Modify: `reminder-backend/src/main/java/com/core/reminder/controller/FileUploadController.java`
 - Modify: `reminder-backend/src/main/resources/application.yaml`
 - Test: `reminder-backend/src/test/java/com/core/reminder/service/StorageServiceTest.java`
 
-- [ ] Add tests around a mocked `MinioClient`: accepted image upload creates the bucket if needed, writes an object under a safe generated key, and returns `${PUBLIC_BASE_URL}/${bucket}/${object}`; invalid type/size and SDK failures return no persisted profile URL.
+- [ ] Add tests around a mocked saas-admin HTTP server: authenticate with the Reminder APP_CLIENT, upload multipart data with `X-Project-Code: reminder`, accept only keys under `app/reminder/`, retry once after a 401, and return no persisted profile URL on gateway failure.
 - [ ] Run the test and verify failure against the current TCB implementation.
-- [ ] Bind endpoint, access key, secret key, bucket (`reminder`), public base URL, max size, and allowed content types from `MINIO_*` environment variables.
-- [ ] Implement bucket existence/creation and `putObject` through the MinIO SDK; normalize names and never return credentials or temporary URLs.
+- [ ] Bind the saas-admin internal URL, app code, AppID, secret code, max size, and allowed content types from `SAAS_STORAGE_*` environment variables.
+- [ ] Login through `/auth/app-login`, cache the app token, and upload through `/sys/storage/upload`; never place the AppID/secret in source or logs.
+- [ ] Require the returned object key to start with `app/reminder/`; saas-admin owns MinIO credentials, bucket policy, URL resolution, and storage auditing.
 - [ ] Update the controller response to return a stable `url` and optional `objectName`, with clear 4xx/5xx errors.
 - [ ] Remove TCB upload API/token coupling from storage code while retaining unrelated Tencent TTS/STS features.
 - [ ] Run `mvn -Dtest=StorageServiceTest test` and `mvn test`.
-- [ ] Commit: `feat: store uploaded files in minio`.
+- [ ] Commit: `feat: route uploads through saas storage gateway`.
 
 ### Task 6: Keep only standard WeChat code login
 
@@ -170,7 +171,8 @@
 - [ ] Add one Compose service named `reminder-backend`, bind its host port to `127.0.0.1`, attach to the existing gateway/middleware networks, and inject all secrets from an external env file.
 - [ ] Add a deploy script that validates the explicit Reminder service/image, backs up only the Reminder compose file, updates only that service, waits for `/actuator/health`, and rolls back that service on failure.
 - [ ] Add an Nginx HTTPS server block for `reminder-api.wwmty.com` with request/upload limits and proxy headers; do not alter SaaS routes.
-- [ ] Document prerequisite DNS/TLS, independent PostgreSQL database/user, Redis DB/prefix, Nacos data ID, MinIO bucket, WeChat legal domains, and the final cutover/rollback order.
+- [ ] Inject the existing Jenkins credential `reminder-saas-storage-app` as `SAAS_STORAGE_APP_ID` and `SAAS_STORAGE_SECRET_CODE`; attach Reminder to the `saas-app` network so it can reach `saas-admin-backend:8080` without exposing that API publicly.
+- [ ] Document prerequisite DNS/TLS, independent PostgreSQL database/user, Redis DB/prefix, Nacos data ID, saas-admin APP_CLIENT, WeChat legal domains, and the final cutover/rollback order.
 - [ ] Validate shell syntax with `bash -n`, render Compose with placeholder values using `docker compose config`, and build the Docker image locally.
 - [ ] Commit: `build: add reminder server deployment pipeline`.
 
@@ -180,7 +182,7 @@
 - Modify only if verification exposes a scoped defect.
 
 - [ ] Run `mvn clean test package` and prove exactly one executable backend JAR is produced.
-- [ ] Run focused backend tests for application context, direct reminder generation, MinIO upload, and standard WeChat login.
+- [ ] Run focused backend tests for application context, direct reminder generation, audited saas-admin storage upload, and standard WeChat login.
 - [ ] Run `pnpm check:no-cloudbase`, `pnpm build:mp-weixin`, and `pnpm build:h5`.
 - [ ] Run repository-wide `rg` for CloudBase runtime tokens and classify any remaining documentation/history references separately from executable code.
 - [ ] Build and start the Docker/Compose service with test configuration where local middleware is available; otherwise prove image build, config rendering, and health-check wiring and state the unavailable external dependency.

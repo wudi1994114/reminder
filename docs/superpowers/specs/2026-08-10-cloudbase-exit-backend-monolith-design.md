@@ -7,7 +7,7 @@
 1. 小程序、H5 和 Web 前端统一通过标准 HTTPS API 访问后端，不再使用 `wx.cloud.callContainer`、云托管网关身份头或微信云存储运行时能力。
 2. 后端从四个 Maven 子模块、两个启动进程收敛为一个 Spring Boot 项目、一个可执行 JAR 和一个 Docker 容器。
 
-最终部署复用现有 SaaS 服务器的 Jenkins、内部镜像仓库、Docker Compose、Nginx HTTPS、PostgreSQL、Redis、Nacos 和 MinIO，但 Reminder 保持独立服务和数据边界。
+最终部署复用现有 SaaS 服务器的 Jenkins、内部镜像仓库、Docker Compose、Nginx HTTPS、PostgreSQL、Redis、Nacos，以及 saas-admin 已有的审计存储服务；底层仍为 MinIO，但 Reminder 不直连 MinIO。Reminder 保持独立服务和数据边界。
 
 ## 2. 现状与主要问题
 
@@ -78,19 +78,21 @@ reminder-backend/
 
 ### 4.4 文件存储
 
-- 前端通过 multipart 上传文件到后端。
-- 后端使用 S3 兼容协议写入服务器现有 MinIO，使用独立 Bucket `reminder` 和对象前缀。
-- MinIO 地址、访问凭据、Bucket、公开 URL 都从环境变量或 Nacos 读取，仓库不保存生产凭据。
-- 对外返回稳定 HTTPS URL，不返回 `cloud://` FileID 或临时签名地址。
-- 已有微信云文件在停用前导出，再通过迁移脚本上传到 MinIO 并更新数据库 URL。新代码不保留微信云运行时回退。
+- 前端通过 multipart 上传文件到 Reminder 后端。
+- Reminder 使用独立的 `reminder` APP_CLIENT 调用 saas-admin 的 `/auth/app-login` 与 `/sys/storage/upload`，请求携带 `X-Project-Code: reminder`，由 saas-admin 完成租户审计和 MinIO 写入。
+- saas-admin 强制把对象归档到 `app/reminder/`；Reminder 会校验返回 key 的作用域，拒绝跨项目结果。
+- MinIO 地址、访问凭据、Bucket 和 URL 解析继续只由 saas-admin 管理；Reminder 仓库及容器中不保存 MinIO 凭据。
+- APP_CLIENT 的 AppID/Secret 存放在 Jenkins 凭据 `reminder-saas-storage-app` 中，部署时注入环境变量，不写入源码、Compose 或日志。
+- 对外返回 saas-admin 解析出的稳定 HTTPS URL，不返回 `cloud://` FileID 或临时签名地址。
+- 已有微信云文件在停用前导出，再通过受审计的存储接口上传并更新数据库 URL。新代码不保留微信云运行时回退。
 
 ## 5. 配置与部署
 
 ### 5.1 应用配置
 
-统一配置包含 PostgreSQL、Redis、Quartz、JWT、微信小程序、邮件、MinIO 和 Nacos。敏感值只允许通过环境变量或 Nacos 注入。
+统一配置包含 PostgreSQL、Redis、Quartz、JWT、微信小程序、邮件、saas-admin 存储客户端和 Nacos。敏感值只允许通过环境变量、Jenkins 凭据或 Nacos 注入。
 
-数据库使用独立数据库和用户；Redis 使用独立 database 与 `reminder:` Key 前缀；MinIO 使用独立 Bucket。这样复用同一台服务器的中间件，但不与 SaaS 业务数据混用。
+数据库使用独立数据库和用户；Redis 使用独立 database 与 `reminder:` Key 前缀；存储对象使用 `app/reminder/` 独立前缀。这样复用同一台服务器的中间件，但不与 SaaS 业务数据混用。
 
 ### 5.2 发布形态
 
@@ -104,7 +106,7 @@ reminder-backend/
 ## 6. 错误处理与兼容
 
 - HTTP 请求统一按 2xx 成功处理，401/403 保持登录态错误语义，网络错误交给现有 UI 提示。
-- 文件上传校验类型与大小，MinIO 错误不写入用户资料；上传成功后才更新头像 URL。
+- 文件上传校验类型与大小；saas-admin 登录、审计或 MinIO 写入失败时不更新用户资料，上传成功后才更新头像 URL。
 - 微信 code 无效、微信接口超时或缺少 OpenID 时返回明确的 401/502 响应，不依赖网关注入身份。
 - Quartz Job 记录单次失败并允许后续周期继续执行；同一提醒发送继续使用数据库/Redis 的防重复约束。
 - 旧 JWT 和现有数据库表结构保持兼容，不在本次改造中升级 Spring Boot 主版本或重做业务模型。
@@ -117,7 +119,7 @@ reminder-backend/
 - Spring 上下文可同时加载 API、Quartz Job 和 Sender，且没有重复 Bean。
 - 标准微信 code 登录测试通过，云登录路由不存在。
 - 创建和修改复杂提醒会直接生成对应简单提醒。
-- MinIO 上传、失败回滚和 URL 生成测试通过。
+- saas-admin APP_CLIENT 登录、审计上传、401 重试、失败处理和 URL 解析测试通过。
 - Docker 镜像可启动，健康检查可访问。
 
 ### 7.2 前端
@@ -130,7 +132,7 @@ reminder-backend/
 ### 7.3 部署前验收
 
 - 在微信公众平台配置生产 HTTPS request/upload/download 合法域名。
-- DNS、TLS、Nginx、独立数据库、Redis 前缀、MinIO Bucket 和 Nacos 配置准备完成。
+- DNS、TLS、Nginx、独立数据库、Redis 前缀、saas-admin APP_CLIENT/Jenkins 凭据和 Nacos 配置准备完成。
 - 旧云文件导出并完成 URL 迁移抽样验证。
 - 新容器、日志、健康接口和一个真实微信登录完成验证后，才停止旧云托管服务。
 
@@ -138,9 +140,9 @@ reminder-backend/
 
 1. 建立单模块后端骨架并合并公共、核心和调度代码。
 2. 消除重复 Repository、服务和配置，改为进程内复杂提醒生成。
-3. 将文件存储从微信云替换为 MinIO。
+3. 将文件存储从微信云替换为 saas-admin 审计存储接口（底层 MinIO）。
 4. 将 uni-app 请求、登录、上传和媒体读取改为纯 HTTP。
 5. 更新 Docker、Jenkins 和部署样例。
 6. 执行后端测试、前端构建、静态云依赖扫描和容器启动验证。
 
-本设计不在本地改造阶段直接修改生产服务器；服务器部署和旧云数据切换在代码验证通过后单独执行。
+本设计实施期间只先创建独立的 saas-admin APP_CLIENT 和 Jenkins 凭据以建立审计身份；Reminder 服务部署和旧云数据切换仍在代码验证通过后单独执行。
