@@ -9,7 +9,7 @@ const configs = {
         LOG_LEVEL: 'debug'
     },
     production: {
-        API_BASE_URL: 'https://api.reminder.com/api',
+        API_BASE_URL: 'https://reminder-api.wwmty.com/api',
         DEBUG: false,
         LOG_LEVEL: 'error'
     },
@@ -33,4 +33,4 @@ export default {
     SUPPORTED_IMAGE_TYPES: ['jpg', 'jpeg', 'png', 'gif'],
     DATE_FORMAT: 'YYYY-MM-DD HH:mm:ss',
     PAGINATION_SIZE: 20
-}; 
+};
