@@ -45,7 +45,7 @@ file, Jenkins log, and Nginx configuration contain no secrets.
 The first rollout creates the `reminder` PostgreSQL schema and Quartz tables
 only when the schema is empty. The release script keeps a `600`-permission
 snapshot of the prior Reminder image, environment, and Compose configuration
-under `/opt/reminder/deploy-state`; a failed health check restores only
+under `/opt/saas-app/reminder/deploy-state`; a failed health check restores only
 Reminder.
 
 ## Acceptance criteria

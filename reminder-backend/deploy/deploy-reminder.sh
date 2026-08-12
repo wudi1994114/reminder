@@ -11,7 +11,7 @@ readonly ENV_FILE="${REMINDER_ENV_FILE:?REMINDER_ENV_FILE is required}"
 readonly STATE_DIR="${REMINDER_STATE_DIR:?REMINDER_STATE_DIR is required}"
 readonly RELEASES_DIR="${STATE_DIR}/releases"
 readonly CURRENT_STATE_LINK="${STATE_DIR}/current"
-readonly EXPECTED_IMAGE_PREFIX="${REMINDER_IMAGE_PREFIX:-172.17.0.3:5001/reminder-backend}:"
+readonly EXPECTED_IMAGE_PREFIX="${REMINDER_IMAGE_PREFIX:-127.0.0.1:3000/admin/reminder-backend}:"
 
 : "${REMINDER_IMAGE:?REMINDER_IMAGE is required}"
 

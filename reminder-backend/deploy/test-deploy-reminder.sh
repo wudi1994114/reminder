@@ -20,7 +20,7 @@ trap cleanup EXIT
 mkdir -p "${FAKE_BIN}" "${OLD_RELEASE}"
 printf 'DB_PASSWORD=old-database-password\n' > "${OLD_RELEASE}/runtime.env"
 cp "${SCRIPT_DIR}/docker-compose.reminder.yml" "${OLD_RELEASE}/docker-compose.reminder.yml"
-printf '%s\n' '172.17.0.3:5001/reminder-backend:old' > "${OLD_RELEASE}/image"
+printf '%s\n' '127.0.0.1:3000/admin/reminder-backend:old' > "${OLD_RELEASE}/image"
 ln -s 'releases/old' "${DEPLOY_STATE}/current"
 printf 'DB_PASSWORD=new-invalid-password\n' > "${NEW_ENV}"
 canonical_old_release="$(cd "${OLD_RELEASE}" && pwd -P)"
@@ -31,7 +31,7 @@ set -Eeuo pipefail
 
 if [[ "$1" == "inspect" ]]; then
   if [[ "$3" == *'.Config.Image'* ]]; then
-    printf '%s\n' '172.17.0.3:5001/reminder-backend:old'
+    printf '%s\n' '127.0.0.1:3000/admin/reminder-backend:old'
     exit 0
   fi
 
@@ -105,7 +105,7 @@ export PATH="${FAKE_BIN}:${PATH}"
 export FAKE_DOCKER_LOG="${FAKE_LOG}"
 export FAKE_DOCKER_PHASE="${FAKE_PHASE}"
 export REMINDER_ENV_FILE="${NEW_ENV}"
-export REMINDER_IMAGE='172.17.0.3:5001/reminder-backend:new'
+export REMINDER_IMAGE='127.0.0.1:3000/admin/reminder-backend:new'
 export REMINDER_STATE_DIR="${DEPLOY_STATE}"
 export REMINDER_COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.reminder.yml"
 
@@ -139,7 +139,7 @@ fi
 assert_contains "${first_call}" "phase=new env=${NEW_ENV}"
 assert_contains "${second_call}" "phase=rollback env=${canonical_old_release}/runtime.env"
 assert_contains "${second_call}" "compose=${canonical_old_release}/docker-compose.reminder.yml"
-assert_contains "${second_call}" 'image=172.17.0.3:5001/reminder-backend:old'
+assert_contains "${second_call}" 'image=127.0.0.1:3000/admin/reminder-backend:old'
 if [[ "$(readlink "${DEPLOY_STATE}/current")" != 'releases/old' ]]; then
   echo 'Current deployment state changed after a failed rollout' >&2
   exit 1
@@ -160,7 +160,7 @@ fi
 current_release="$(cd "${DEPLOY_STATE}/${current_target}" && pwd -P)"
 cmp -s "${NEW_ENV}" "${current_release}/runtime.env"
 cmp -s "${SCRIPT_DIR}/docker-compose.reminder.yml" "${current_release}/docker-compose.reminder.yml"
-if ! grep -qxF '172.17.0.3:5001/reminder-backend:new' "${current_release}/image"; then
+if ! grep -qxF '127.0.0.1:3000/admin/reminder-backend:new' "${current_release}/image"; then
   echo 'Successful deployment state recorded the wrong image' >&2
   exit 1
 fi

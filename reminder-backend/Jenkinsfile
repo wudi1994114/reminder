@@ -7,12 +7,12 @@ pipeline {
     }
 
     environment {
-        NEXUS_REGISTRY_URL   = '172.17.0.3:5001'
-        DOCKER_IMAGE_NAME    = 'reminder-backend'
+        NEXUS_REGISTRY_URL   = '127.0.0.1:3000'
+        DOCKER_IMAGE_NAME    = 'admin/reminder-backend'
         DOCKER_IMAGE_TAG     = "${params.version}"
         NEXUS_CREDENTIALS_ID = 'nexus-repo-credentials'
         MAVEN_MIRROR_URL     = 'http://dev-platform-reposilite:8080/releases'
-        REMINDER_STATE_DIR   = '/opt/reminder/deploy-state'
+        REMINDER_STATE_DIR   = '/opt/saas-app/reminder/deploy-state'
     }
 
     options {
