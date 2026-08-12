@@ -127,11 +127,11 @@ assert_exact_line_count "${ENV_TEMPLATE}" \
   1 \
   'environment template keeps Redis password as a runtime placeholder'
 assert_exact_line_count "${COMPOSE_FILE}" \
-  '^[[:space:]]+DB_PASSWORD: \$\{DB_PASSWORD:\?[^}]+\}$' \
+  '^[[:space:]]+DB_PASSWORD: \$\{DB_PASSWORD:\?DB_PASSWORD is required\}$' \
   1 \
   'Compose has exactly one required PostgreSQL password interpolation'
 assert_exact_line_count "${COMPOSE_FILE}" \
-  '^[[:space:]]+REDIS_PASSWORD: \$\{REDIS_PASSWORD:\?[^}]+\}$' \
+  '^[[:space:]]+REDIS_PASSWORD: \$\{REDIS_PASSWORD:\?REDIS_PASSWORD is required\}$' \
   1 \
   'Compose has exactly one required Redis password interpolation'
 assert_exact_line_count "${SPRING_CONFIG}" \
@@ -151,10 +151,10 @@ assert_contains "${SPRING_CONFIG}" 'default_schema: ${DB_SCHEMA:reminder}' \
 
 # The deployment manual must describe the shared database, schema, Redis DB, and secret handoff.
 assert_exact_line "${DEPLOY_MANUAL}" \
-  '- PostgreSQL 使用 \`saas-postgres:5432\` 中的 \`saas-admin\` 数据库；Reminder 所有业务表和 Quartz 表固定放在独立 schema \`reminder\`。' \
+  '- PostgreSQL 使用 `saas-postgres:5432` 中的 `saas-admin` 数据库；Reminder 所有业务表和 Quartz 表固定放在独立 schema `reminder`。' \
   'deployment manual has the exact shared PostgreSQL/schema statement'
 assert_exact_line "${DEPLOY_MANUAL}" \
-  '- Redis 使用 \`saas-redis:6379\`；Reminder 固定使用逻辑 \`DB 9\`，不得清理其他逻辑库。' \
+  '- Redis 使用 `saas-redis:6379`；Reminder 固定使用逻辑 `DB 9`，不得清理其他逻辑库。' \
   'deployment manual has the exact shared Redis/DB 9 statement'
 assert_regex "${DEPLOY_MANUAL}" 'Secret file|Secret file 类型|reminder-runtime-env' \
   'deployment manual documents runtime secret injection'
