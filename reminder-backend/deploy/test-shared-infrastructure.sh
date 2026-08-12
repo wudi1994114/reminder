@@ -30,6 +30,27 @@ assert_regex() {
   grep -Eq -- "${pattern}" "${file}" || fail "${description} (${file})"
 }
 
+assert_exact_line() {
+  local file="$1"
+  local expected="$2"
+  local description="$3"
+
+  grep -Fxq -- "${expected}" "${file}" || fail "${description} (${file})"
+}
+
+assert_token_line_count() {
+  local file="$1"
+  local token="$2"
+  local expected_count="$3"
+  local description="$4"
+  local actual_count
+
+  actual_count="$(grep -Foc -- "${token}" "${file}" || true)"
+  if [[ "${actual_count}" -ne "${expected_count}" ]]; then
+    fail "${description}: expected ${expected_count} line(s), found ${actual_count} (${file})"
+  fi
+}
+
 assert_exact_line_count() {
   local file="$1"
   local pattern="$2"
@@ -81,15 +102,28 @@ assert_contains "${COMPOSE_FILE}" 'REDIS_DATABASE: ${REDIS_DATABASE:-9}' \
 assert_regex "${COMPOSE_FILE}" 'REDIS_PASSWORD: \$\{REDIS_PASSWORD:\?[^}]+\}' \
   'Redis password is a required runtime substitution'
 
-# Every consumed tracked config must use one complete, secret-free password contract line.
-# The environment template accepts only explicit placeholder forms; comments and quoted
-# values are rejected so a committed secret cannot satisfy this assertion accidentally.
+# Every consumed tracked config must have exactly one line containing each sensitive token,
+# and that one line must then match the complete, fixed contract form. Counting token lines
+# first rejects duplicates, comments, quoted assignments, and arbitrary expressions.
+assert_token_line_count "${ENV_TEMPLATE}" 'DB_PASSWORD' 1 \
+  'environment template has exactly one PostgreSQL password token line'
+assert_token_line_count "${ENV_TEMPLATE}" 'REDIS_PASSWORD' 1 \
+  'environment template has exactly one Redis password token line'
+assert_token_line_count "${COMPOSE_FILE}" 'DB_PASSWORD' 1 \
+  'Compose has exactly one PostgreSQL password token line'
+assert_token_line_count "${COMPOSE_FILE}" 'REDIS_PASSWORD' 1 \
+  'Compose has exactly one Redis password token line'
+assert_token_line_count "${SPRING_CONFIG}" 'DB_PASSWORD' 1 \
+  'Spring has exactly one PostgreSQL password token line'
+assert_token_line_count "${SPRING_CONFIG}" 'REDIS_PASSWORD' 1 \
+  'Spring has exactly one Redis password token line'
+
 assert_exact_line_count "${ENV_TEMPLATE}" \
-  '^DB_PASSWORD=(change-me|replace-me|injected-from-jenkins-credential|<[^>]+>|\$\{[^}]+\})$' \
+  '^DB_PASSWORD=change-me$' \
   1 \
   'environment template keeps PostgreSQL password as a runtime placeholder'
 assert_exact_line_count "${ENV_TEMPLATE}" \
-  '^REDIS_PASSWORD=(change-me|replace-me|injected-from-jenkins-credential|<[^>]+>|\$\{[^}]+\})$' \
+  '^REDIS_PASSWORD=change-me$' \
   1 \
   'environment template keeps Redis password as a runtime placeholder'
 assert_exact_line_count "${COMPOSE_FILE}" \
@@ -116,10 +150,12 @@ assert_contains "${SPRING_CONFIG}" 'default_schema: ${DB_SCHEMA:reminder}' \
   'Hibernate uses DB_SCHEMA as the default schema'
 
 # The deployment manual must describe the shared database, schema, Redis DB, and secret handoff.
-assert_regex "${DEPLOY_MANUAL}" '[Pp]ostgreSQL.*(schema|模式).*reminder|reminder.*(schema|模式).*[Pp]ostgreSQL' \
-  'deployment manual explicitly scopes PostgreSQL to the Reminder schema'
-assert_regex "${DEPLOY_MANUAL}" '[Rr]edis.*DB 9|DB 9.*[Rr]edis' \
-  'deployment manual explicitly scopes Redis to DB 9'
+assert_exact_line "${DEPLOY_MANUAL}" \
+  '- PostgreSQL 使用 \`saas-postgres:5432\` 中的 \`saas-admin\` 数据库；Reminder 所有业务表和 Quartz 表固定放在独立 schema \`reminder\`。' \
+  'deployment manual has the exact shared PostgreSQL/schema statement'
+assert_exact_line "${DEPLOY_MANUAL}" \
+  '- Redis 使用 \`saas-redis:6379\`；Reminder 固定使用逻辑 \`DB 9\`，不得清理其他逻辑库。' \
+  'deployment manual has the exact shared Redis/DB 9 statement'
 assert_regex "${DEPLOY_MANUAL}" 'Secret file|Secret file 类型|reminder-runtime-env' \
   'deployment manual documents runtime secret injection'
 
