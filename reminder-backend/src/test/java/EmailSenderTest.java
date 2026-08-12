@@ -73,7 +73,7 @@ public class EmailSenderTest {
 
         try {
             // 使用配置文件中的设置发送测试邮件
-            String testEmail = "609679329@qq.com"; // 发送给你自己的Gmail
+            String testEmail = "609679329@qq.com"; // 发送给测试邮箱
             String subject = "腾讯云邮件测试 - " + java.time.LocalDateTime.now();
             String content = "这是通过Spring Boot测试发送的腾讯云邮件\n\n" +
                     "发送时间: " + java.time.LocalDateTime.now() + "\n" +

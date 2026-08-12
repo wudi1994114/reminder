@@ -22,7 +22,7 @@ public class EmailSenderFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(EmailSenderFactory.class);
 
-    @Value("${email.provider:gmail}")
+    @Value("${email.provider:none}")
     private String emailProvider;
 
     @Autowired(required = false)
