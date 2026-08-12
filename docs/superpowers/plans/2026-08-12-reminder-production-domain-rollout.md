@@ -4,7 +4,7 @@
 
 **Goal:** Deploy the migrated Reminder backend on the existing SaaS host behind `https://reminder-api.wwmty.com`, so a production mini-program build can call it directly.
 
-**Architecture:** Reminder remains a standalone Docker Compose project. Its Jenkins job builds an immutable image in the existing SaaS registry, deploys only `reminder-backend` into the existing `saas-app` network, and records a rollback state under the Jenkins-visible persistent SaaS volume. Nginx owns the new hostname and proxies to the loopback-only Reminder port; the mini-program uses this same HTTPS API origin from both request helper paths.
+**Architecture:** Reminder remains a standalone Docker Compose project. Its Jenkins job builds an immutable image in the existing SaaS registry, deploys only `reminder-backend` into the existing `saas-app` and `saas-middleware` networks, and records a rollback state under the Jenkins-visible persistent SaaS volume. Nginx owns the new hostname and proxies to the Reminder container over `saas-app`; the mini-program uses this same HTTPS API origin from its active request helper.
 
 **Tech Stack:** Spring Boot 3, Docker Compose, Jenkins Pipeline, Nginx, Let's Encrypt, Tencent Cloud DNSPod, PostgreSQL schema `reminder`, Redis DB `9`, uni-app/Vite.
 
@@ -13,7 +13,7 @@
 - Use `reminder-api.wwmty.com` only; do not reuse the old CloudBase endpoint or `api.reminder.com`.
 - Keep Reminder separate from the saas-admin Compose project and roll back only Reminder.
 - Use the SaaS host registry namespace `127.0.0.1:3000/admin/reminder-backend`.
-- Use the existing `saas-app` network, PostgreSQL database `saas-admin` with schema `reminder`, and Redis logical database `9`.
+- Use the existing `saas-app` and `saas-middleware` networks, PostgreSQL database `saas-admin` with schema `reminder`, and Redis logical database `9`.
 - Keep every password, JWT secret, WeChat secret, storage AppID, and storage secret in Jenkins credentials; never commit or print them.
 - Create schema SQL only when the `reminder` schema has no Reminder tables; never use the bootstrap SQL as an upgrade script.
 - Do not remove or change existing saas-admin, middleware, CloudBase, or user-uncommitted mini-program files during this rollout.
@@ -56,7 +56,7 @@ Expected: non-zero exit because the source still targets `172.17.0.3:5001/remind
 
 - [ ] **Step 3: Make the minimal release-contract changes**
 
-Change the image registry and image name in the Jenkins Pipeline, use the SaaS-mounted persistent state directory, and adjust the default image-prefix guard, example runtime file, and rollback fixture to the same fully qualified prefix. Keep `docker compose --project-name reminder`, `saas-app`, secret-file injection, and per-service rollback unchanged.
+Change the image registry and image name in the Jenkins Pipeline, use the SaaS-mounted persistent state directory, and adjust the default image-prefix guard, example runtime file, and rollback fixture to the same fully qualified prefix. Keep `docker compose --project-name reminder`, the `saas-app` and `saas-middleware` network attachments, secret-file injection, and per-service rollback unchanged.
 
 - [ ] **Step 4: Run the deployment regression suite**
 
@@ -271,7 +271,7 @@ docker inspect --format '{{range $k, $_ := .NetworkSettings.Networks}}{{println 
 curl -fsS https://reminder-api.wwmty.com/actuator/health
 ```
 
-Expected: `healthy`, `saas-app`, and a successful public health response.
+Expected: `healthy`, `saas-app`, `saas-middleware`, and a successful public health response.
 
 - [ ] **Step 3: Configure WeChat legal domains**
 

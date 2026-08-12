@@ -9,8 +9,8 @@ work without WeChat CloudBase.
 ## Chosen approach
 
 Deploy Reminder as an independently versioned service on the existing SaaS
-Docker host. It will reuse the existing host-local registry, `saas-app`
-network, PostgreSQL container, Redis container, and audited saas-admin storage
+Docker host. It will reuse the existing host-local registry, `saas-app` and
+`saas-middleware` networks, PostgreSQL container, Redis container, and audited saas-admin storage
 interface. It will not be added to the saas-admin Compose project or its
 release script.
 
@@ -26,8 +26,8 @@ would not leave an auditable Jenkins release history. Both are rejected.
 3. A new Jenkins pipeline checks out the migration branch, tests and packages
    the single Spring Boot service, pushes an immutable Reminder image to the
    live SaaS registry, and deploys only the Reminder Compose service.
-4. The container joins `saas-app`, uses PostgreSQL schema `reminder` and Redis
-   logical database `9`, and calls saas-admin over the internal network for
+4. The container joins `saas-app` and `saas-middleware`, uses PostgreSQL schema `reminder` and Redis
+   logical database `9`, and calls saas-admin over the internal application network for
    audited storage uploads.
 5. Every mini-program request path resolves to
    `https://reminder-api.wwmty.com/api`; no production request helper may keep
@@ -51,7 +51,7 @@ Reminder.
 ## Acceptance criteria
 
 - Public HTTPS health endpoint returns healthy with the correct certificate.
-- The Reminder container is healthy and attached to `saas-app`.
+- The Reminder container is healthy and attached to both `saas-app` and `saas-middleware`.
 - Jenkins records a successful immutable-image release and can roll back only
   Reminder.
 - Production mini-program configuration has no CloudBase endpoint and no

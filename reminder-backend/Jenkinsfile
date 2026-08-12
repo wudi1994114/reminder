@@ -75,6 +75,7 @@ pipeline {
         stage('Build & Push Image') {
             steps {
                 unstash 'reminder-jar'
+                sh 'bash reminder-backend/deploy/test-runtime-network-topology.sh'
                 withCredentials([usernamePassword(
                     credentialsId: NEXUS_CREDENTIALS_ID,
                     usernameVariable: 'NEXUS_USERNAME',

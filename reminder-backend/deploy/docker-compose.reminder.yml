@@ -41,6 +41,7 @@ services:
       TENCENT_CLOUD_SECRET_KEY: ${TENCENT_CLOUD_SECRET_KEY:-}
     networks:
       - saas-app
+      - saas-middleware
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/actuator/health"]
       interval: 15s
@@ -52,3 +53,6 @@ networks:
   saas-app:
     external: true
     name: saas-app
+  saas-middleware:
+    external: true
+    name: saas-middleware

@@ -50,7 +50,7 @@ Expected: FAIL because the environment template still targets database/user `rem
 - Create, ignored: `reminder-backend/deploy/.env.shared-infrastructure`
 
 **Interfaces:**
-- Consumes: the existing `saas-app` external network and Jenkins `reminder-runtime-env` Secret file.
+- Consumes: the existing `saas-app` and `saas-middleware` external networks and Jenkins `reminder-runtime-env` Secret file.
 - Produces: runtime environment variables `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `DB_SCHEMA`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DATABASE`.
 
 - [ ] **Step 1: Set Compose defaults and password gates**
