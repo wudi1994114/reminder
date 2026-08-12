@@ -30,12 +30,16 @@ assert_regex() {
   grep -Eq -- "${pattern}" "${file}" || fail "${description} (${file})"
 }
 
-assert_no_password_literal() {
+assert_exact_line_count() {
   local file="$1"
-  local variable="$2"
+  local pattern="$2"
+  local expected_count="$3"
+  local description="$4"
+  local actual_count
 
-  if grep -Eq "^[[:space:]]*${variable}([:]|=)[[:space:]]*(change-me|replace-me|changeme|password|secret|[[:alnum:]][[:alnum:]_-]{7,})[[:space:]]*$" "${file}"; then
-    fail "${variable} must remain a runtime placeholder (${file})"
+  actual_count="$(grep -Ec -- "${pattern}" "${file}" || true)"
+  if [[ "${actual_count}" -ne "${expected_count}" ]]; then
+    fail "${description}: expected ${expected_count} complete matching line(s), found ${actual_count} (${file})"
   fi
 }
 
@@ -77,25 +81,45 @@ assert_contains "${COMPOSE_FILE}" 'REDIS_DATABASE: ${REDIS_DATABASE:-9}' \
 assert_regex "${COMPOSE_FILE}" 'REDIS_PASSWORD: \$\{REDIS_PASSWORD:\?[^}]+\}' \
   'Redis password is a required runtime substitution'
 
-# Every tracked password template must remain secret-free and runtime-injected.
-assert_no_password_literal "${ENV_TEMPLATE}" 'DB_PASSWORD'
-assert_no_password_literal "${ENV_TEMPLATE}" 'REDIS_PASSWORD'
-assert_no_password_literal "${COMPOSE_FILE}" 'DB_PASSWORD'
-assert_no_password_literal "${COMPOSE_FILE}" 'REDIS_PASSWORD'
+# Every consumed tracked config must use one complete, secret-free password contract line.
+# The environment template accepts only explicit placeholder forms; comments and quoted
+# values are rejected so a committed secret cannot satisfy this assertion accidentally.
+assert_exact_line_count "${ENV_TEMPLATE}" \
+  '^DB_PASSWORD=(change-me|replace-me|injected-from-jenkins-credential|<[^>]+>|\$\{[^}]+\})$' \
+  1 \
+  'environment template keeps PostgreSQL password as a runtime placeholder'
+assert_exact_line_count "${ENV_TEMPLATE}" \
+  '^REDIS_PASSWORD=(change-me|replace-me|injected-from-jenkins-credential|<[^>]+>|\$\{[^}]+\})$' \
+  1 \
+  'environment template keeps Redis password as a runtime placeholder'
+assert_exact_line_count "${COMPOSE_FILE}" \
+  '^[[:space:]]+DB_PASSWORD: \$\{DB_PASSWORD:\?[^}]+\}$' \
+  1 \
+  'Compose has exactly one required PostgreSQL password interpolation'
+assert_exact_line_count "${COMPOSE_FILE}" \
+  '^[[:space:]]+REDIS_PASSWORD: \$\{REDIS_PASSWORD:\?[^}]+\}$' \
+  1 \
+  'Compose has exactly one required Redis password interpolation'
+assert_exact_line_count "${SPRING_CONFIG}" \
+  '^[[:space:]]+password: \$\{DB_PASSWORD:\}$' \
+  1 \
+  'Spring has exactly one PostgreSQL password placeholder'
+assert_exact_line_count "${SPRING_CONFIG}" \
+  '^[[:space:]]+password: \$\{REDIS_PASSWORD:\}$' \
+  1 \
+  'Spring has exactly one Redis password placeholder'
 
 # Spring must apply the same schema to each Druid connection and to Hibernate/JPA.
-assert_contains "${SPRING_CONFIG}" 'SET search_path TO ${DB_SCHEMA:public}' \
+assert_contains "${SPRING_CONFIG}" 'SET search_path TO ${DB_SCHEMA:reminder}' \
   'Druid initializes the PostgreSQL search path from DB_SCHEMA'
-assert_contains "${SPRING_CONFIG}" 'default_schema: ${DB_SCHEMA:public}' \
+assert_contains "${SPRING_CONFIG}" 'default_schema: ${DB_SCHEMA:reminder}' \
   'Hibernate uses DB_SCHEMA as the default schema'
 
 # The deployment manual must describe the shared database, schema, Redis DB, and secret handoff.
-assert_regex "${DEPLOY_MANUAL}" 'saas-admin|saas-postgres' \
-  'deployment manual names the shared PostgreSQL service'
-assert_contains "${DEPLOY_MANUAL}" 'reminder' \
-  'deployment manual documents the Reminder isolation boundary'
-assert_contains "${DEPLOY_MANUAL}" 'DB 9' \
-  'deployment manual documents Redis DB 9'
+assert_regex "${DEPLOY_MANUAL}" '[Pp]ostgreSQL.*(schema|模式).*reminder|reminder.*(schema|模式).*[Pp]ostgreSQL' \
+  'deployment manual explicitly scopes PostgreSQL to the Reminder schema'
+assert_regex "${DEPLOY_MANUAL}" '[Rr]edis.*DB 9|DB 9.*[Rr]edis' \
+  'deployment manual explicitly scopes Redis to DB 9'
 assert_regex "${DEPLOY_MANUAL}" 'Secret file|Secret file 类型|reminder-runtime-env' \
   'deployment manual documents runtime secret injection'
 
