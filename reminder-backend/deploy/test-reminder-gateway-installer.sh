@@ -34,6 +34,9 @@ printf '%s\n' \
   '#!/usr/bin/env bash' \
   'set -Eeuo pipefail' \
   'printf "%s\\n" "$*" >> "${REMINDER_TEST_DOCKER_LOG:?}"' \
+  'if [[ "$1" == "inspect" ]]; then' \
+  '  printf "%s\\n" dev-platform saas-app' \
+  'fi' \
   'exit 0' > "${FAKE_BIN}/docker"
 chmod +x "${FAKE_BIN}/docker"
 
@@ -66,7 +69,9 @@ backup_file="$(find "${BACKUP_DIR}" -type f -name 'gateway.conf.*.before-reminde
 [[ -n "${backup_file}" ]] || fail 'installer creates a recoverable gateway backup'
 assert_contains "${backup_file}" 'obsolete reminder block' 'gateway backup retains the prior managed block'
 
-assert_contains "${DOCKER_LOG}" 'run --rm' 'installer validates the candidate configuration in an isolated Nginx container'
+assert_contains "${DOCKER_LOG}" 'create --name reminder-gateway-config-check-' 'installer creates an isolated candidate Nginx container'
+assert_contains "${DOCKER_LOG}" 'network connect saas-app reminder-gateway-config-check-' 'installer mirrors every live gateway network on the candidate'
+assert_contains "${DOCKER_LOG}" 'start -a reminder-gateway-config-check-' 'installer validates the candidate after network attachment'
 assert_contains "${DOCKER_LOG}" 'exec saas-gateway-test nginx -t' 'installer validates the live gateway configuration'
 assert_contains "${DOCKER_LOG}" 'exec saas-gateway-test nginx -s reload' 'installer reloads the live gateway only after validation'
 

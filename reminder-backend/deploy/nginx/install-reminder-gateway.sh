@@ -26,10 +26,16 @@ source_end_count="$(grep -Fxc -- "${BLOCK_END}" "${GATEWAY_SOURCE}" || true)"
   || fail 'gateway source must contain exactly one complete managed block'
 
 candidate="$(mktemp "${GATEWAY_CONFIG}.candidate.XXXXXX")"
+candidate_container="reminder-gateway-config-check-$$"
+gateway_networks=()
+candidate_created=0
 backup=""
 installed=0
 
 cleanup() {
+  if [[ "${candidate_created}" == '1' ]]; then
+    docker rm -f "${candidate_container}" >/dev/null 2>&1 || true
+  fi
   rm -f "${candidate}"
 }
 
@@ -75,9 +81,23 @@ awk -v start="${BLOCK_START}" -v end="${BLOCK_END}" '
 printf '\n' >> "${candidate}"
 sed -n "/^${BLOCK_START}$/,/^${BLOCK_END}$/p" "${GATEWAY_SOURCE}" >> "${candidate}"
 
-docker run --rm --network saas-app \
+while IFS= read -r network; do
+  [[ -n "${network}" ]] && gateway_networks+=("${network}")
+done < <(docker inspect --format \
+  '{{range $k, $_ := .NetworkSettings.Networks}}{{println $k}}{{end}}' "${GATEWAY_CONTAINER}")
+[[ "${#gateway_networks[@]}" -gt 0 ]] || fail "gateway has no Docker networks: ${GATEWAY_CONTAINER}"
+
+docker create --name "${candidate_container}" --network "${gateway_networks[0]}" \
+  --entrypoint nginx \
   -v "${candidate}:/etc/nginx/conf.d/default.conf:ro" \
-  nginx:1.27-alpine nginx -t >/dev/null
+  nginx:1.27-alpine -t >/dev/null
+candidate_created=1
+for network in "${gateway_networks[@]:1}"; do
+  docker network connect "${network}" "${candidate_container}"
+done
+docker start -a "${candidate_container}" >/dev/null
+docker rm "${candidate_container}" >/dev/null
+candidate_created=0
 
 install -d -m 700 "${BACKUP_DIR}"
 backup="${BACKUP_DIR}/gateway.conf.$(date +%Y%m%d%H%M%S).before-reminder"

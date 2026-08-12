@@ -47,8 +47,14 @@ if grep -Fq '127.0.0.1:18080' "$STANDALONE_HTTPS_CONFIG"; then
 fi
 
 assert_contains "$INSTALLER" 'readonly DEFAULT_GATEWAY_CONFIG="/opt/saas-app/nginx/gateway.conf"' 'installer targets the actual mounted gateway config'
-grep -Fq -- 'docker run --rm --network saas-app' "$INSTALLER" \
-  || fail 'installer validates the candidate in the live gateway network'
+grep -Fq -- 'docker inspect --format' "$INSTALLER" \
+  || fail 'installer discovers every live gateway network before candidate validation'
+grep -Fq -- 'docker create --name "${candidate_container}" --network "${gateway_networks[0]}"' "$INSTALLER" \
+  || fail 'installer starts the candidate on the gateway primary network'
+grep -Fq -- 'docker network connect "${network}" "${candidate_container}"' "$INSTALLER" \
+  || fail 'installer connects the candidate to every remaining gateway network'
+grep -Fq -- 'docker start -a "${candidate_container}"' "$INSTALLER" \
+  || fail 'installer runs Nginx syntax validation after all gateway networks are attached'
 assert_contains "$INSTALLER" 'docker exec "${GATEWAY_CONTAINER}" nginx -t' 'installer validates the live gateway before reload'
 assert_contains "$INSTALLER" 'docker exec "${GATEWAY_CONTAINER}" nginx -s reload' 'installer reloads only the gateway container'
 
