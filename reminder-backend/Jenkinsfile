@@ -18,6 +18,7 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
+        skipDefaultCheckout(true)
         timeout(time: 60, unit: 'MINUTES')
     }
 
@@ -35,12 +36,15 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 cleanWs()
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: "*/${params.branch}"]],
-                    userRemoteConfigs: [[url: 'https://github.com/wudi1994114/reminder.git']],
-                    extensions: [[$class: 'CloneOption', shallow: true, noTags: true, timeout: 20]]
-                ])
+                script {
+                    def sourceUrl = scm.userRemoteConfigs[0].url
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.branch}"]],
+                        userRemoteConfigs: [[url: sourceUrl]],
+                        extensions: [[$class: 'CloneOption', shallow: true, noTags: true, timeout: 20]]
+                    ])
+                }
             }
         }
 
