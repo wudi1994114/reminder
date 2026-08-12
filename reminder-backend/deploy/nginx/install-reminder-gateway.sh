@@ -75,7 +75,7 @@ awk -v start="${BLOCK_START}" -v end="${BLOCK_END}" '
 printf '\n' >> "${candidate}"
 sed -n "/^${BLOCK_START}$/,/^${BLOCK_END}$/p" "${GATEWAY_SOURCE}" >> "${candidate}"
 
-docker run --rm \
+docker run --rm --network saas-app \
   -v "${candidate}:/etc/nginx/conf.d/default.conf:ro" \
   nginx:1.27-alpine nginx -t >/dev/null
 
