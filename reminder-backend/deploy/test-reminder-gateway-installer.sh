@@ -9,6 +9,7 @@ readonly HTTPS_CONFIG="${SCRIPT_DIR}/nginx/reminder-api-https.conf"
 readonly TEST_ROOT="$(mktemp -d)"
 readonly FAKE_BIN="${TEST_ROOT}/bin"
 readonly GATEWAY_CONFIG="${TEST_ROOT}/gateway.conf"
+readonly LIVE_BOUND_CONFIG="${TEST_ROOT}/gateway-bound.conf"
 readonly BACKUP_DIR="${TEST_ROOT}/backups"
 readonly DOCKER_LOG="${TEST_ROOT}/docker.log"
 
@@ -48,6 +49,7 @@ printf '%s\n' \
   '# BEGIN REMINDER API' \
   'obsolete reminder block' \
   '# END REMINDER API' > "${GATEWAY_CONFIG}"
+ln "${GATEWAY_CONFIG}" "${LIVE_BOUND_CONFIG}"
 
 PATH="${FAKE_BIN}:${PATH}" \
 REMINDER_TEST_DOCKER_LOG="${DOCKER_LOG}" \
@@ -60,6 +62,7 @@ bash "${INSTALLER}" >/dev/null
 assert_contains "${GATEWAY_CONFIG}" 'listen 80 default_server;' 'installer preserves unrelated gateway configuration'
 assert_contains "${GATEWAY_CONFIG}" 'server_name reminder-api.wwmty.com;' 'installer appends the new Reminder managed block'
 assert_contains "${GATEWAY_CONFIG}" 'proxy_pass http://$reminder_upstream;' 'installer writes the container-network proxy target'
+assert_contains "${LIVE_BOUND_CONFIG}" 'server_name reminder-api.wwmty.com;' 'installer updates the inode already bound by the live gateway container'
 [[ "$(grep -Fxc '# BEGIN REMINDER API' "${GATEWAY_CONFIG}")" == '1' ]] \
   || fail 'installer leaves exactly one managed block start marker'
 [[ "$(grep -Fxc '# END REMINDER API' "${GATEWAY_CONFIG}")" == '1' ]] \
@@ -70,6 +73,8 @@ backup_file="$(find "${BACKUP_DIR}" -type f -name 'gateway.conf.*.before-reminde
 assert_contains "${backup_file}" 'obsolete reminder block' 'gateway backup retains the prior managed block'
 
 assert_contains "${DOCKER_LOG}" 'create --name reminder-gateway-config-check-' 'installer creates an isolated candidate Nginx container'
+assert_contains "${DOCKER_LOG}" '/opt/saas-app/certbot/letsencrypt:/etc/letsencrypt:ro' 'installer mounts the live certificate directory on the candidate'
+assert_contains "${DOCKER_LOG}" '/opt/saas-app/certbot/www:/var/www/certbot:ro' 'installer mounts the live ACME webroot on the candidate'
 assert_contains "${DOCKER_LOG}" 'network connect saas-app reminder-gateway-config-check-' 'installer mirrors every live gateway network on the candidate'
 assert_contains "${DOCKER_LOG}" 'start -a reminder-gateway-config-check-' 'installer validates the candidate after network attachment'
 assert_contains "${DOCKER_LOG}" 'exec saas-gateway-test nginx -t' 'installer validates the live gateway configuration'

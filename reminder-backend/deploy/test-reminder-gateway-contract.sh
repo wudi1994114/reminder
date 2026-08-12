@@ -51,10 +51,19 @@ grep -Fq -- 'docker inspect --format' "$INSTALLER" \
   || fail 'installer discovers every live gateway network before candidate validation'
 grep -Fq -- 'docker create --name "${candidate_container}" --network "${gateway_networks[0]}"' "$INSTALLER" \
   || fail 'installer starts the candidate on the gateway primary network'
+grep -Fq -- '/opt/saas-app/certbot/letsencrypt:/etc/letsencrypt:ro' "$INSTALLER" \
+  || fail 'installer gives the candidate the same certificate mount as the gateway'
+grep -Fq -- '/opt/saas-app/certbot/www:/var/www/certbot:ro' "$INSTALLER" \
+  || fail 'installer gives the candidate the same ACME webroot mount as the gateway'
 grep -Fq -- 'docker network connect "${network}" "${candidate_container}"' "$INSTALLER" \
   || fail 'installer connects the candidate to every remaining gateway network'
 grep -Fq -- 'docker start -a "${candidate_container}"' "$INSTALLER" \
   || fail 'installer runs Nginx syntax validation after all gateway networks are attached'
+grep -Fq -- 'dd if="${source}" of="${destination}" conv=fsync status=none' "$INSTALLER" \
+  || fail 'installer overwrites the file inode already mounted by the live gateway container'
+if grep -Fq -- 'install -m 640 "${candidate}" "${GATEWAY_CONFIG}"' "$INSTALLER"; then
+  fail 'installer must not replace the mounted gateway configuration inode'
+fi
 assert_contains "$INSTALLER" 'docker exec "${GATEWAY_CONTAINER}" nginx -t' 'installer validates the live gateway before reload'
 assert_contains "$INSTALLER" 'docker exec "${GATEWAY_CONTAINER}" nginx -s reload' 'installer reloads only the gateway container'
 

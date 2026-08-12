@@ -17,6 +17,17 @@ fail() {
   exit 1
 }
 
+copy_into_gateway_mount() {
+  local source="$1"
+  local destination="$2"
+
+  # The production gateway mounts this individual file read-only. Replacing the
+  # host path creates a new inode, leaving the running container on the old
+  # bind mount; overwrite the existing inode instead.
+  dd if="${source}" of="${destination}" conv=fsync status=none
+  chmod 640 "${destination}"
+}
+
 [[ -f "${GATEWAY_CONFIG}" && ! -L "${GATEWAY_CONFIG}" ]] || fail "gateway config must be a regular file: ${GATEWAY_CONFIG}"
 [[ -f "${GATEWAY_SOURCE}" ]] || fail "gateway source does not exist: ${GATEWAY_SOURCE}"
 
@@ -43,7 +54,7 @@ restore_previous_gateway() {
   local exit_code=$?
   trap - ERR
   if [[ "${installed}" == '1' && -n "${backup}" ]]; then
-    install -m 640 "${backup}" "${GATEWAY_CONFIG}"
+    copy_into_gateway_mount "${backup}" "${GATEWAY_CONFIG}"
     docker exec "${GATEWAY_CONTAINER}" nginx -t >/dev/null
     docker exec "${GATEWAY_CONTAINER}" nginx -s reload >/dev/null || true
   fi
@@ -90,6 +101,8 @@ done < <(docker inspect --format \
 docker create --name "${candidate_container}" --network "${gateway_networks[0]}" \
   --entrypoint nginx \
   -v "${candidate}:/etc/nginx/conf.d/default.conf:ro" \
+  -v /opt/saas-app/certbot/letsencrypt:/etc/letsencrypt:ro \
+  -v /opt/saas-app/certbot/www:/var/www/certbot:ro \
   nginx:1.27-alpine -t >/dev/null
 candidate_created=1
 for network in "${gateway_networks[@]:1}"; do
@@ -102,7 +115,7 @@ candidate_created=0
 install -d -m 700 "${BACKUP_DIR}"
 backup="${BACKUP_DIR}/gateway.conf.$(date +%Y%m%d%H%M%S).before-reminder"
 install -m 600 "${GATEWAY_CONFIG}" "${backup}"
-install -m 640 "${candidate}" "${GATEWAY_CONFIG}"
+copy_into_gateway_mount "${candidate}" "${GATEWAY_CONFIG}"
 installed=1
 
 docker exec "${GATEWAY_CONTAINER}" nginx -t
