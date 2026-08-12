@@ -70,6 +70,7 @@ pipeline {
 """
                 sh 'mvn -s ci-maven-settings.xml -f reminder-backend/pom.xml clean test package -B'
                 sh 'bash reminder-backend/scripts/assert-monolith.sh'
+                sh 'bash reminder-backend/scripts/test-assert-monolith-portability.sh'
                 sh 'bash reminder-backend/deploy/test-shared-infrastructure.sh'
                 sh 'bash reminder-backend/deploy/test-deploy-reminder.sh'
                 sh 'bash reminder-backend/deploy/test-bootstrap-reminder-schema.sh'

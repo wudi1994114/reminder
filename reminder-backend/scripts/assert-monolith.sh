@@ -23,7 +23,7 @@ if [[ ! -d "${backend_dir}/src/main/java/com/common/reminder" ]] ||
   exit 1
 fi
 
-application_count="$(rg -l '@SpringBootApplication' "${backend_dir}/src/main/java" | wc -l | tr -d ' ')"
+application_count="$( (find "${backend_dir}/src/main/java" -type f -name '*.java' -exec grep -l '@SpringBootApplication' {} + || true) | wc -l | tr -d ' ')"
 if [[ "${application_count}" != "1" ]]; then
   echo "expected exactly one Spring Boot application, found ${application_count}" >&2
   exit 1
