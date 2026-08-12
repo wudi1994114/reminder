@@ -132,6 +132,15 @@ assert_contains() {
   fi
 }
 
+assert_files_equal() {
+  local expected="$1"
+  local actual="$2"
+  if [[ "$(cat "${expected}")" != "$(cat "${actual}")" ]]; then
+    printf 'Expected [%s] and [%s] to have identical content\n' "${expected}" "${actual}" >&2
+    exit 1
+  fi
+}
+
 if [[ "${deploy_call_count}" -ne 2 ]]; then
   printf 'Expected two deploy calls, got %s\n' "${deploy_call_count}" >&2
   exit 1
@@ -158,8 +167,8 @@ if [[ "${current_target}" == 'releases/old' ]]; then
   exit 1
 fi
 current_release="$(cd "${DEPLOY_STATE}/${current_target}" && pwd -P)"
-cmp -s "${NEW_ENV}" "${current_release}/runtime.env"
-cmp -s "${SCRIPT_DIR}/docker-compose.reminder.yml" "${current_release}/docker-compose.reminder.yml"
+assert_files_equal "${NEW_ENV}" "${current_release}/runtime.env"
+assert_files_equal "${SCRIPT_DIR}/docker-compose.reminder.yml" "${current_release}/docker-compose.reminder.yml"
 if ! grep -qxF '127.0.0.1:3000/admin/reminder-backend:new' "${current_release}/image"; then
   echo 'Successful deployment state recorded the wrong image' >&2
   exit 1

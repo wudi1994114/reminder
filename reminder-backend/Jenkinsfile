@@ -73,6 +73,7 @@ pipeline {
                 sh 'bash reminder-backend/scripts/test-assert-monolith-portability.sh'
                 sh 'bash reminder-backend/deploy/test-shared-infrastructure.sh'
                 sh 'bash reminder-backend/deploy/test-deploy-reminder.sh'
+                sh 'bash reminder-backend/deploy/test-deploy-reminder-portability.sh'
                 sh 'bash reminder-backend/deploy/test-bootstrap-reminder-schema.sh'
                 sh 'bash reminder-backend/deploy/test-reminder-gateway-contract.sh'
                 sh 'bash reminder-backend/deploy/test-reminder-gateway-installer.sh'
