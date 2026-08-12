@@ -21,8 +21,9 @@ would not leave an auditable Jenkins release history. Both are rejected.
 ## Components and data flow
 
 1. Tencent Cloud DNS maps `reminder-api.wwmty.com` to the existing SaaS host.
-2. The host Nginx terminates TLS and proxies only this hostname to
-   `127.0.0.1:18080`.
+2. The existing `saas-gateway` Nginx container terminates TLS and proxies only
+   this hostname to `reminder-backend:8080` over `saas-app`, using Docker DNS
+   at request time rather than the gateway container's loopback interface.
 3. A new Jenkins pipeline checks out the migration branch, tests and packages
    the single Spring Boot service, pushes an immutable Reminder image to the
    live SaaS registry, and deploys only the Reminder Compose service.

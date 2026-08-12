@@ -8,6 +8,7 @@ readonly ENV_FILE="${TEST_ROOT}/runtime.env"
 readonly STATE_DIR="${TEST_ROOT}/deploy-state"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly EXPECTED_IMAGE='127.0.0.1:3000/admin/reminder-backend:contract-test'
+readonly JENKINSFILE="${SCRIPT_DIR}/../Jenkinsfile"
 
 cleanup() {
   rm -rf "${TEST_ROOT}"
@@ -73,5 +74,12 @@ current_link="${STATE_DIR}/current"
 [[ -L "${current_link}" ]] || fail 'successful release did not record audited state'
 current_release="$(cd "${STATE_DIR}/$(readlink "${current_link}")" && pwd -P)"
 grep -qxF "${EXPECTED_IMAGE}" "${current_release}/image" || fail 'audited state stored the wrong image'
+
+grep -Fxq "        string(name: 'branch', defaultValue: 'codex/reminder-production-domain', description: '构建分支')" \
+  "${JENKINSFILE}" || fail 'initial production job must default to the audited release branch'
+grep -Fxq "        stage('Initialize Reminder Schema') {" "${JENKINSFILE}" \
+  || fail 'Jenkins pipeline must initialize an empty Reminder schema before deployment'
+grep -Fxq "                sh 'bash reminder-backend/deploy/bootstrap-reminder-schema.sh'" "${JENKINSFILE}" \
+  || fail 'Jenkins pipeline must use the guarded schema bootstrap script'
 
 printf '%s\n' 'production rollout contract passed'

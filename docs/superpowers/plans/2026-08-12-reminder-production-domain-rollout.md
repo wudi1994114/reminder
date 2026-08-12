@@ -189,12 +189,12 @@ Create a Pipeline named `reminder-backend`. Use the Reminder Git repository, the
 ### Task 4: Provision the public DNS, TLS, and isolated Nginx virtual host
 
 **Files:**
-- Server Nginx virtual host: `/etc/nginx/conf.d/reminder-api.conf`
-- Certificate paths: `/etc/letsencrypt/live/reminder-api.wwmty.com/fullchain.pem` and `privkey.pem`
-- Source reference: `reminder-backend/deploy/nginx/reminder-api.conf`
+- Server Nginx managed block in `/opt/saas-app/nginx/gateway.conf`
+- Certificate paths in the mounted gateway namespace: `/etc/letsencrypt/live/reminder-api.wwmty.com/fullchain.pem` and `privkey.pem`
+- Source references: `reminder-backend/deploy/nginx/reminder-api-http.conf`, `reminder-api-https.conf`, and `install-reminder-gateway.sh`
 
 **Interfaces:**
-- Consumes: the existing Tencent Cloud DNS zone `wwmty.com`, SaaS host public address, and loopback port `18080`.
+- Consumes: the existing Tencent Cloud DNS zone `wwmty.com`, SaaS host public address, `saas-gateway`, and the `saas-app` Docker network.
 - Produces: a valid public HTTPS origin for only `reminder-api.wwmty.com`.
 
 - [ ] **Step 1: Add the DNSPod record**
@@ -211,41 +211,27 @@ dig +short reminder-api.wwmty.com A
 
 Expected: exactly the SaaS host public address before requesting a certificate.
 
-- [ ] **Step 3: Install a temporary HTTP challenge virtual host and issue TLS**
+- [ ] **Step 3: Install the temporary HTTP challenge managed block and issue TLS**
 
-Before enabling the source HTTPS virtual host, install this HTTP-only temporary configuration so `nginx -t` never references a certificate that does not exist:
-
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name reminder-api.wwmty.com;
-    location /.well-known/acme-challenge/ { root /var/www/certbot; }
-    location / { return 404; }
-}
-```
-
-Then run:
+Before enabling the HTTPS proxy, install the HTTP-only managed block through the guarded gateway installer, then issue the certificate through the existing containerized Certbot volume:
 
 ```bash
-nginx -t
-systemctl reload nginx
-certbot certonly --webroot -w /var/www/certbot -d reminder-api.wwmty.com
+export REMINDER_GATEWAY_SOURCE="$PWD/reminder-backend/deploy/nginx/reminder-api-http.conf"
+bash reminder-backend/deploy/nginx/install-reminder-gateway.sh
+bash reminder-backend/deploy/nginx/issue-reminder-certificate.sh
 ```
 
-Expected: certificate files exist at the documented paths and certbot reports a successful issuance.
+Expected: the installer creates a recoverable backup, validates both the candidate and live `saas-gateway` configuration, and certificate files exist at the documented mounted paths.
 
-- [ ] **Step 4: Replace the temporary host with the full TLS proxy and verify syntax**
-
-Replace the temporary configuration with `reminder-backend/deploy/nginx/reminder-api.conf`, then run:
+- [ ] **Step 4: Replace the temporary managed block with the full TLS proxy and verify syntax**
 
 ```bash
-nginx -t
-systemctl reload nginx
+export REMINDER_GATEWAY_SOURCE="$PWD/reminder-backend/deploy/nginx/reminder-api-https.conf"
+bash reminder-backend/deploy/nginx/install-reminder-gateway.sh
 curl -fsS https://reminder-api.wwmty.com/actuator/health
 ```
 
-Expected: Nginx syntax succeeds. Health is expected to become green after Task 5 deploys the backend; a pre-deploy 502 is not accepted as completion.
+Expected: gateway configuration reloads successfully. The proxy resolves `reminder-backend:8080` on `saas-app`; health becomes green after Task 5 deploys the backend.
 
 ### Task 5: Deploy, inspect the live service, and make the WeChat allowlist release-ready
 

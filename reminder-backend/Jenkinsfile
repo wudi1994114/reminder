@@ -3,7 +3,7 @@ pipeline {
 
     parameters {
         string(name: 'version', defaultValue: '1.0.0', description: '镜像版本号')
-        string(name: 'branch', defaultValue: 'main', description: '构建分支')
+        string(name: 'branch', defaultValue: 'codex/reminder-production-domain', description: '构建分支')
     }
 
     environment {
@@ -68,6 +68,10 @@ pipeline {
                 sh 'bash reminder-backend/scripts/assert-monolith.sh'
                 sh 'bash reminder-backend/deploy/test-shared-infrastructure.sh'
                 sh 'bash reminder-backend/deploy/test-deploy-reminder.sh'
+                sh 'bash reminder-backend/deploy/test-bootstrap-reminder-schema.sh'
+                sh 'bash reminder-backend/deploy/test-reminder-gateway-contract.sh'
+                sh 'bash reminder-backend/deploy/test-reminder-gateway-installer.sh'
+                sh 'bash reminder-backend/deploy/nginx/test-issue-reminder-certificate.sh'
                 stash name: 'reminder-jar', includes: 'reminder-backend/target/reminder-backend-*.jar'
             }
         }
@@ -91,6 +95,12 @@ docker tag "$image" "${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:latest"
 docker push "${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:latest"
 '''
                 }
+            }
+        }
+
+        stage('Initialize Reminder Schema') {
+            steps {
+                sh 'bash reminder-backend/deploy/bootstrap-reminder-schema.sh'
             }
         }
 
@@ -122,6 +132,7 @@ bash "$WORKSPACE/reminder-backend/deploy/deploy-reminder.sh"
                 }
             }
         }
+
     }
 
     post {
