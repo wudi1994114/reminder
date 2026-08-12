@@ -1,4 +1,30 @@
 -- 删除旧表（按依赖顺序）
+\set ON_ERROR_STOP on
+
+-- Quartz 表与 Reminder 业务表共用 saas-admin 数据库，但只允许写入 reminder schema。
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.schemata
+        WHERE schema_name = 'reminder'
+    ) THEN
+        RAISE EXCEPTION 'Reminder schema must be initialized before Quartz';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'reminder'
+          AND table_name LIKE 'qrtz_%'
+    ) THEN
+        RAISE EXCEPTION 'Refusing to overwrite existing Quartz tables in reminder schema';
+    END IF;
+END
+$$;
+
+SET search_path TO reminder, pg_catalog;
+
 DROP TABLE IF EXISTS QRTZ_FIRED_TRIGGERS;
 DROP TABLE IF EXISTS QRTZ_PAUSED_TRIGGER_GRPS;
 DROP TABLE IF EXISTS QRTZ_SCHEDULER_STATE;

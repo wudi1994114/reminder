@@ -1,5 +1,22 @@
--- 数据库和用户必须由运维预先创建。本文件只允许在全新的 reminder 数据库中执行；
--- 下方包含 DROP TABLE，不可直接用于已有生产数据库升级。
+\set ON_ERROR_STOP on
+
+-- 本文件仅用于 saas-admin 数据库中首次初始化全新的 reminder schema。
+-- 下方包含 DROP TABLE；如果 schema 中已有任何表，安全检查会直接拒绝执行。
+CREATE SCHEMA IF NOT EXISTS reminder AUTHORIZATION pguser;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_schema = 'reminder'
+    ) THEN
+        RAISE EXCEPTION 'Refusing to initialize non-empty reminder schema';
+    END IF;
+END
+$$;
+
+SET search_path TO reminder, pg_catalog;
 
 -- 删除可能存在的旧表 (将移动到各自创建语句前)
 -- DROP TABLE IF EXISTS reminder_execution_history;
@@ -490,6 +507,57 @@ COMMENT ON COLUMN user_activity_logs.execution_time_ms IS '操作执行时间（
 COMMENT ON COLUMN user_activity_logs.details IS '操作的详细信息，JSON格式存储';
 
 COMMENT ON COLUMN user_activity_logs.created_at IS '日志记录创建时间';
+
+-- 训练动作与计划表
+DROP TABLE IF EXISTS workout_plan_item CASCADE;
+DROP TABLE IF EXISTS workout_plan CASCADE;
+DROP TABLE IF EXISTS exercise CASCADE;
+
+CREATE TABLE exercise (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    muscle_group VARCHAR(255),
+    equipment VARCHAR(255),
+    default_reps INTEGER DEFAULT 11 NOT NULL,
+    default_sets INTEGER DEFAULT 3 NOT NULL,
+    default_rest_sec INTEGER DEFAULT 30 NOT NULL,
+    audio_url TEXT,
+    is_public BOOLEAN DEFAULT TRUE NOT NULL,
+    owner_user_id BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_exercise_owner_user_id ON exercise (owner_user_id);
+CREATE INDEX idx_exercise_public ON exercise (is_public);
+
+CREATE TABLE workout_plan (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    is_public BOOLEAN DEFAULT FALSE NOT NULL,
+    owner_user_id BIGINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_workout_plan_owner_user_id ON workout_plan (owner_user_id);
+CREATE INDEX idx_workout_plan_public ON workout_plan (is_public);
+
+CREATE TABLE workout_plan_item (
+    id BIGSERIAL PRIMARY KEY,
+    plan_id BIGINT NOT NULL,
+    order_index INTEGER NOT NULL,
+    exercise_id BIGINT NOT NULL,
+    reps INTEGER DEFAULT 11 NOT NULL,
+    sets INTEGER DEFAULT 3 NOT NULL,
+    rest_sec INTEGER DEFAULT 30 NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_workout_plan_item_plan_order ON workout_plan_item (plan_id, order_index);
+CREATE INDEX idx_workout_plan_item_exercise_id ON workout_plan_item (exercise_id);
 
 -- 创建用户偏好设置表 (user_preference) - 键值对存储模式
 DROP TABLE IF EXISTS user_preference CASCADE;

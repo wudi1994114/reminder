@@ -44,6 +44,7 @@ Expected: FAIL because the environment template still targets database/user `rem
 - Modify: `reminder-backend/deploy/.env.example`
 - Modify: `reminder-backend/src/main/resources/application.yaml`
 - Modify: `reminder-backend/src/main/resources/schema.sql`
+- Modify: `reminder-backend/src/main/resources/quartz.sql`
 - Modify: `部署手册.md`
 - Modify: `reminder-backend/Jenkinsfile`
 - Create, ignored: `reminder-backend/deploy/.env.shared-infrastructure`
@@ -58,11 +59,11 @@ Use the required PostgreSQL URL/user and Redis endpoint/DB. Keep both passwords 
 
 - [ ] **Step 2: Apply the PostgreSQL schema in Spring**
 
-For non-test profiles, initialize each Druid connection with `SET search_path TO ${DB_SCHEMA:public}` and set Hibernate `default_schema` to `${DB_SCHEMA:public}`.
+For non-test profiles, initialize each Druid connection with `SET search_path TO ${DB_SCHEMA:reminder}` and set Hibernate `default_schema` to `${DB_SCHEMA:reminder}`.
 
 - [ ] **Step 3: Update the environment template and deployment manual**
 
-Document the shared database, dedicated schema initialization, Redis DB 9, and Jenkins secret injection. Update the schema SQL safety header so it permits only a new, isolated `reminder` schema inside the shared database. Do not include either real password.
+Document the shared database, dedicated schema initialization, Redis DB 9, and Jenkins secret injection. Make both business and Quartz initialization scripts select `reminder`; refuse to overwrite existing business or Quartz tables. Do not include either real password.
 
 - [ ] **Step 4: Add the deployment test to Jenkins**
 
@@ -114,6 +115,7 @@ git add docs/superpowers/specs/2026-08-12-share-saas-infrastructure-design.md \
   reminder-backend/deploy/.env.example \
   reminder-backend/src/main/resources/application.yaml \
   reminder-backend/src/main/resources/schema.sql \
+  reminder-backend/src/main/resources/quartz.sql \
   reminder-backend/Jenkinsfile 部署手册.md
 git commit -m "build: share saas database and redis"
 ```

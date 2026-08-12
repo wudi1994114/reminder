@@ -7,6 +7,9 @@ readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 readonly COMPOSE_FILE="${SCRIPT_DIR}/docker-compose.reminder.yml"
 readonly ENV_TEMPLATE="${SCRIPT_DIR}/.env.example"
 readonly SPRING_CONFIG="${REPO_ROOT}/reminder-backend/src/main/resources/application.yaml"
+readonly ENTITY_SOURCE_DIR="${REPO_ROOT}/reminder-backend/src/main/java"
+readonly BUSINESS_SCHEMA_SQL="${REPO_ROOT}/reminder-backend/src/main/resources/schema.sql"
+readonly QUARTZ_SCHEMA_SQL="${REPO_ROOT}/reminder-backend/src/main/resources/quartz.sql"
 readonly DEPLOY_MANUAL="${REPO_ROOT}/部署手册.md"
 
 fail() {
@@ -38,6 +41,16 @@ assert_exact_line() {
   grep -Fxq -- "${expected}" "${file}" || fail "${description} (${file})"
 }
 
+assert_not_contains() {
+  local file="$1"
+  local forbidden="$2"
+  local description="$3"
+
+  if grep -Fq -- "${forbidden}" "${file}"; then
+    fail "${description} (${file})"
+  fi
+}
+
 assert_token_line_count() {
   local file="$1"
   local token="$2"
@@ -67,6 +80,9 @@ assert_exact_line_count() {
 [[ -f "${COMPOSE_FILE}" ]] || fail 'tracked Compose file is missing'
 [[ -f "${ENV_TEMPLATE}" ]] || fail 'tracked environment template is missing'
 [[ -f "${SPRING_CONFIG}" ]] || fail 'tracked Spring configuration is missing'
+[[ -d "${ENTITY_SOURCE_DIR}" ]] || fail 'JPA entity source directory is missing'
+[[ -f "${BUSINESS_SCHEMA_SQL}" ]] || fail 'business schema SQL is missing'
+[[ -f "${QUARTZ_SCHEMA_SQL}" ]] || fail 'Quartz schema SQL is missing'
 [[ -f "${DEPLOY_MANUAL}" ]] || fail 'deployment manual is missing'
 
 # Shared PostgreSQL contract: fixed endpoint/database/user, runtime password, and schema boundary.
@@ -149,6 +165,33 @@ assert_contains "${SPRING_CONFIG}" 'SET search_path TO ${DB_SCHEMA:reminder}' \
 assert_contains "${SPRING_CONFIG}" 'default_schema: ${DB_SCHEMA:reminder}' \
   'Hibernate uses DB_SCHEMA as the default schema'
 
+# First-time SQL must stay inside the dedicated schema and refuse destructive reuse.
+assert_exact_line "${BUSINESS_SCHEMA_SQL}" \
+  'CREATE SCHEMA IF NOT EXISTS reminder AUTHORIZATION pguser;' \
+  'business SQL creates the dedicated schema'
+assert_exact_line "${BUSINESS_SCHEMA_SQL}" \
+  'SET search_path TO reminder, pg_catalog;' \
+  'business SQL selects the dedicated schema'
+assert_contains "${BUSINESS_SCHEMA_SQL}" "table_schema = 'reminder'" \
+  'business SQL checks for existing Reminder tables before DROP statements'
+assert_exact_line "${QUARTZ_SCHEMA_SQL}" \
+  'SET search_path TO reminder, pg_catalog;' \
+  'Quartz SQL selects the dedicated schema'
+assert_contains "${QUARTZ_SCHEMA_SQL}" "table_schema = 'reminder'" \
+  'Quartz SQL checks for existing Quartz tables before DROP statements'
+assert_not_contains "${DEPLOY_MANUAL}" 'CREATE DATABASE reminder' \
+  'deployment manual must not create a separate Reminder database'
+
+entity_tables="$({
+  grep -RhoE '@Table\(name[[:space:]]*=[[:space:]]*"[^"]+"' "${ENTITY_SOURCE_DIR}" || true
+} | sed -E 's/.*"([^"]+)"/\1/' | sort -u)"
+[[ -n "${entity_tables}" ]] || fail 'no JPA entity table names were discovered'
+while IFS= read -r table_name; do
+  assert_regex "${BUSINESS_SCHEMA_SQL}" \
+    "^CREATE TABLE[[:space:]]+${table_name}([[:space:]<(]|$)" \
+    "business SQL creates JPA entity table ${table_name}"
+done <<< "${entity_tables}"
+
 # The deployment manual must describe the shared database, schema, Redis DB, and secret handoff.
 assert_exact_line "${DEPLOY_MANUAL}" \
   '- PostgreSQL 使用 `saas-postgres:5432` 中的 `saas-admin` 数据库；Reminder 所有业务表和 Quartz 表固定放在独立 schema `reminder`。' \
@@ -158,5 +201,7 @@ assert_exact_line "${DEPLOY_MANUAL}" \
   'deployment manual has the exact shared Redis/DB 9 statement'
 assert_regex "${DEPLOY_MANUAL}" 'Secret file|Secret file 类型|reminder-runtime-env' \
   'deployment manual documents runtime secret injection'
+assert_contains "${ENV_TEMPLATE}" "openssl rand -base64 64 | tr -d '\\n'" \
+  'environment template generates a one-line JWT secret'
 
 printf '%s\n' 'shared infrastructure contract passed'

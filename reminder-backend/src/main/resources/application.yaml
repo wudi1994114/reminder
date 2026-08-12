@@ -94,7 +94,7 @@ logging:
 
 # JWT Settings
 # IMPORTANT: Replace with a strong, base64-encoded secret key for production! (at least 512 bits / 86 chars for HS512)
-# Generate one using: `openssl rand -base64 64` or similar secure method.
+# Generate one line using: `openssl rand -base64 64 | tr -d '\n'` or similar secure method.
 app:
   jwtSecret: ${JWT_SECRET:}
   # JWT expiration time in milliseconds (e.g., 1 hour = 3600000, 1 day = 86400000, 7 days = 604800000, 30 days = 2592000000)
@@ -173,6 +173,14 @@ spring:
   config:
     activate:
       on-profile: "!test"
+  datasource:
+    druid:
+      connection-init-sqls:
+        - SET search_path TO ${DB_SCHEMA:reminder}
+  jpa:
+    properties:
+      hibernate:
+        default_schema: ${DB_SCHEMA:reminder}
   quartz:
     properties:
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate

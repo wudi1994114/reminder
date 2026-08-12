@@ -12,12 +12,13 @@ services:
       TZ: Asia/Shanghai
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Shanghai}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      DB_URL: ${DB_URL:?DB_URL is required}
-      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      DB_URL: ${DB_URL:-jdbc:postgresql://saas-postgres:5432/saas-admin?timezone=Asia/Shanghai}
+      DB_USERNAME: ${DB_USERNAME:-pguser}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_SCHEMA: ${DB_SCHEMA:-reminder}
       REDIS_HOST: ${REDIS_HOST:-saas-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
       REDIS_DATABASE: ${REDIS_DATABASE:-9}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-2592000000}
