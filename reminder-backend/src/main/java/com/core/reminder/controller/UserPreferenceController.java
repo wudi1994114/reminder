@@ -2,6 +2,7 @@ package com.core.reminder.controller;
 
 import com.common.reminder.dto.UserProfileDto;
 import com.core.reminder.dto.UserPreferenceDto;
+import com.core.reminder.enums.UserPreferenceKey;
 import com.core.reminder.service.UserPreferenceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,9 +63,19 @@ public class UserPreferenceController {
             
             if (preference.isPresent()) {
                 return ResponseEntity.ok(preference.get());
-            } else {
+            }
+
+            UserPreferenceKey preferenceKey = UserPreferenceKey.fromKey(key);
+            if (preferenceKey == null) {
                 return ResponseEntity.notFound().build();
             }
+
+            UserPreferenceDto defaultPreference = new UserPreferenceDto(
+                    preferenceKey.getKey(),
+                    preferenceKey.getDefaultValue(),
+                    preferenceKey.getDescription());
+            defaultPreference.setUserId(userId);
+            return ResponseEntity.ok(defaultPreference);
             
         } catch (Exception e) {
             log.error("获取用户偏好设置失败, key: {}", key, e);
@@ -269,4 +280,4 @@ public class UserPreferenceController {
             return ResponseEntity.internalServerError().build();
         }
     }
-} 
+}
