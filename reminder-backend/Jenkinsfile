@@ -11,6 +11,7 @@ pipeline {
         DOCKER_IMAGE_NAME    = 'admin/reminder-backend'
         DOCKER_IMAGE_TAG     = "${params.version}"
         NEXUS_CREDENTIALS_ID = 'nexus-repo-credentials'
+        SAAS_STORAGE_CREDENTIALS_ID = 'reminder-saas-storage-app-probe'
         MAVEN_MIRROR_URL     = 'http://dev-platform-reposilite:8080/releases'
         REMINDER_STATE_DIR   = '/opt/saas-app/reminder/deploy-state'
     }
@@ -115,7 +116,7 @@ docker push "${NEXUS_REGISTRY_URL}/${DOCKER_IMAGE_NAME}:latest"
                 withCredentials([
                     file(credentialsId: 'reminder-runtime-env', variable: 'REMINDER_RUNTIME_ENV_SOURCE'),
                     usernamePassword(
-                        credentialsId: 'reminder-saas-storage-app',
+                        credentialsId: SAAS_STORAGE_CREDENTIALS_ID,
                         usernameVariable: 'REMINDER_STORAGE_APP_ID',
                         passwordVariable: 'REMINDER_STORAGE_SECRET_CODE'
                     )
