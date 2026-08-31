@@ -24,6 +24,7 @@ assert_line() {
 
 assert_line '      saas-app: null'
 assert_line '      saas-middleware: null'
+assert_line '      SAAS_STORAGE_APP_CODE: beiwangji'
 assert_line '  saas-app:'
 assert_line '    name: saas-app'
 assert_line '  saas-middleware:'

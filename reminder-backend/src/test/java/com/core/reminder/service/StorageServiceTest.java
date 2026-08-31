@@ -37,7 +37,7 @@ class StorageServiceTest {
 
         SaasStorageProperties properties = new SaasStorageProperties();
         properties.setBaseUrl("http://saas-admin-backend:8080");
-        properties.setAppCode("reminder");
+        properties.setAppCode("beiwangji");
         properties.setAppId("audit-app-id");
         properties.setSecretCode("audit-secret");
         properties.setBizDir("avatars");
@@ -49,21 +49,53 @@ class StorageServiceTest {
     }
 
     @Test
-    void authenticatesAsReminderAppAndUploadsThroughSaasStorageGateway() {
+    void authenticatesAsBeiwangjiAppAndUploadsThroughSaasStorageGateway() {
         expectLogin("access-token-1");
         server.expect(requestTo("http://saas-admin-backend:8080/sys/storage/upload"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer access-token-1"))
-                .andExpect(header("X-Project-Code", "reminder"))
+                .andExpect(header("X-Project-Code", "beiwangji"))
                 .andExpect(content().string(containsString("avatars")))
                 .andExpect(content().string(containsString("MINIO")))
-                .andRespond(withSuccess("{\"storageType\":\"MINIO\",\"key\":\"app/reminder/avatars/20260810/avatar.png\",\"url\":\"https://image.example.com/reminder/avatar.png\"}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{\"storageType\":\"MINIO\",\"key\":\"app/beiwangji/avatars/20260810/avatar.png\",\"url\":\"https://image.example.com/beiwangji/avatar.png\"}", MediaType.APPLICATION_JSON));
 
         StoredFile stored = storageService.store(image("avatar.png", "image/png", 3));
 
-        assertEquals("app/reminder/avatars/20260810/avatar.png", stored.getObjectName());
-        assertEquals("https://image.example.com/reminder/avatar.png", stored.getUrl());
+        assertEquals("app/beiwangji/avatars/20260810/avatar.png", stored.getObjectName());
+        assertEquals("https://image.example.com/beiwangji/avatar.png", stored.getUrl());
         server.verify();
+    }
+
+    @Test
+    void defaultsGatewayCallsAndObjectScopeToBeiwangjiTenant() {
+        SaasStorageProperties defaultProperties = new SaasStorageProperties();
+        defaultProperties.setBaseUrl("http://saas-admin-backend:8080");
+        defaultProperties.setAppId("audit-app-id");
+        defaultProperties.setSecretCode("audit-secret");
+        defaultProperties.setBizDir("avatars");
+        defaultProperties.setStorageType("MINIO");
+        defaultProperties.setMaxSizeBytes(1024L);
+        defaultProperties.setAllowedContentTypes(Arrays.asList("image/jpeg", "image/png"));
+        RestTemplate defaultRestTemplate = new RestTemplate();
+        StorageService defaultStorageService = new StorageService(
+                defaultRestTemplate, new ObjectMapper(), defaultProperties);
+        MockRestServiceServer defaultServer = MockRestServiceServer.bindTo(defaultRestTemplate).build();
+
+        defaultServer.expect(requestTo("http://saas-admin-backend:8080/auth/app-login"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Project-Code", "beiwangji"))
+                .andExpect(jsonPath("$.appCode").value("beiwangji"))
+                .andRespond(withSuccess("{\"accessToken\":\"beiwangji-token\"}", MediaType.APPLICATION_JSON));
+        defaultServer.expect(requestTo("http://saas-admin-backend:8080/sys/storage/upload"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer beiwangji-token"))
+                .andExpect(header("X-Project-Code", "beiwangji"))
+                .andRespond(withSuccess("{\"key\":\"app/beiwangji/avatars/default.png\",\"url\":\"https://image.example.com/beiwangji/default.png\"}", MediaType.APPLICATION_JSON));
+
+        StoredFile stored = defaultStorageService.store(image("avatar.png", "image/png", 3));
+
+        assertEquals("app/beiwangji/avatars/default.png", stored.getObjectName());
+        defaultServer.verify();
     }
 
     @Test
@@ -75,11 +107,11 @@ class StorageServiceTest {
         expectLogin("fresh-token");
         server.expect(requestTo("http://saas-admin-backend:8080/sys/storage/upload"))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fresh-token"))
-                .andRespond(withSuccess("{\"key\":\"app/reminder/avatars/new.png\",\"url\":\"https://image.example.com/new.png\"}", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess("{\"key\":\"app/beiwangji/avatars/new.png\",\"url\":\"https://image.example.com/new.png\"}", MediaType.APPLICATION_JSON));
 
         StoredFile stored = storageService.store(image("avatar.png", "image/png", 3));
 
-        assertEquals("app/reminder/avatars/new.png", stored.getObjectName());
+        assertEquals("app/beiwangji/avatars/new.png", stored.getObjectName());
         server.verify();
     }
 
@@ -110,8 +142,8 @@ class StorageServiceTest {
     private void expectLogin(String token) {
         server.expect(requestTo("http://saas-admin-backend:8080/auth/app-login"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("X-Project-Code", "reminder"))
-                .andExpect(jsonPath("$.appCode").value("reminder"))
+                .andExpect(header("X-Project-Code", "beiwangji"))
+                .andExpect(jsonPath("$.appCode").value("beiwangji"))
                 .andExpect(jsonPath("$.appId").value("audit-app-id"))
                 .andExpect(jsonPath("$.secretCode").value("audit-secret"))
                 .andRespond(withSuccess("{\"accessToken\":\"" + token + "\"}", MediaType.APPLICATION_JSON));

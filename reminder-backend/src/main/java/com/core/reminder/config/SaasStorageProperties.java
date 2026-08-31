@@ -11,7 +11,7 @@ import java.util.List;
 public class SaasStorageProperties {
 
     private String baseUrl = "http://saas-admin-backend:8080";
-    private String appCode = "reminder";
+    private String appCode = "beiwangji";
     private String appId = "";
     private String secretCode = "";
     private String bizDir = "avatars";
