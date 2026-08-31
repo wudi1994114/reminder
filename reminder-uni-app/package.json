@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "check:no-cloudbase": "node scripts/assert-no-cloudbase.mjs",
+    "test:wechat-login-flow": "node --test scripts/test-wechat-login-flow.mjs",
     "dev:custom": "uni -p",
     "dev:h5": "uni",
     "dev:h5:ssr": "uni --ssr",

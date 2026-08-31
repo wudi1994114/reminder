@@ -105,8 +105,7 @@
           <text class="login-desc">使用微信账号快速登录</text>
           <button 
             class="wechat-login-button" 
-            open-type="getUserInfo"
-            @getuserinfo="handleWechatLogin"
+            @click="handleWechatLogin"
           >
             <text class="wechat-login-text">微信一键登录</text>
           </button>
@@ -122,7 +121,7 @@
 <script>
 import { ref, computed, onUnmounted } from 'vue';
 import { getUpcomingReminders, getAllComplexReminders, deleteComplexReminder as deleteComplexReminderApi } from '@/services/cachedApi';
-import { loginWithBackend } from '@/api/wechat';
+import { smartWechatLogin } from '@/api/wechat';
 import ReminderCacheService, { globalDataVersion, updateDataVersion } from '@/services/reminderCache';
 import { isAuthenticated, clearAllUserData, requireAuth } from '@/utils/auth';
 import { usePageDataSync, checkDataSyncOnShow, createSmartDataLoader } from '@/utils/dataSync';
@@ -403,36 +402,14 @@ export default {
     };
     
     // 微信登录处理
-    const handleWechatLogin = async (e) => {
-      console.log('微信登录事件触发:', e);
+    const handleWechatLogin = async () => {
+      console.log('微信登录事件触发');
       
       try {
         uni.showLoading({ title: '登录中...' });
         
-        // 获取用户信息
-        const userInfo = e.detail.userInfo;
-        if (!userInfo) {
-          uni.hideLoading();
-          uni.showToast({
-            title: '登录已取消',
-            icon: 'none'
-          });
-          return;
-        }
-        
-        // 获取微信登录code
-        const loginRes = await new Promise((resolve, reject) => {
-          uni.login({
-            provider: 'weixin',
-            success: resolve,
-            fail: reject
-          });
-        });
-        
-        console.log('获取微信code成功:', loginRes.code);
-        
-        // 调用后端登录接口
-        const response = await loginWithBackend({ code: loginRes.code });
+        // 登录只需要微信临时 code；头像和昵称在资料编辑页单独由用户选择。
+        const response = await smartWechatLogin();
         console.log('后端登录响应:', response);
         
         if (response && response.accessToken) {

@@ -11,8 +11,7 @@
         <text class="login-desc">请先登录以继续操作</text>
         <button 
           class="wechat-login-button" 
-          open-type="getUserInfo"
-          @getuserinfo="handleWechatLogin"
+          @click="handleWechatLogin"
         >
           <text class="wechat-login-text">微信一键登录</text>
         </button>
@@ -24,7 +23,7 @@
 <script>
 import { computed } from 'vue';
 import { globalAuthState, hideOneClickLogin } from '../utils/auth';
-import { loginWithBackend } from '../api/wechat';
+import { smartWechatLogin } from '../api/wechat';
 import { UserService } from '../services/userService';
 
 export default {
@@ -38,8 +37,8 @@ export default {
       hideOneClickLogin(false);
     };
     
-    const handleWechatLogin = async (e) => {
-      console.log('全局登录弹窗：微信一键登录触发', e);
+    const handleWechatLogin = async () => {
+      console.log('全局登录弹窗：微信一键登录触发');
       
       try {
         // 显示加载提示
@@ -48,40 +47,8 @@ export default {
           mask: true
         });
         
-        // 获取用户信息
-        const userInfo = e.detail.userInfo;
-        if (!userInfo) {
-          uni.hideLoading();
-          uni.showToast({
-            title: '登录已取消',
-            icon: 'none'
-          });
-          hideOneClickLogin(false);
-          return;
-        }
-        
-        console.log('全局登录：获取到用户信息:', userInfo);
-        
-        // 调用微信登录获取code
-        const loginRes = await new Promise((resolve, reject) => {
-          uni.login({
-            provider: 'weixin',
-            success: resolve,
-            fail: reject
-          });
-        });
-        
-        console.log('全局登录：微信登录成功:', loginRes);
-        
-        // 构建登录请求数据
-        const loginData = {
-          code: loginRes.code
-        };
-        
-        console.log('🔐 全局登录：发送登录数据到后端:', loginData);
-        
-        // 调用后端登录接口
-        const response = await loginWithBackend(loginData);
+        // 登录只需要微信临时 code；头像和昵称在资料编辑页单独由用户选择。
+        const response = await smartWechatLogin();
         
         console.log('✅ 全局登录：后端登录API响应:', response);
         
@@ -239,4 +206,4 @@ export default {
   color: #1c170d;
   font-weight: 600;
 }
-</style> 
+</style>

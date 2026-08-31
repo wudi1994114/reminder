@@ -25,8 +25,7 @@
           <button 
             class="wechat-login-btn" 
             v-if="!userState.isAuthenticated" 
-            open-type="getUserInfo"
-            @getuserinfo="handleWechatLogin"
+            @click="handleWechatLogin"
           >
             <text class="wechat-login-text">微信一键登录</text>
           </button>
@@ -123,7 +122,7 @@
 import { ref, reactive, computed, watch, onUnmounted } from 'vue';
 import { UserService, userState } from '@/services/userService';
 import { requireAuth, logout, checkAuthAndClearData, showOneClickLogin } from '@/utils/auth';
-import { loginWithBackend } from '@/api/wechat';
+import { smartWechatLogin } from '@/api/wechat';
 import { FeatureControl } from '@/config/version';
 import GlobalLoginModal from '@/components/GlobalLoginModal.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -204,8 +203,8 @@ export default {
       showLogoutConfirmDialog.value = false;
     };
 
-    const handleWechatLogin = async (e) => {
-      console.log('个人中心页面：微信一键登录触发', e);
+    const handleWechatLogin = async () => {
+      console.log('个人中心页面：微信一键登录触发');
       
       try {
         // 显示加载提示
@@ -214,39 +213,8 @@ export default {
           mask: true
         });
         
-        // 获取用户信息
-        const userInfo = e.detail.userInfo;
-        if (!userInfo) {
-          uni.hideLoading();
-          uni.showToast({
-            title: '登录已取消',
-            icon: 'none'
-          });
-          return;
-        }
-        
-        console.log('个人中心：获取到用户信息:', userInfo);
-        
-        // 调用微信登录获取code
-        const loginRes = await new Promise((resolve, reject) => {
-          uni.login({
-            provider: 'weixin',
-            success: resolve,
-            fail: reject
-          });
-        });
-        
-        console.log('个人中心：微信登录成功:', loginRes);
-        
-        // 构建登录请求数据
-        const loginData = {
-          code: loginRes.code
-        };
-        
-        console.log('🔐 个人中心：发送登录数据到后端:', loginData);
-        
-        // 调用后端登录接口
-        const response = await loginWithBackend(loginData);
+        // 登录只需要微信临时 code；头像和昵称在资料编辑页单独由用户选择。
+        const response = await smartWechatLogin();
         
         console.log('✅ 个人中心：后端登录API响应:', response);
         
