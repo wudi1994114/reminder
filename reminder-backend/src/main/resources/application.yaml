@@ -145,7 +145,7 @@ wechat:
   # 微信通知配置
   notification:
     # 订阅消息模板ID
-    template-id: ''
+    template-id: ${WECHAT_NOTIFICATION_TEMPLATE_ID:}
     # 默认跳转页面
     page: index
 
