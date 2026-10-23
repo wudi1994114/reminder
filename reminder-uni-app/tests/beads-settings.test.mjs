@@ -12,7 +12,7 @@ const brand = { id:'test', name:'测试', colors:[] };
 const pattern = { width:1, height:1, cells:[-1], palette:[] };
 function page(draft) {
   const writes = [], conversions = [];
-  const context = vm.createContext({ setTimeout, ref, shallowRef, computed, watch() {}, nextTick:async () => {}, getCurrentInstance:() => ({proxy:{}}), onReady() {}, onUnload() {}, BEAD_PALETTES:[brand], countMaterials:() => [], getCanvasSurface:async () => ({}), decodePhoto:async () => ({width:1,height:1,data:new Uint8ClampedArray(4)}), convertToPattern:(_rgba,settings) => { conversions.push(settings); return pattern; }, uni:{getStorageSync: key => key === 'beads-draft-v1' ? draft : '', getSystemInfoSync:() => ({windowWidth:375}), setStorageSync:(_key,value) => writes.push(value), showToast() {}} });
+  const context = vm.createContext({ setTimeout, clearTimeout, ref, shallowRef, computed, watch() {}, nextTick:async () => {}, getCurrentInstance:() => ({proxy:{}}), onReady() {}, onUnload() {}, BEAD_PALETTES:[brand], countMaterials:() => [], getCanvasSurface:async () => ({}), decodePhoto:async () => ({width:1,height:1,data:new Uint8ClampedArray(4)}), convertToPattern:(_rgba,settings) => { conversions.push(settings); return pattern; }, uni:{getStorageSync: key => key === 'beads-draft-v1' ? draft : '', getSystemInfoSync:() => ({windowWidth:375}), setStorageSync:(_key,value) => writes.push(value), showToast() {}} });
   vm.runInContext(script, context);
   return { run: code => vm.runInContext(code, context), writes, conversions };
 }
@@ -37,10 +37,11 @@ test('legacy draft keeps photo rendering and no cleanup without a spurious regen
   assert.equal(ui.run('settingsChanged.value'), false);
 });
 
-test('legacy draft preserves pending generation changes during key migration', async () => {
+test('legacy pending settings are normalized to the rendered draft during migration', async () => {
   const ui = page({...oldDraft,columns:64});
   await ui.run('restoreDraft()');
-  assert.equal(ui.run('settingsChanged.value'), true);
+  assert.equal(ui.run('settingsChanged.value'), false);
+  assert.equal(ui.run('columns.value'),48);
 });
 
 test('mode and cleanup survive draft save and restore', async () => {
@@ -55,7 +56,7 @@ test('mode and cleanup survive draft save and restore', async () => {
 });
 
 test('source-persistence fallback also saves conversion settings', async () => {
-  const ui = page({...oldDraft,mode:'illustration',cleanup:2});
+  const ui = page({...oldDraft,mode:'illustration',cleanup:2,generatedSettings:JSON.stringify({...oldSettings,mode:'illustration',cleanup:2})});
   await ui.run('restoreDraft()');
   ui.run("sourcePath.value = 'unavailable.png'");
   await ui.run('saveDraft()');
@@ -65,11 +66,11 @@ test('source-persistence fallback also saves conversion settings', async () => {
 });
 
 
-test('conversion receives selected mode and cleanup and clears the changed-settings notice', async () => {
+test('new conversion uses illustration with selected cleanup and clears the changed-settings notice', async () => {
   const ui = page();
   ui.run("sourcePath.value = 'photo.png'; mode.value = 'photo'; cleanup.value = 2");
   await ui.run('convert(0)');
-  assert.equal(ui.conversions[0].mode, 'photo');
+  assert.equal(ui.conversions[0].mode, 'illustration');
   assert.equal(ui.conversions[0].cleanup, 2);
   assert.equal(ui.run('settingsChanged.value'), false);
   ui.run('cleanup.value = 0');
@@ -92,18 +93,18 @@ test('background removal survives draft save and restore and marks pending chang
   assert.equal(restored.run('settingsChanged.value'), true);
 });
 
-test('pre-background draft migrates both keys without losing pending mode changes', async () => {
+test('pre-background draft restores rendered settings without applying pending mode changes', async () => {
   const settings = {...oldSettings,mode:'illustration',cleanup:1};
   for (const pending of [false,true]) {
     const ui = page({...oldDraft,...settings,mode:pending ? 'photo' : 'illustration',generatedSettings:JSON.stringify(settings)});
     await ui.run('restoreDraft()');
     assert.equal(JSON.parse(ui.run('settingsKey()')).background, 'keep');
-    assert.equal(ui.run('settingsChanged.value'), pending);
+    assert.equal(ui.run('settingsChanged.value'), false);
   }
 });
 
 test('source-persistence fallback preserves background removal', async () => {
-  const ui = page({...oldDraft,background:'remove'});
+  const ui = page({...oldDraft,background:'remove',generatedSettings:JSON.stringify({...oldSettings,background:'remove'})});
   await ui.run('restoreDraft()');
   ui.run("sourcePath.value = 'unavailable.png'");
   await ui.run('saveDraft()');
