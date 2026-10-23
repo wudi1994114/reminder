@@ -53,6 +53,13 @@
 			}
 		},
 		{
+			"path": "pages/beads/index",
+			"style": {
+				"navigationBarTitleText": "拼豆图纸",
+				"navigationBarBackgroundColor": "#fcfbf8"
+			}
+		},
+		{
 			"path": "pages/running-duck/pace-calculator",
 			"style": {
 				"navigationBarTitleText": "配速计算器",

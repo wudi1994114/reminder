@@ -44,10 +44,72 @@ public class StorageService {
     public StoredFile store(MultipartFile file) {
         validateFile(file);
         validateClientConfiguration();
-        return upload(file, true);
+        return upload(file, properties.getBizDir(), true);
     }
 
-    private StoredFile upload(MultipartFile file, boolean retryOnUnauthorized) {
+    /** Store the unmodified original and register it in the tenant's image library. */
+    public Map<String, String> storeBeadOriginal(MultipartFile file, Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new IllegalArgumentException("需要登录后上传原图");
+        }
+        validateFile(file);
+        validateClientConfiguration();
+        StoredFile stored = upload(file, "beads/originals/" + userId, true);
+        Map<String, Object> image = new LinkedHashMap<>();
+        image.put("originKey", stored.getObjectName());
+        // The library may use the original as its thumbnail; no recompression of the original.
+        image.put("thumbKey", stored.getObjectName());
+        String filename = file.getOriginalFilename() == null ? "original.png" : file.getOriginalFilename();
+        filename = filename.replace('\\', '/');
+        filename = filename.substring(filename.lastIndexOf('/') + 1);
+        image.put("filename", "拼豆-" + userId + "-" + filename);
+        image.put("fileSize", file.getSize());
+        image.put("contentType", file.getContentType());
+        image.put("storageType", properties.getStorageType());
+        image.put("folderId", 0L);
+        image.put("referenceCount", 0);
+        image.put("assetType", "image");
+        image.put("assetOriginType", "upload");
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("purpose", "bead_original");
+        metadata.put("reminderUserId", userId);
+        image.put("metadata", metadata);
+        String imageId = registerImage(image, true);
+        Map<String, String> result = new LinkedHashMap<>();
+        result.put("url", stored.getUrl());
+        result.put("objectName", stored.getObjectName());
+        result.put("imageId", imageId);
+        return result;
+    }
+
+    private String registerImage(Map<String, Object> image, boolean retryOnUnauthorized) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(getAccessToken());
+        headers.set("X-Project-Code", properties.getAppCode());
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(endpoint("/biz/image"),
+                    HttpMethod.POST, new HttpEntity<>(image, headers), String.class);
+            JsonNode payload = responsePayload(response.getBody());
+            String id = text(payload, "id");
+            if (!StringUtils.hasText(id) || !id.matches("[1-9][0-9]*")) {
+                throw new StorageException("Image library returned no image ID", null);
+            }
+            return id;
+        } catch (HttpClientErrorException.Unauthorized e) {
+            if (retryOnUnauthorized) {
+                clearCachedAccessToken();
+                return registerImage(image, false);
+            }
+            throw storageFailure(e);
+        } catch (StorageException e) {
+            throw e;
+        } catch (Exception e) {
+            throw storageFailure(e);
+        }
+    }
+
+    private StoredFile upload(MultipartFile file, String bizDir, boolean retryOnUnauthorized) {
         try {
             String token = getAccessToken();
             HttpHeaders requestHeaders = new HttpHeaders();
@@ -57,7 +119,7 @@ public class StorageService {
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", createFilePart(file));
-            body.add("bizDir", properties.getBizDir());
+            body.add("bizDir", bizDir);
             body.add("storageType", properties.getStorageType());
 
             ResponseEntity<String> response = restTemplate.exchange(
@@ -80,7 +142,7 @@ public class StorageService {
         } catch (HttpClientErrorException.Unauthorized e) {
             if (retryOnUnauthorized) {
                 clearCachedAccessToken();
-                return upload(file, false);
+                return upload(file, bizDir, false);
             }
             throw storageFailure(e);
         } catch (StorageException e) {

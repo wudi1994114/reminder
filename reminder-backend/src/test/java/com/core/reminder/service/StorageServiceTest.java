@@ -117,6 +117,46 @@ class StorageServiceTest {
                 .andRespond(withSuccess("{\"accessToken\":\"" + token + "\"}", MediaType.APPLICATION_JSON));
     }
 
+    @Test
+    void archivesOriginalBytesAndRegistersImageUnderReminderUser() {
+        expectLogin("token");
+        server.expect(requestTo("http://saas-admin-backend:8080/sys/storage/upload"))
+                .andExpect(content().string(containsString("beads/originals/42")))
+                .andRespond(withSuccess("{\"key\":\"app/reminder/beads/originals/42/photo.png\",\"url\":\"https://images.example.com/photo.png\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://saas-admin-backend:8080/biz/image"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer token"))
+                .andExpect(jsonPath("$.originKey").value("app/reminder/beads/originals/42/photo.png"))
+                .andExpect(jsonPath("$.thumbKey").value("app/reminder/beads/originals/42/photo.png"))
+                .andExpect(jsonPath("$.metadata.reminderUserId").value(42))
+                .andExpect(jsonPath("$.metadata.purpose").value("bead_original"))
+                .andExpect(jsonPath("$.fileSize").value(3))
+                .andExpect(jsonPath("$.referenceCount").value(0))
+                .andRespond(withSuccess("{\"id\":123}", MediaType.APPLICATION_JSON));
+        java.util.Map<String, String> result = storageService.storeBeadOriginal(image("photo.png", "image/png", 3), 42L);
+        assertEquals("123", result.get("imageId"));
+        assertEquals("https://images.example.com/photo.png", result.get("url"));
+        server.verify();
+    }
+
+    @Test
+    void doesNotReportArchiveSuccessWhenImageRegistrationFails() {
+        expectLogin("token");
+        server.expect(requestTo("http://saas-admin-backend:8080/sys/storage/upload"))
+                .andRespond(withSuccess("{\"key\":\"app/reminder/beads/originals/42/photo.png\",\"url\":\"https://images.example.com/photo.png\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://saas-admin-backend:8080/biz/image"))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+        assertThrows(StorageException.class, () -> storageService.storeBeadOriginal(image("photo.png", "image/png", 3), 42L));
+        server.verify();
+    }
+
+    @Test
+    void rejectsMissingUserBeforeUploadingOriginal() {
+        assertThrows(IllegalArgumentException.class,
+                () -> storageService.storeBeadOriginal(image("photo.png", "image/png", 3), null));
+        server.verify();
+    }
+
     private MockMultipartFile image(String filename, String contentType, int size) {
         return new MockMultipartFile("file", filename, contentType, new byte[size]);
     }

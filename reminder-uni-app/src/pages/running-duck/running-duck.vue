@@ -14,6 +14,15 @@
         <!-- 功能菜单 -->
         <view class="menu-section">
           <view class="menu-card">
+            <view class="menu-item" @click="navigateToPage('/pages/beads/index')">
+              <view class="menu-icon"><text class="icon-text">🎨</text></view>
+              <view class="menu-content">
+                <text class="menu-label">拼豆图纸</text>
+                <text class="menu-desc">照片转图纸，配色、修格与用量清单</text>
+              </view>
+              <text class="menu-arrow">›</text>
+            </view>
+            <view class="menu-divider"></view>
             <!-- 配速计算器 -->
             <view class="menu-item" @click="navigateToPage('/pages/running-duck/pace-calculator')">
               <view class="menu-icon">
@@ -72,6 +81,7 @@ export default {
       
       // 已开发完成的功能可以直接跳转
       const completedPages = [
+        '/pages/beads/index',
         '/pages/running-duck/pace-calculator',
         '/pages/running-duck/realtime-pace',
         '/pages/running-duck/strength-training'

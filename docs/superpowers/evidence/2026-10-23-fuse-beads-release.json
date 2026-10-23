@@ -1,0 +1,10 @@
+{
+  "baseCommit": "017654f",
+  "image": "127.0.0.1:3000/admin/reminder-backend:20261023.beads.2",
+  "jarSha256": "967d7e2c16106f4ce4d80fa0b22ac753fa8811af8903baf6d9e7b2f209bbe2cb",
+  "scope": "StorageService, FileUploadController, multipart upload limits; production defaults retained",
+  "localSourceFiles": [
+    "reminder-backend/src/main/java/com/core/reminder/service/StorageService.java",
+    "reminder-backend/src/main/java/com/core/reminder/controller/FileUploadController.java"
+  ]
+}

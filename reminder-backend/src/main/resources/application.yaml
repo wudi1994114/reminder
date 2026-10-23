@@ -1,5 +1,9 @@
 # 基本的 Spring Boot 配置
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${SAAS_STORAGE_MAX_SIZE_BYTES:5242880}B
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:6MB}
   application:
     name: reminder
   # Redis配置
