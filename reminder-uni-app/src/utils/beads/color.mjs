@@ -12,6 +12,26 @@ export function lab(r, g, b) {
   return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
 }
 export const distance = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+/**
+ * Lab76 alone can trade a warm brown shadow for an equally dark olive bead.
+ * Protect the red/green hue boundary within the yellow half-plane, with a
+ * continuous, bounded penalty. It fades at neutral/yellow/blue boundaries;
+ * true green inputs retain their green candidates. Keep plain distance for
+ * geometric edge tests, whose thresholds are expressed in Delta-E76 units.
+ */
+export function matchDistance(a, b) {
+  const yellow = Math.max(0, Math.min(1, a[2] / 6, b[2] / 6));
+  const huePenalty = Math.min(600, 12 * Math.max(0, -a[1] * b[1])) * yellow;
+  return distance(a, b) + huePenalty;
+}
+export function nearestColor(point, colors) {
+  let best = 0, d = Infinity;
+  for (let i = 0; i < colors.length; i++) {
+    const next = matchDistance(point, colors[i]);
+    if (next < d) { d = next; best = i; }
+  }
+  return best;
+}
 export function nearest(point, colors) {
   let best = 0, d = Infinity;
   for (let i = 0; i < colors.length; i++) {

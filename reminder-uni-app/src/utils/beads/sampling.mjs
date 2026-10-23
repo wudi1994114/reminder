@@ -1,5 +1,35 @@
 import { lab, toLinear, distance } from './color.mjs';
 
+/** Bounded local bilateral smoothing before quantization; never fills transparent cells. */
+export function smoothPoints(points, width, height, strength) {
+  if (!strength) return points;
+  const range = strength === 1 ? 12 : 18, edge = 24 ** 2;
+  let source = points;
+  for (let pass = 0; pass < strength; pass++) {
+    const output = source.map((point, i) => {
+      if (!point) return null;
+      const x = i % width, y = Math.floor(i / width);
+      const adjacent = [x ? i - 1 : -1, x < width - 1 ? i + 1 : -1, y ? i - width : -1, y < height - 1 ? i + width : -1];
+      // Protect both sides of strong edges, including single-cell pupils/nose/strokes.
+      if (adjacent.some(n => n >= 0 && source[n] && distance(point, source[n]) > edge)) return point;
+      let weight = 1, sum = [...point];
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || x + dx < 0 || x + dx >= width || y + dy < 0 || y + dy >= height) continue;
+        const neighbor = source[(y + dy) * width + x + dx];
+        if (!neighbor) continue;
+        const d = distance(point, neighbor);
+        if (d >= range ** 2) continue;
+        const w = (dx && dy ? 0.5 : 1) * (1 - d / range ** 2) ** 2;
+        weight += w;
+        for (let j = 0; j < 3; j++) sum[j] += neighbor[j] * w;
+      }
+      return sum.map(v => v / weight);
+    });
+    source = output;
+  }
+  return source;
+}
+
 /** Cluster similar source colors before voting, so antialiasing does not split a flat color's vote. */
 function dominant(buckets, alpha, mean) {
   const groups = [...buckets.values()].map(b => ({

@@ -1,12 +1,13 @@
 /** Local-only bead conversion. Transparent cells are -1; palette entries are owned copies. */
-import { lab, toLinear, nearest } from './color.mjs';
-import { sampleCells } from './sampling.mjs';
+import { lab, toLinear, nearestColor } from './color.mjs';
+import { sampleCells, smoothPoints } from './sampling.mjs';
 import { selectColors, cleanIslands } from './quantize.mjs';
+import { removeBackground } from './background.mjs';
 const copyColor = (c) => ({ ...c, rgb: [...c.rgb] });
 /** columns is the target width (16..128); fit both dimensions within 128, preserving aspect ratio. */
 export function convertToPattern(
   image,
-  { columns = 48, maxColors = 24, palette, excludedCodes = [], mode = 'photo', cleanup = 0 } = {},
+  { columns = 48, maxColors = 24, palette, excludedCodes = [], mode = 'photo', cleanup = 0, background = 'keep' } = {},
 ) {
   if (
     !image ||
@@ -26,6 +27,7 @@ export function convertToPattern(
     throw new TypeError('A color palette is required');
   if (!['photo', 'illustration'].includes(mode)) throw new RangeError('Invalid processing mode');
   if (![0, 1, 2].includes(cleanup)) throw new RangeError('cleanup must be 0, 1 or 2');
+  if (!['keep', 'remove'].includes(background)) throw new RangeError('Invalid background option');
   const excluded = new Set(excludedCodes),
     available = palette.filter((c) => !excluded.has(c.code));
   if (!available.length) throw new RangeError('No available palette colors');
@@ -42,11 +44,12 @@ export function convertToPattern(
     height = 128;
     width = Math.max(1, Math.round((128 * image.width) / image.height));
   }
-  const points = sampleCells(image, width, height, mode),
+  const source = background === 'remove' ? removeBackground(image) : image;
+  const points = smoothPoints(sampleCells(source, width, height, mode), width, height, cleanup),
     labs = available.map((c) => lab(...c.rgb.map(toLinear)));
   const selected = selectColors(points, labs, maxColors, mode, width);
   const chosen = selected.map((i) => labs[i]);
-  const mapped = points.map((p) => (p ? nearest(p, chosen) : -1));
+  const mapped = points.map((p) => (p ? nearestColor(p, chosen) : -1));
   const cells = cleanIslands(mapped, points, chosen, width, height, cleanup);
   // Drop any selected entry unused after rematching, so materials and palette stay consistent.
   const used = [...new Set(cells.filter((i) => i >= 0))].sort((a, b) => a - b),

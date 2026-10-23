@@ -32,6 +32,8 @@
         <text class="hint block">插画保留色块和轮廓；照片保留自然的明暗过渡。</text>
         <view class="setting-line"><text class="label">杂点清理</text><view class="choices"><button v-for="item in cleanupLevels" :key="item.id" class="chip" :class="{ active: cleanup === item.id }" :disabled="busy || exporting || savingDraft" @click="cleanup = item.id">{{ item.name }}</button></view></view>
         <text class="hint block">轻度减少零散杂色；标准清理更强，精细图案可关闭。</text>
+        <view class="setting-line"><text class="label">图片背景</text><view class="choices"><button v-for="item in backgrounds" :key="item.id" class="chip" :class="{ active: background === item.id }" :disabled="busy || exporting || savingDraft" @click="background = item.id">{{ item.name }}</button></view></view>
+        <text class="hint block">去除背景适合居中的单一主体；背景复杂或边缘不完整时，可改选保留背景，或用画笔修补透明格。</text>
         <view class="setting-line"><text class="label">图纸宽度</text><view class="choices"><button v-for="size in sizes" :key="size" class="chip" :class="{ active: columns === size }" :disabled="busy || exporting || savingDraft" @click="columns = size">{{ size }}</button></view></view>
         <view class="setting-line"><text class="label">最多颜色</text><view class="choices"><button v-for="limit in limits" :key="limit" class="chip" :class="{ active: maxColors === limit }" :disabled="busy || exporting || savingDraft" @click="maxColors = limit">{{ limit }} 色</button></view></view>
         <view class="setting-line"><text class="label">拼豆色板</text><picker :range="brands" range-key="name" :value="brandIndex" :disabled="busy || exporting || savingDraft" @change="changeBrand"><view class="picker-value">{{ selectedBrand.name }} <text>⌄</text></view></picker></view>
@@ -89,7 +91,8 @@ const sizes = [32, 48, 64, 96, 128], limits = [8, 16, 24, 32];
 const brands = BEAD_PALETTES;
 const modes = [{id:'illustration',name:'插画'}, {id:'photo',name:'照片'}];
 const cleanupLevels = [{id:0,name:'关闭'}, {id:1,name:'轻度'}, {id:2,name:'标准'}];
-const mode = ref('illustration'), cleanup = ref(1);
+const backgrounds = [{id:'keep',name:'保留背景'}, {id:'remove',name:'去除背景'}];
+const mode = ref('illustration'), cleanup = ref(1), background = ref('keep');
 const tools = [{id:'paint',name:'点格换色'}, {id:'erase',name:'擦除'}, {id:'replace',name:'整色替换'}];
 const patternBrandId = ref(brands[0].id);
 const columns = ref(48), maxColors = ref(16), brandIndex = ref(0), excludedCodes = ref([]);
@@ -111,12 +114,12 @@ const paintColors = computed(() => pattern.value ? pattern.value.palette.map((co
 const selectedColorName = computed(() => pendingBrushColor.value?.code || pattern.value?.palette[selectedColor.value]?.code || '请选择颜色');
 const brandPaintColors = computed(() => [{code:'',label:'请选择要添加的色号'}, ...patternBrand.value.colors.map(color => ({...color,label: `${color.code} · ${color.name}`}))]);
 const brandBrushIndex = computed(() => Math.max(0,brandPaintColors.value.findIndex(color => color.code === selectedColorName.value)));
-function settingsKey() { return JSON.stringify({columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,excludedCodes:[...excludedCodes.value].sort(),mode:mode.value,cleanup:cleanup.value}); }
+function settingsKey() { return JSON.stringify({columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,excludedCodes:[...excludedCodes.value].sort(),mode:mode.value,cleanup:cleanup.value,background:background.value}); }
 function restoreGeneratedSettings(value) {
   if (typeof value !== 'string') return settingsKey();
   try {
     const saved = JSON.parse(value);
-    return JSON.stringify({columns:saved.columns,maxColors:saved.maxColors,brandId:saved.brandId,excludedCodes:[...saved.excludedCodes].sort(),mode:saved.mode === 'illustration' ? 'illustration' : 'photo',cleanup:[0,1,2].includes(saved.cleanup) ? saved.cleanup : 0});
+    return JSON.stringify({columns:saved.columns,maxColors:saved.maxColors,brandId:saved.brandId,excludedCodes:[...saved.excludedCodes].sort(),mode:saved.mode === 'illustration' ? 'illustration' : 'photo',cleanup:[0,1,2].includes(saved.cleanup) ? saved.cleanup : 0,background:saved.background === 'remove' ? 'remove' : 'keep'});
   } catch (_) { return settingsKey(); }
 }
 const settingsChanged = computed(() => !!pattern.value && generatedSettings.value !== settingsKey());
@@ -176,10 +179,13 @@ async function convert(ticket) {
   busy.value = true; error.value = '';
   try {
     await nextTick();
+    // Give the native view time to display the busy state before local image analysis.
+    await new Promise(resolve => setTimeout(resolve, 20));
+    if (!current(ticket)) return;
     if (!sourceSurface) sourceSurface = await getCanvasSurface('bead-source', scope);
     if (!rgba) rgba = await decodePhoto(sourceSurface, sourcePath.value, () => current(ticket));
     if (!current(ticket) || !rgba) return;
-    const result = convertToPattern(rgba, {columns:columns.value,maxColors:maxColors.value,palette:selectedBrand.value.colors,excludedCodes:excludedCodes.value,mode:mode.value,cleanup:cleanup.value});
+    const result = convertToPattern(rgba, {columns:columns.value,maxColors:maxColors.value,palette:selectedBrand.value.colors,excludedCodes:excludedCodes.value,mode:mode.value,cleanup:cleanup.value,background:background.value});
     if (!current(ticket)) return;
     pattern.value = result; patternBrandId.value = selectedBrand.value.id; generatedSettings.value = settingsKey(); history.value = []; selectedColor.value = materials.value[0]?.index ?? -1; pendingBrushColor.value = null; editNotice.value = ''; saveNotice.value = ''; zoom.value = 1;
   } catch (failure) { if (current(ticket)) error.value = failure.message || '图纸生成失败，请换一张图片重试'; }
@@ -250,13 +256,13 @@ async function saveDraft() {
     if (rgba && sourceSurface) savedSource = sourceSurface.canvas.toDataURL('image/png');
     // #endif
     if (!current(ticket)) return;
-    const draft = {version:1,pattern:pattern.value,source:savedSource,mode:mode.value,cleanup:cleanup.value,columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,patternBrandId:patternBrandId.value,generatedSettings:generatedSettings.value,excludedCodes:excludedCodes.value,updatedAt:Date.now()};
+    const draft = {version:1,pattern:pattern.value,source:savedSource,mode:mode.value,cleanup:cleanup.value,background:background.value,columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,patternBrandId:patternBrandId.value,generatedSettings:generatedSettings.value,excludedCodes:excludedCodes.value,updatedAt:Date.now()};
     try { uni.setStorageSync(DRAFT_KEY,draft); }
     catch (_) { uni.setStorageSync(DRAFT_KEY,{...draft,source:''}); saveNotice.value = '图纸草稿已保存，原图未能保存在本机；恢复后仍可编辑和导出。'; hasDraft.value = true; return; }
     hasDraft.value = true; saveNotice.value = '草稿已保存在本机，可下次继续制作。';
   } catch (_) {
     if (!current(ticket)) return;
-    try { uni.setStorageSync(DRAFT_KEY,{version:1,pattern:pattern.value,source:'',mode:mode.value,cleanup:cleanup.value,columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,patternBrandId:patternBrandId.value,generatedSettings:generatedSettings.value,excludedCodes:excludedCodes.value}); hasDraft.value = true; saveNotice.value = '图纸草稿已保存，原图未能保存在本机；恢复后仍可编辑和导出。'; }
+    try { uni.setStorageSync(DRAFT_KEY,{version:1,pattern:pattern.value,source:'',mode:mode.value,cleanup:cleanup.value,background:background.value,columns:columns.value,maxColors:maxColors.value,brandId:selectedBrand.value.id,patternBrandId:patternBrandId.value,generatedSettings:generatedSettings.value,excludedCodes:excludedCodes.value}); hasDraft.value = true; saveNotice.value = '图纸草稿已保存，原图未能保存在本机；恢复后仍可编辑和导出。'; }
     catch (_) { message('本机空间不足，草稿未保存，请先导出图纸'); }
   } finally { if (alive) savingDraft.value = false; }
 }
@@ -267,7 +273,7 @@ async function restoreDraft() {
     const ticket = ++generation; rgba = null; patternBrandId.value = draft.patternBrandId || draft.brandId || brands[0].id; pattern.value = saved; history.value = []; zoom.value = 1;
     columns.value = sizes.includes(draft.columns) ? draft.columns : 48; maxColors.value = limits.includes(draft.maxColors) ? draft.maxColors : 16;
     brandIndex.value = Math.max(0,brands.findIndex(brand => brand.id === draft.brandId)); excludedCodes.value = Array.isArray(draft.excludedCodes) ? draft.excludedCodes : [];
-    mode.value = draft.mode === 'illustration' ? 'illustration' : 'photo'; cleanup.value = [0,1,2].includes(draft.cleanup) ? draft.cleanup : 0;
+    mode.value = draft.mode === 'illustration' ? 'illustration' : 'photo'; cleanup.value = [0,1,2].includes(draft.cleanup) ? draft.cleanup : 0; background.value = draft.background === 'remove' ? 'remove' : 'keep';
     generatedSettings.value = restoreGeneratedSettings(draft.generatedSettings);
     sourcePath.value = draft.source || ''; sourceIsPreview.value = sourcePath.value.startsWith('data:'); persistentPath = sourcePath.value; archiveStatus.value = 'idle';
     selectedColor.value = materials.value[0]?.index ?? -1; pendingBrushColor.value = null;

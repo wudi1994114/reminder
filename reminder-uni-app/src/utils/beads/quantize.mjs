@@ -1,11 +1,11 @@
-import { distance, nearest } from './color.mjs';
+import { distance, matchDistance, nearestColor } from './color.mjs';
 
 /** Minimize aggregate source-color error over a subset of actual, available bead colors. */
 export function selectColors(points, labs, maxColors, mode, width) {
   const histogram = new Map();
   points.forEach((point, cell) => {
     if (!point) return;
-    const i = nearest(point, labs);
+    const i = nearestColor(point, labs);
     let importance = 1;
     if (mode === 'illustration') {
       // Give high-contrast small features extra influence without counting absent colors.
@@ -45,7 +45,7 @@ export function selectColors(points, labs, maxColors, mode, width) {
     for (const { group } of groups.slice(0, Math.min(4, Math.ceil(maxColors / 2)))) {
       const weight = group.reduce((s, b) => s + b.weight, 0);
       const center = [0, 1, 2].map(j => group.reduce((s, b) => s + b.point[j] * b.weight, 0) / weight);
-      const index = group.reduce((best, b) => distance(center, labs[b.index]) < distance(center, labs[best]) ? b.index : best, group[0].index);
+      const index = group.reduce((best, b) => matchDistance(center, labs[b.index]) < matchDistance(center, labs[best]) ? b.index : best, group[0].index);
       selected.push(index); locked.add(index);
     }
   }
@@ -58,32 +58,32 @@ export function selectColors(points, labs, maxColors, mode, width) {
   if (!selected.length) {
     let best = candidates[0], bestLoss = Infinity;
     for (const i of candidates) {
-      const loss = bins.reduce((s, b) => s + b.weight * distance(b.point, labs[i]), 0);
+      const loss = bins.reduce((s, b) => s + b.weight * matchDistance(b.point, labs[i]), 0);
       if (loss < bestLoss) { best = i; bestLoss = loss; }
     }
     selected.push(best);
   }
-  let errors = bins.map(b => Math.min(...selected.map(i => distance(b.point, labs[i]))));
+  let errors = bins.map(b => Math.min(...selected.map(i => matchDistance(b.point, labs[i]))));
   while (selected.length < maxColors) {
     let best = -1, bestGain = -1;
     for (const i of candidates) {
       if (selected.includes(i)) continue;
-      const gain = bins.reduce((s, b, j) => s + b.weight * Math.max(0, errors[j] - distance(b.point, labs[i])), 0);
+      const gain = bins.reduce((s, b, j) => s + b.weight * Math.max(0, errors[j] - matchDistance(b.point, labs[i])), 0);
       if (gain > bestGain) { bestGain = gain; best = i; }
     }
     if (best < 0) break;
     selected.push(best);
-    errors = bins.map((b, j) => Math.min(errors[j], distance(b.point, labs[best])));
+    errors = bins.map((b, j) => Math.min(errors[j], matchDistance(b.point, labs[best])));
   }
   // Deterministic constrained medoid refinement: each change can only lower its cluster's error.
   for (let iteration = 0; iteration < 3; iteration++) {
     let changed = false;
     const chosen = selected.map(i => labs[i]);
     const clusters = selected.map(() => []);
-    for (const b of bins) clusters[nearest(b.point, chosen)].push(b);
+    for (const b of bins) clusters[nearestColor(b.point, chosen)].push(b);
     for (let j = 0; j < selected.length; j++) {
       if (locked.has(selected[j]) || !clusters[j].length) continue;
-      const loss = i => clusters[j].reduce((s, b) => s + b.weight * distance(b.point, labs[i]), 0);
+      const loss = i => clusters[j].reduce((s, b) => s + b.weight * matchDistance(b.point, labs[i]), 0);
       let best = selected[j], bestLoss = loss(best);
       for (let i = 0; i < labs.length; i++) {
         if (selected.includes(i)) continue;
@@ -118,7 +118,7 @@ export function cleanIslands(cells, points, labs, width, height, strength) {
     if (count / total < 0.75 || distance(labs[cells[seed]], labs[replacement]) > threshold ** 2) continue;
     // Quantization can collapse a strong source edge into two very similar available beads.
     if (component.some(i => neighbors(i).some(n => n >= 0 && points[n] && distance(points[i], points[n]) > (threshold * 1.5) ** 2))) continue;
-    if (component.some(i => distance(points[i], labs[replacement]) - distance(points[i], labs[cells[i]]) > threshold ** 2)) continue;
+    if (component.some(i => matchDistance(points[i], labs[replacement]) - matchDistance(points[i], labs[cells[i]]) > threshold ** 2)) continue;
     for (const i of component) output[i] = replacement;
   }
   return output;
