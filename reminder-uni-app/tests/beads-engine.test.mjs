@@ -83,3 +83,49 @@ test('maximum grid counts exactly and editing output does not alias source palet
   const allEmpty=convert(image(16,16,()=>[0,0,0,0]));
   assert.deepEqual(allEmpty.palette,[]); assert.deepEqual(countMaterials(allEmpty),[]);
 });
+
+test('illustration sampling keeps flat colors and supported dark strokes instead of invented grey',()=>{
+  const flat=convert(image(64,64,x=>x%4<3?[255,0,0,255]:[255,255,255,255]),{mode:'illustration'});
+  assert.ok(flat.cells.every(i=>flat.palette[i].code==='R'));
+  const line=convert(image(64,64,x=>x%4===1?[0,0,0,255]:[255,255,255,255]),{mode:'illustration'});
+  assert.ok(line.cells.every(i=>line.palette[i].code==='K'));
+  const photo=convert(image(32,16,x=>x%2?[255,255,255,255]:[0,0,0,255]),{mode:'photo'});
+  assert.ok(photo.cells.every(i=>photo.palette[i].code==='G'));
+});
+test('light cleanup removes low-contrast singleton noise but retains eyes and transparency',()=>{
+  const colors=[...palette,{code:'N',name:'Near white',hex:'#E6E6E6',rgb:[230,230,230]}];
+  const input=image(16,16,(x,y)=>x===8&&y===8?[230,230,230,255]:x===3&&y===3?[0,0,0,255]:x===0&&y===0?[0,0,255,0]:[255,255,255,255]);
+  const raw=convert(input,{palette:colors,cleanup:0}), clean=convert(input,{palette:colors,cleanup:1});
+  assert.equal(raw.palette[raw.cells[8*16+8]].code,'N');
+  assert.equal(clean.palette[clean.cells[8*16+8]].code,'W');
+  assert.equal(clean.palette[clean.cells[3*16+3]].code,'K');
+  assert.equal(clean.cells[0],-1);
+  assert.equal(countMaterials(clean).reduce((s,c)=>s+c.count,0),255);
+});
+test('limited illustration palettes retain rare actual high-contrast neutral details',()=>{
+  const colors=[...palette,{code:'Y',hex:'#FFFF00',rgb:[255,255,0]}];
+  const p=convert(image(16,16,(x,y)=>x===5&&y===5?[0,0,0,255]:x<8?[255,255,0,255]:[255,255,255,255]),{palette:colors,maxColors:3,mode:'illustration'});
+  assert.equal(p.palette[p.cells[5*16+5]].code,'K');
+  assert.deepEqual(p,convert(image(16,16,(x,y)=>x===5&&y===5?[0,0,0,255]:x<8?[255,255,0,255]:[255,255,255,255]),{palette:colors,maxColors:3,mode:'illustration'}));
+});
+test('new processing options reject invalid modes and strengths',()=>{
+  const input=image(16,16,()=>[255,255,255,255]);
+  assert.throws(()=>convert(input,{mode:'unknown'}),/mode/i);
+  for(const cleanup of [-1,3,0.5,NaN]) assert.throws(()=>convert(input,{cleanup}),/cleanup/i);
+});
+test('a large muted background cannot consume the palette budget of vivid subject accents',()=>{
+  const neutrals=Array.from({length:10},(_,i)=>({code:`N${i}`,hex:'#000000',rgb:[50+i*15,48+i*15,45+i*15]}));
+  const colors=[...neutrals,...palette.filter(c=>['R'].includes(c.code)),{code:'B',rgb:[20,100,200]},{code:'Y',rgb:[210,180,20]}];
+  const input=image(32,32,(x,y)=>x===31&&y<3?[...colors[10+y].rgb,255]:[...neutrals[Math.floor(y/32*10)].rgb,255]);
+  for (const mode of ['photo','illustration']) {
+    const p=convert(input,{columns:32,palette:colors,maxColors:5,mode});
+    for (const code of ['R','B','Y']) assert.ok(p.palette.some(c=>c.code===code),`${mode} lost ${code}`);
+  }
+});
+test('cleanup protects source edges even when the remaining bead colors are similar',()=>{
+  const colors=[{code:'D',rgb:[120,120,120]},{code:'L',rgb:[140,140,140]}];
+  const input=image(16,16,(x,y)=>x===8&&y===8?[240,0,0,255]:[0,160,160,255]);
+  const raw=convert(input,{palette:colors,cleanup:0});
+  assert.notEqual(raw.cells[8*16+8],raw.cells[0]);
+  for (const cleanup of [1,2]) assert.deepEqual(convert(input,{palette:colors,cleanup}).cells,raw.cells);
+});
