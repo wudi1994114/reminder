@@ -66,7 +66,7 @@
     <view v-if="!pattern" class="empty-note"><text class="empty-symbol">● ● ●</text><text>一张照片，一点耐心，一份小小的快乐。</text><text class="hint">无需登录也能制作、编辑和保存图纸。</text></view>
     <canvas id="bead-source" type="2d" canvas-id="bead-source" class="offscreen" />
     <canvas id="bead-export" type="2d" canvas-id="bead-export" class="offscreen" />
-    <OneClickLogin :visible="showLogin" @close="showLogin = false" @login-success="loginSuccess" />
+    <OneClickLogin v-if="showLogin" :visible="showLogin" @close="showLogin = false" @login-success="loginSuccess" />
   </view>
 </template>
 

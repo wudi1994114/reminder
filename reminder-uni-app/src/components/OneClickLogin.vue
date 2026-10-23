@@ -1,5 +1,5 @@
 <template>
-  <view class="login-modal" v-show="visible" @click="handleMaskClick">
+  <view class="login-modal" v-if="visible" @click="handleMaskClick">
     <view class="modal-content" @click.stop>
       <view class="modal-header">
         <text class="modal-title">登录提醒应用</text>
