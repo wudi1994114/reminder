@@ -29,7 +29,13 @@
 - `node --test reminder-uni-app/tests/beads*.test.mjs reminder-uni-app/tests/login-overlay.test.mjs`：23项通过，包含线条、近白杂点、真实源边缘、关键点缀色、透明、排色、材料、旧草稿迁移、设置保存、登录遮罩。
 - 干净源码暂存目录构建 H5 和 mp-weixin，均成功；不包含工作区其他训练/创建页面的未提交改动。
 - H5 Playwright 390×844：真实12MiB海浪图选图、64×44/2816颗生成、模式/清理切换、擦除/撤销、草稿恢复保留设置、分页PNG导出均通过，无页面异常；游客全过程没有API请求，未弹登录遮罩。
-- 浏览器实测从选择文件到出现图纸：海浪约244ms；6倍CPU节流下鹦鹉约221ms。这是桌面Chromium移动视口的端到端结果，不是手机真机指标。Node暖机后5次中位数：海浪64格插画约24ms，鹦鹉64格照片约5ms；包含采样、配色、限色和清理，不含解码/绘制。
+- 浏览器实测从选择文件到出现图纸：最终包海浪约256ms；6倍CPU节流下鹦鹉约239ms。这是桌面Chromium移动视口的端到端结果，不是手机真机指标。Node暖机后5次中位数：海浪64格插画约24ms，鹦鹉64格照片约5ms；包含采样、配色、限色和清理，不含解码/绘制。
 - 已人工查看带色号、坐标、全图材料表和署名的导出PNG。微信手机性能、相册权限和实物拼豆配色仍需设备/实物验收。
 
 复现：使用保留的Canvas解码脚本生成`{width,height,data}` JSON，再运行 `node reminder-uni-app/scripts/beads-quality-benchmark.mjs input.rgba.json output.json baseline-engine.mjs`。独立脚本报告速度与孤立格，不以指标替代视觉验收。
+
+## 提交与微信上传
+
+- 实现提交 `adf7e3d` 已推送 `origin/codex/cloudbase-exit-monolith`。构建暂存目录中全部本次客户端源文件与提交一致。
+- 微信CLI上传开发版 `1.0.20261023.2` 成功，958,569字节。没有切换正式版或在公众平台选择体验版；另生成开发预览码供手机扫描。
+- 未提交工作区中其他创建、训练页面、包配置或文档删除。
