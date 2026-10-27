@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingRequestWrapper;
 import org.springframework.web.util.ContentCachingResponseWrapper;
+import org.springframework.web.util.UrlPathHelper;
 
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
@@ -21,6 +22,17 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        if (isDailyRecordRequest(request)) {
+            // Personal measurements and diaries must never enter request/response logs.
+            try {
+                filterChain.doFilter(request, response);
+            } finally {
+                logger.info("接口：[{}] {} 状态：{}（每日记录内容已省略）",
+                        request.getMethod(), request.getRequestURI(), response.getStatus());
+            }
+            return;
+        }
+
         ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 
@@ -73,6 +85,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
+    private boolean isDailyRecordRequest(HttpServletRequest request) {
+        String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+        return path.equals("/api/daily-records") || path.startsWith("/api/daily-records/");
+    }
+
     private String getRequestBody(ContentCachingRequestWrapper request) {
         byte[] buf = request.getContentAsByteArray();
         if (buf.length > 0) {
@@ -104,4 +121,4 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private boolean isReadable(String content) {
         return content != null && !content.contains("\uFFFD");
     }
-} 
+}
